@@ -42,6 +42,7 @@ export default function StationLayout() {
         <NavLink to="media">Biblioteca</NavLink>
         <NavLink to="playlists">Playlists</NavLink>
         <NavLink to="djs">DJs</NavLink>
+        <NavLink to="reports">Relatórios</NavLink>
         <NavLink to="settings">Configurações</NavLink>
       </nav>
       <Outlet context={{ station, reload } satisfies StationCtx} />

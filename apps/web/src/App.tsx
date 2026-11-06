@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import MediaPage from './pages/MediaPage';
 import Playlists from './pages/Playlists';
 import DjsPage from './pages/DjsPage';
+import ReportsPage from './pages/ReportsPage';
 import Settings from './pages/Settings';
 import Users from './pages/Users';
 
@@ -51,6 +52,7 @@ export default function App() {
           <Route path="media" element={<MediaPage />} />
           <Route path="playlists" element={<Playlists />} />
           <Route path="djs" element={<DjsPage />} />
+          <Route path="reports" element={<ReportsPage />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Route>

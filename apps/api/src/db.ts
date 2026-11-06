@@ -129,6 +129,31 @@ CREATE TABLE IF NOT EXISTS station_djs (
 );
 `);
 
+// Estatísticas: amostras de ouvintes (1 por minuto) e sessões lidas do access.log do Icecast.
+db.exec(`
+CREATE TABLE IF NOT EXISTS listener_samples (
+  station_id INTEGER NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
+  at TEXT NOT NULL,
+  listeners INTEGER NOT NULL,
+  PRIMARY KEY (station_id, at)
+);
+CREATE TABLE IF NOT EXISTS listener_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
+  ip_hash TEXT NOT NULL,
+  country TEXT NOT NULL DEFAULT '??',
+  player TEXT NOT NULL DEFAULT 'Outro',
+  mount TEXT NOT NULL DEFAULT '',
+  started_at TEXT NOT NULL,
+  duration INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_station ON listener_sessions(station_id, started_at);
+CREATE TABLE IF NOT EXISTS station_log_state (
+  station_id INTEGER PRIMARY KEY REFERENCES stations(id) ON DELETE CASCADE,
+  offset INTEGER NOT NULL DEFAULT 0
+);
+`);
+
 export function all<T>(sql: string, ...params: SQLInputValue[]): T[] {
   return db.prepare(sql).all(...params) as T[];
 }
