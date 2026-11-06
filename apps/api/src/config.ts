@@ -28,6 +28,8 @@ export const config = {
   apiInternalUrl: process.env.API_INTERNAL_URL ?? `http://127.0.0.1:${process.env.PORT ?? 3000}`,
   engine: {
     enabled: (process.env.ENGINE_ENABLED ?? 'true') === 'true',
+    /** auto = usa Icecast+Liquidsoap se estiverem instalados; senão, o motor simples em Node. */
+    mode: (process.env.ENGINE_MODE ?? 'auto') as 'auto' | 'liquidsoap' | 'native',
     icecastBin: process.env.ICECAST_BIN ?? 'icecast2',
     liquidsoapBin: process.env.LIQUIDSOAP_BIN ?? 'liquidsoap',
     streamPortStart: Number(process.env.STREAM_PORT_START ?? 8000),

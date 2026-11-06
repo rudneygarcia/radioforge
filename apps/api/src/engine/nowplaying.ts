@@ -41,8 +41,16 @@ export function getHistory(stationId: number, limit = 20) {
 
 const listenerCache = new Map<number, { at: number; value: number }>();
 
-/** Ouvintes atuais lidos do status do Icecast (cache de 5s). */
+// O motor simples (Node) registra aqui a contagem própria de ouvintes, sem depender do Icecast.
+let nativeCounter: ((stationId: number) => number | null) | null = null;
+export function setNativeListenerCounter(fn: (stationId: number) => number | null) {
+  nativeCounter = fn;
+}
+
+/** Ouvintes atuais: do motor simples, se ele estiver servindo a estação, senão do status do Icecast (cache de 5s). */
 export async function getListeners(st: StationRow): Promise<number> {
+  const own = nativeCounter?.(st.id);
+  if (own !== null && own !== undefined) return own;
   const hit = listenerCache.get(st.id);
   if (hit && Date.now() - hit.at < 5000) return hit.value;
   let value = 0;

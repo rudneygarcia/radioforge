@@ -66,6 +66,7 @@ export interface Station {
   recordLive: boolean;
   mounts: MountCfg[];
   streams: StreamInfo[];
+  engine: 'liquidsoap' | 'native';
   running: boolean;
   listeners: number;
   nowPlaying: NowPlaying | null;

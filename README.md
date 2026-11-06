@@ -37,6 +37,17 @@ npm run dev:web                        # painel em :5173 (proxy para a API)
 
 Variáveis: `PUBLIC_HOST`, `PORT`, `DATA_DIR`, `ENGINE_ENABLED`, `JWT_SECRET`, `INTERNAL_TOKEN` (os dois segredos são gerados e salvos em `DATA_DIR/.secrets` se não informados).
 
+## Motores de streaming
+
+A API escolhe sozinha (`ENGINE_MODE=auto`, padrão):
+
+| Modo | Quando | O que oferece |
+|---|---|---|
+| `liquidsoap` | Icecast e Liquidsoap instalados (imagem Docker) | Tudo: DJ ao vivo, crossfade, normalização, gravação, vários formatos/bitrates |
+| `native` | Sem esses programas (ex.: Windows, para testar) | Motor simples em Node: **só MP3**, playlists e agendamento, pedidos, relatórios. Sem DJ, crossfade, normalização, gravação ou transcodificação (streams extras repetem o principal). Sem playlists, toca a biblioteca inteira |
+
+Force um modo com `ENGINE_MODE=native` ou `ENGINE_MODE=liquidsoap`. O painel avisa quando está no modo simples. O endereço do stream é `http://<PUBLIC_HOST>:<porta>/radio`; no Windows, libere o Node no firewall se ele perguntar.
+
 ## Estado atual
 
 | Área | Situação |
@@ -48,6 +59,7 @@ Variáveis: `PUBLIC_HOST`, `PORT`, `DATA_DIR`, `ENGINE_ENABLED`, `JWT_SECRET`, `
 | DJs com usuário/senha próprios (o usuário `source` continua valendo) e gravação das transmissões ao vivo, com download | Pronto na API/painel, testado; autenticação do harbor e `output.file` no Liquidsoap **não executados** |
 | Relatórios de ouvintes: média/pico ao longo do tempo, países (GeoIP), players, horário de pico, com gráficos e tabela | Pronto e testado com logs de exemplo; **ainda não com o access.log real do Icecast** (ver nota abaixo) |
 | Chaves de API e webhooks (Discord e JSON assinado), com proteção SSRF | Pronto e testado (24 verificações automáticas) |
+| Motor simples em Node (modo `native`) para testar o áudio sem Icecast/Liquidsoap | Pronto e testado: stream em tempo real, troca de faixa, pedidos, relatórios; tocou num navegador de verdade |
 | Player público, histórico, pedidos de músicas | Pronto (API testada; pedidos dependem do Liquidsoap) |
 | Geração de `icecast.xml` e `radio.liq`, supervisor de processos | Escrito, **ainda não executado contra Icecast/Liquidsoap reais** |
 | Imagem Docker | Escrita, **ainda não construída** |

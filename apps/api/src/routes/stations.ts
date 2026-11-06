@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { authenticate, HttpError, requireAdmin, stationFor } from '../auth.js';
 import { config, stationDir } from '../config.js';
 import { all, db, get, mountsFor, run, type StationRow } from '../db.js';
-import { ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
+import { engineMode, ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
 import { harborPort } from '../engine/liquidsoap.js';
 import { getHistory, getListeners, getNowPlaying } from '../engine/nowplaying.js';
 
@@ -95,7 +95,8 @@ export async function stationView(st: StationRow) {
     listeners: await getListeners(st),
     nowPlaying: getNowPlaying(st.id),
     streamUrl: streamUrl(st),
-    dj: st.live_enabled
+    engine: engineMode(),
+    dj: st.live_enabled && engineMode() === 'liquidsoap'
       ? { host: config.publicHost, port: harborPort(st), mount: '/live', username: 'source', password: st.source_password }
       : null,
   };
@@ -151,7 +152,10 @@ export async function stationRoutes(app: FastifyInstance) {
     const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', Number(r.lastInsertRowid))!;
     saveMounts(st.id, st.mount, body.mounts);
     ensureStationDirs(st.id);
-    if (config.engine.enabled && st.autostart) await startStation(st);
+    if (config.engine.enabled && st.autostart) {
+      // Falha ao iniciar (ex.: porta ocupada) não deve impedir a criação da estação.
+      await startStation(st).catch((e) => app.log.error(e, 'falha ao iniciar a estação recém-criada'));
+    }
     return reply.code(201).send(await stationView(st));
   });
 

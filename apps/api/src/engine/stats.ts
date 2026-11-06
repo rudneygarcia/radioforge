@@ -1,11 +1,10 @@
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import geoip from 'geoip-country';
-import { config, stationDir } from '../config.js';
+import { stationDir } from '../config.js';
 import { all, db, get, mountsFor, run, type StationRow } from '../db.js';
 import { getListeners } from './nowplaying.js';
 import { isRunning } from './manager.js';
+import { recordSession, sqlTime } from './sessions.js';
 
 export interface ParsedSession {
   ip: string;
@@ -30,35 +29,6 @@ export function parseAccessLine(line: string): ParsedSession | null {
   const offsetMin = (tz[0] === '-' ? -1 : 1) * (Number(tz.slice(1, 3)) * 60 + Number(tz.slice(3, 5)));
   const utc = Date.UTC(Number(m[4]), month, Number(m[2]), Number(m[5]), Number(m[6]), Number(m[7])) - offsetMin * 60_000;
   return { ip: m[1], endedAt: new Date(utc), path: m[9], status: Number(m[10]), userAgent: m[11], duration: Number(m[12]) };
-}
-
-/** Agrupa os user-agents mais comuns em nomes legíveis. */
-export function classifyPlayer(ua: string): string {
-  const s = ua.toLowerCase();
-  if (!s) return 'Desconhecido';
-  if (s.includes('vlc')) return 'VLC';
-  if (s.includes('winamp')) return 'Winamp';
-  if (s.includes('itunes') || s.includes('applecoremedia')) return 'Apple (iOS/macOS)';
-  if (s.includes('exoplayer') || s.includes('okhttp') || s.includes('stagefright')) return 'App Android';
-  if (s.includes('edg/')) return 'Edge';
-  if (s.includes('firefox')) return 'Firefox';
-  if (s.includes('chrome') || s.includes('chromium')) return 'Chrome';
-  if (s.includes('safari')) return 'Safari';
-  if (s.includes('alexa') || s.includes('echo')) return 'Alexa';
-  if (s.includes('curl') || s.includes('wget')) return 'Ferramenta (curl/wget)';
-  return 'Outro';
-}
-
-const sqlTime = (d: Date) => d.toISOString().slice(0, 19).replace('T', ' ');
-
-const hashIp = (ip: string) => crypto.createHash('sha256').update(ip + config.internalToken).digest('hex').slice(0, 16);
-
-function countryOf(ip: string): string {
-  try {
-    return geoip.lookup(ip.replace(/^::ffff:/, ''))?.country ?? '??';
-  } catch {
-    return '??';
-  }
 }
 
 /** Importa do access.log as conexões novas desde a última leitura. */
@@ -92,17 +62,7 @@ export function ingestAccessLog(st: StationRow) {
       // Ignora requisições que não são de ouvintes reais (status.xsl, probes de segundos, erros).
       if (!s || s.duration < 5 || (s.status !== 200 && s.status !== 206)) continue;
       if (!mounts.has(s.path.split('?')[0])) continue;
-      run(
-        `INSERT INTO listener_sessions (station_id, ip_hash, country, player, mount, started_at, duration)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        st.id,
-        hashIp(s.ip),
-        countryOf(s.ip),
-        classifyPlayer(s.userAgent),
-        s.path.split('?')[0],
-        sqlTime(new Date(s.endedAt.getTime() - s.duration * 1000)),
-        s.duration,
-      );
+      recordSession(st.id, s.ip, s.userAgent, s.path.split('?')[0], new Date(s.endedAt.getTime() - s.duration * 1000), s.duration);
       inserted++;
     }
     run(

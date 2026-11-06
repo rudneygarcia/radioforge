@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
@@ -6,6 +6,7 @@ import { config, stationDir } from '../config.js';
 import { all, djsFor, get, mountsFor, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
 import { buildIcecastConfig } from './icecast.js';
 import { dispatch } from './webhooks.js';
+import { nativeEnqueue, nativeRunning, startNative, stopNative } from './native.js';
 import { buildLiquidsoapScript, telnetPort, type LiqPlaylist } from './liquidsoap.js';
 
 /** Mantém um processo vivo, reiniciando com backoff se cair. */
@@ -61,6 +62,29 @@ class Supervised {
   }
 }
 
+const hasBin = (bin: string, arg: string) => {
+  try {
+    return !spawnSync(bin, [arg], { stdio: 'ignore', timeout: 5000 }).error;
+  } catch {
+    return false;
+  }
+};
+
+let resolvedMode: 'liquidsoap' | 'native' | null = null;
+/** Motor em uso: Icecast+Liquidsoap (completo) ou o motor simples em Node (só MP3, ver native.ts). */
+export function engineMode(): 'liquidsoap' | 'native' {
+  if (resolvedMode) return resolvedMode;
+  const want = config.engine.mode;
+  resolvedMode =
+    want === 'native' || want === 'liquidsoap'
+      ? want
+      : hasBin(config.engine.liquidsoapBin, '--version') && hasBin(config.engine.icecastBin, '-v')
+        ? 'liquidsoap'
+        : 'native';
+  console.log(`[engine] modo de streaming: ${resolvedMode}`);
+  return resolvedMode;
+}
+
 interface StationProcs {
   icecast: Supervised;
   liquidsoap: Supervised;
@@ -109,12 +133,18 @@ function writeConfigs(st: StationRow) {
 }
 
 export function isRunning(stationId: number) {
+  if (engineMode() === 'native') return nativeRunning(stationId);
   const p = procs.get(stationId);
   return !!p && p.icecast.running && p.liquidsoap.running;
 }
 
 export async function startStation(st: StationRow) {
   if (!config.engine.enabled) throw new Error('Engine desativada (ENGINE_ENABLED=false)');
+  if (engineMode() === 'native') {
+    await startNative(st);
+    dispatch(st.id, 'station_start', {});
+    return;
+  }
   if (procs.has(st.id)) await stopStation(st.id);
   writeConfigs(st);
   const base = stationDir(st.id);
@@ -138,6 +168,12 @@ export async function startStation(st: StationRow) {
 }
 
 export async function stopStation(stationId: number) {
+  if (engineMode() === 'native') {
+    if (!nativeRunning(stationId)) return;
+    await stopNative(stationId);
+    dispatch(stationId, 'station_stop', {});
+    return;
+  }
   const p = procs.get(stationId);
   if (!p) return;
   procs.delete(stationId);
@@ -155,6 +191,7 @@ export async function restartStation(st: StationRow) {
  * O Icecast continua no ar, então os ouvintes conectados não são derrubados.
  */
 export async function reloadLiquidsoap(st: StationRow) {
+  if (engineMode() === 'native') return; // o motor simples lê o banco a cada faixa
   const p = procs.get(st.id);
   if (!p) return;
   writeConfigs(st);
@@ -163,7 +200,8 @@ export async function reloadLiquidsoap(st: StationRow) {
 }
 
 export async function stopAll() {
-  await Promise.all([...procs.keys()].map((id) => stopStation(id)));
+  const ids = engineMode() === 'native' ? all<{ id: number }>('SELECT id FROM stations').map((s) => s.id) : [...procs.keys()];
+  await Promise.all(ids.map((id) => stopStation(id)));
 }
 
 export async function startAutostart() {
@@ -181,6 +219,12 @@ export async function startAutostart() {
 export function pushRequest(stationId: number, absPath: string): Promise<void> {
   const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', stationId);
   if (!st) return Promise.reject(new Error('Estação não encontrada'));
+  if (engineMode() === 'native') {
+    const m = get<MediaRow>('SELECT * FROM media WHERE station_id = ? AND path = ?', stationId, path.relative(config.dataDir, absPath));
+    if (!m) return Promise.reject(new Error('Música não encontrada'));
+    nativeEnqueue(stationId, m.id);
+    return Promise.resolve();
+  }
   return new Promise((resolve, reject) => {
     const sock = net.connect(telnetPort(st), '127.0.0.1');
     sock.setTimeout(3000, () => {

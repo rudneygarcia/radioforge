@@ -8,7 +8,7 @@ import Fastify from 'fastify';
 import { ZodError } from 'zod';
 import { config } from './config.js';
 import './db.js';
-import { startAutostart, stopAll } from './engine/manager.js';
+import { engineMode, startAutostart, stopAll } from './engine/manager.js';
 import { startStatsCollector } from './engine/stats.js';
 import { authRoutes } from './routes/auth.js';
 import { djRoutes } from './routes/djs.js';
@@ -47,7 +47,7 @@ await app.register(keyRoutes);
 await app.register(webhookRoutes);
 await app.register(publicRoutes);
 
-app.get('/api/health', async () => ({ ok: true, engine: config.engine.enabled }));
+app.get('/api/health', async () => ({ ok: true, engine: config.engine.enabled, engineMode: engineMode() }));
 
 // Em produção a própria API serve o painel React compilado.
 if (fs.existsSync(path.join(config.webDir, 'index.html'))) {

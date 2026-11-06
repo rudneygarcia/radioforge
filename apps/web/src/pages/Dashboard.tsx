@@ -34,6 +34,12 @@ export default function Dashboard() {
 
   return (
     <>
+      {station.engine === 'native' && (
+        <div className="card notice">
+          <strong>Modo simples (sem Icecast/Liquidsoap).</strong> Toca só arquivos MP3. Sem playlists, toca a biblioteca inteira em ordem aleatória.
+          Não há DJ ao vivo, crossfade, normalização nem gravação, e os streams extras repetem o principal. Instale o Icecast e o Liquidsoap (ou use a imagem Docker) para o modo completo.
+        </div>
+      )}
       <div className="grid">
         <div className="card">
           <h3>Status</h3>

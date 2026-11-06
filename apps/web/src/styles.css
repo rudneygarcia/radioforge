@@ -20,6 +20,7 @@
 .barlist { display: flex; flex-direction: column; gap: 8px; }
 .grid > .card { min-width: 0; }
 .card { overflow-x: auto; max-width: 100%; }
+.card.notice { border-color: var(--accent); font-size: 13px; }
 .card code { white-space: pre-wrap; overflow-wrap: anywhere; }
 .barrow { display: grid; grid-template-columns: 110px minmax(0, 1fr) 36px; gap: 10px; align-items: center; font-size: 13px; }
 .barname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
