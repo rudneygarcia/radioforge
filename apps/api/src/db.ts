@@ -113,6 +113,22 @@ CREATE TABLE IF NOT EXISTS station_mounts (
 );
 `);
 
+addColumn('stations', 'record_live', 'INTEGER NOT NULL DEFAULT 0');
+
+// Contas de DJ: cada DJ conecta ao vivo com seu próprio usuário e senha.
+db.exec(`
+CREATE TABLE IF NOT EXISTS station_djs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
+  username TEXT NOT NULL,
+  password TEXT NOT NULL,
+  display_name TEXT NOT NULL DEFAULT '',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (station_id, username)
+);
+`);
+
 export function all<T>(sql: string, ...params: SQLInputValue[]): T[] {
   return db.prepare(sql).all(...params) as T[];
 }
@@ -147,8 +163,20 @@ export interface StationRow {
   autostart: number;
   crossfade_seconds: number;
   normalize: number;
+  record_live: number;
   created_at: string;
 }
+export interface DjRow {
+  id: number;
+  station_id: number;
+  username: string;
+  password: string;
+  display_name: string;
+  enabled: number;
+  created_at: string;
+}
+export const djsFor = (stationId: number) =>
+  all<DjRow>('SELECT * FROM station_djs WHERE station_id = ? ORDER BY id', stationId);
 export interface MountRow {
   id: number;
   station_id: number;

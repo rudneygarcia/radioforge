@@ -21,6 +21,7 @@ const settings = z.object({
   autostart: z.boolean().default(true),
   crossfadeSeconds: z.number().min(0).max(10).default(0),
   normalize: z.boolean().default(false),
+  recordLive: z.boolean().default(false),
   mounts: z
     .array(
       z.object({
@@ -87,6 +88,7 @@ export async function stationView(st: StationRow) {
     autostart: !!st.autostart,
     crossfadeSeconds: st.crossfade_seconds,
     normalize: !!st.normalize,
+    recordLive: !!st.record_live,
     mounts: mountsFor(st.id).map((m) => ({ mount: m.mount, format: m.format, bitrate: m.bitrate })),
     streams: streamsOf(st),
     running: isRunning(st.id),
@@ -128,8 +130,8 @@ export async function stationRoutes(app: FastifyInstance) {
     if (get('SELECT 1 AS ok FROM stations WHERE slug = ?', slug)) slug += '-' + crypto.randomBytes(2).toString('hex');
     const r = run(
       `INSERT INTO stations (name, slug, description, stream_port, mount, format, bitrate,
-         source_password, admin_password, live_enabled, requests_enabled, autostart, crossfade_seconds, normalize)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         source_password, admin_password, live_enabled, requests_enabled, autostart, crossfade_seconds, normalize, record_live)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       body.name,
       slug,
       body.description,
@@ -144,6 +146,7 @@ export async function stationRoutes(app: FastifyInstance) {
       body.autostart ? 1 : 0,
       body.crossfadeSeconds,
       body.normalize ? 1 : 0,
+      body.recordLive ? 1 : 0,
     );
     const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', Number(r.lastInsertRowid))!;
     saveMounts(st.id, st.mount, body.mounts);
@@ -164,7 +167,7 @@ export async function stationRoutes(app: FastifyInstance) {
     const b = settings.parse(req.body);
     run(
       `UPDATE stations SET name = ?, description = ?, format = ?, bitrate = ?,
-         live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ? WHERE id = ?`,
+         live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ?, record_live = ? WHERE id = ?`,
       b.name,
       b.description,
       b.format,
@@ -174,6 +177,7 @@ export async function stationRoutes(app: FastifyInstance) {
       b.autostart ? 1 : 0,
       b.crossfadeSeconds,
       b.normalize ? 1 : 0,
+      b.recordLive ? 1 : 0,
       st.id,
     );
     saveMounts(st.id, st.mount, b.mounts);

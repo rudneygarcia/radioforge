@@ -7,6 +7,7 @@ import StationLayout from './pages/StationLayout';
 import Dashboard from './pages/Dashboard';
 import MediaPage from './pages/MediaPage';
 import Playlists from './pages/Playlists';
+import DjsPage from './pages/DjsPage';
 import Settings from './pages/Settings';
 import Users from './pages/Users';
 
@@ -49,6 +50,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="media" element={<MediaPage />} />
           <Route path="playlists" element={<Playlists />} />
+          <Route path="djs" element={<DjsPage />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Route>

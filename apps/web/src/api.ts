@@ -63,6 +63,7 @@ export interface Station {
   autostart: boolean;
   crossfadeSeconds: number;
   normalize: boolean;
+  recordLive: boolean;
   mounts: MountCfg[];
   streams: StreamInfo[];
   running: boolean;
@@ -79,6 +80,18 @@ export interface Media {
   duration: number;
   size: number;
   originalName: string;
+}
+export interface Dj {
+  id: number;
+  username: string;
+  displayName: string;
+  enabled: boolean;
+  password: string;
+}
+export interface Recording {
+  name: string;
+  size: number;
+  modifiedAt: string;
 }
 export interface Playlist {
   id: number;

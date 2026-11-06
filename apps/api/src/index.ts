@@ -10,6 +10,7 @@ import { config } from './config.js';
 import './db.js';
 import { startAutostart, stopAll } from './engine/manager.js';
 import { authRoutes } from './routes/auth.js';
+import { djRoutes } from './routes/djs.js';
 import { mediaRoutes } from './routes/media.js';
 import { playlistRoutes } from './routes/playlists.js';
 import { publicRoutes } from './routes/public.js';
@@ -36,6 +37,7 @@ await app.register(userRoutes);
 await app.register(stationRoutes);
 await app.register(mediaRoutes);
 await app.register(playlistRoutes);
+await app.register(djRoutes);
 await app.register(publicRoutes);
 
 app.get('/api/health', async () => ({ ok: true, engine: config.engine.enabled }));

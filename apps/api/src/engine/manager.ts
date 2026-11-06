@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { config, stationDir } from '../config.js';
-import { all, get, mountsFor, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
+import { all, djsFor, get, mountsFor, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
 import { buildIcecastConfig } from './icecast.js';
 import { buildLiquidsoapScript, telnetPort, type LiqPlaylist } from './liquidsoap.js';
 
@@ -68,7 +68,7 @@ const procs = new Map<number, StationProcs>();
 
 export function ensureStationDirs(id: number) {
   const base = stationDir(id);
-  for (const d of ['media', 'playlists', 'config', 'logs']) fs.mkdirSync(path.join(base, d), { recursive: true });
+  for (const d of ['media', 'playlists', 'config', 'logs', 'recordings']) fs.mkdirSync(path.join(base, d), { recursive: true });
 }
 
 /** Reescreve os arquivos .m3u de cada playlist; o Liquidsoap recarrega sozinho (reload_mode=watch). */
@@ -103,7 +103,8 @@ function writeConfigs(st: StationRow) {
   const base = stationDir(st.id);
   const playlists = writePlaylists(st.id);
   fs.writeFileSync(path.join(base, 'config', 'icecast.xml'), buildIcecastConfig(st, path.join(base, 'logs')));
-  fs.writeFileSync(path.join(base, 'config', 'radio.liq'), buildLiquidsoapScript(st, playlists, mountsFor(st.id)));
+  fs.writeFileSync(path.join(base, 'config', 'radio.liq'), buildLiquidsoapScript(st, playlists, mountsFor(st.id), djsFor(st.id), path.join(base, 'recordings')),
+  );
 }
 
 export function isRunning(stationId: number) {
@@ -144,6 +145,18 @@ export async function stopStation(stationId: number) {
 export async function restartStation(st: StationRow) {
   await stopStation(st.id);
   await startStation(st);
+}
+
+/**
+ * Regrava a configuração e reinicia só o Liquidsoap (usado ao mudar DJs).
+ * O Icecast continua no ar, então os ouvintes conectados não são derrubados.
+ */
+export async function reloadLiquidsoap(st: StationRow) {
+  const p = procs.get(st.id);
+  if (!p) return;
+  writeConfigs(st);
+  await p.liquidsoap.stop();
+  p.liquidsoap.start();
 }
 
 export async function stopAll() {

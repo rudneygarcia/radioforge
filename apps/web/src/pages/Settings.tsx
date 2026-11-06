@@ -18,6 +18,7 @@ export default function Settings() {
     autostart: station.autostart,
     crossfadeSeconds: station.crossfadeSeconds,
     normalize: station.normalize,
+    recordLive: station.recordLive,
     mounts: station.mounts,
   });
   const [msg, setMsg] = useState('');
@@ -82,6 +83,7 @@ export default function Settings() {
       )}
 
       <label className="check"><input type="checkbox" checked={f.liveEnabled} onChange={(e) => setF({ ...f, liveEnabled: e.target.checked })} disabled={!isAdmin} /> Permitir DJ ao vivo</label>
+      <label className="check"><input type="checkbox" checked={f.recordLive} onChange={(e) => setF({ ...f, recordLive: e.target.checked })} disabled={!isAdmin || !f.liveEnabled} /> Gravar as transmissões ao vivo dos DJs</label>
       <label className="check"><input type="checkbox" checked={f.requestsEnabled} onChange={(e) => setF({ ...f, requestsEnabled: e.target.checked })} disabled={!isAdmin} /> Permitir pedidos de músicas</label>
       <label className="check"><input type="checkbox" checked={f.autostart} onChange={(e) => setF({ ...f, autostart: e.target.checked })} disabled={!isAdmin} /> Iniciar automaticamente com o servidor</label>
       {isAdmin && (

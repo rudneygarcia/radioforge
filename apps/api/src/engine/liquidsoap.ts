@@ -1,4 +1,4 @@
-import type { MountRow, StationRow } from '../db.js';
+import type { DjRow, MountRow, StationRow } from '../db.js';
 import { config } from '../config.js';
 
 /** Literal de string seguro para Liquidsoap (JSON é compatível com as escapes dele). */
@@ -34,7 +34,13 @@ export const telnetPort = (st: StationRow) => st.stream_port + 6;
  * Gera o script Liquidsoap da estação.
  * Prioridade de fontes: DJ ao vivo > pedidos de ouvintes > rotação das playlists > silêncio.
  */
-export function buildLiquidsoapScript(st: StationRow, playlists: LiqPlaylist[], extraMounts: MountRow[] = []): string {
+export function buildLiquidsoapScript(
+  st: StationRow,
+  playlists: LiqPlaylist[],
+  extraMounts: MountRow[] = [],
+  djs: DjRow[] = [],
+  recordingsDir = '',
+): string {
   const lines: string[] = [];
   lines.push(
     `settings.log.level := 3`,
@@ -91,10 +97,23 @@ export function buildLiquidsoapScript(st: StationRow, playlists: LiqPlaylist[], 
   }
 
   if (st.live_enabled) {
+    // Credenciais aceitas: o usuário "source" (senha da estação) + cada DJ ativo.
+    const creds = [
+      ['source', st.source_password],
+      ...djs.filter((d) => d.enabled).map((d) => [d.username, d.password]),
+    ];
     lines.push(
-      `live = input.harbor("live", port = ${harborPort(st)}, password = ${q(st.source_password)})`,
-      `radio = fallback(id = "dj", track_sensitive = false, [live, radio])`,
+      `dj_credentials = [${creds.map(([u, p]) => `(${q(u)}, ${q(p)})`).join(', ')}]`,
+      `live = input.harbor("live", port = ${harborPort(st)}, auth = fun (login) -> list.exists(fun (c) -> c == (login.user, login.password), dj_credentials))`,
     );
+    if (st.record_live && recordingsDir) {
+      // Grava só enquanto houver DJ conectado (fonte "fallible").
+      const ext = st.format === 'ogg' ? 'ogg' : 'mp3';
+      lines.push(
+        `output.file(${st.format === 'ogg' ? `%ogg(%vorbis.abr(bitrate = ${st.bitrate}))` : `%mp3(bitrate = ${st.bitrate})`}, ${q(`${recordingsDir}/%Y-%m-%d_%Hh%Mm%Ss.${ext}`)}, fallible = true, live)`,
+      );
+    }
+    lines.push(`radio = fallback(id = "dj", track_sensitive = false, [live, radio])`);
   }
 
   lines.push(`radio = mksafe(radio)`, `radio.on_metadata(notify)`, ``);

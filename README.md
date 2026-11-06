@@ -45,6 +45,7 @@ Variáveis: `PUBLIC_HOST`, `PORT`, `DATA_DIR`, `ENGINE_ENABLED`, `JWT_SECRET`, `
 | CRUD de estações, usuários, playlists, biblioteca (upload + tags) | Pronto, testado localmente |
 | Playlists agendadas por dia da semana e horário (prioridade sobre a rotação geral) | Pronto na API/painel; o script Liquidsoap gerado foi revisado, mas **não executado** |
 | Crossfade, normalização de volume (ReplayGain) e até 4 streams extras com formato/bitrate próprios | Pronto na API/painel/player; script Liquidsoap revisado, **não executado** |
+| DJs com usuário/senha próprios (o usuário `source` continua valendo) e gravação das transmissões ao vivo, com download | Pronto na API/painel, testado; autenticação do harbor e `output.file` no Liquidsoap **não executados** |
 | Player público, histórico, pedidos de músicas | Pronto (API testada; pedidos dependem do Liquidsoap) |
 | Geração de `icecast.xml` e `radio.liq`, supervisor de processos | Escrito, **ainda não executado contra Icecast/Liquidsoap reais** |
 | Imagem Docker | Escrita, **ainda não construída** |
@@ -56,7 +57,7 @@ Próximo passo imediato: subir em um servidor Linux, rodar `docker compose up --
 1. **Validar o motor de streaming** no Linux (item acima).
 2. ~~Playlists agendadas por dia/hora~~ (feito). Falta o tipo "uma vez por hora / a cada X músicas".
 3. ~~Crossfade, normalização de volume (ReplayGain), vários mountpoints/bitrates por estação~~ (feito).
-4. DJs com conta própria (autenticação por usuário no harbor), gravação de transmissões ao vivo.
+4. ~~DJs com conta própria, gravação de transmissões ao vivo~~ (feito). Falta mostrar quem é o DJ no ar e agendar horários de DJ.
 5. Relatórios de ouvintes (por país, player, tempo) e gráficos.
 6. Webhooks e integrações (Discord, redes sociais), API com chaves de acesso.
 7. Podcasts, backups agendados, atualização pelo painel.
