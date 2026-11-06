@@ -1,0 +1,117 @@
+import type { MountRow, StationRow } from '../db.js';
+import { config } from '../config.js';
+
+/** Literal de string seguro para Liquidsoap (JSON é compatível com as escapes dele). */
+const q = (s: string) => JSON.stringify(s);
+
+export interface LiqPlaylist {
+  id: number;
+  mode: 'shuffle' | 'sequential';
+  weight: number;
+  m3uPath: string;
+  /** Se presente, a playlist só toca na janela indicada e tem prioridade sobre a rotação geral. */
+  schedule?: { days: number[]; start: string; end: string };
+}
+
+/** "08:30" -> "8h30m" (formato dos predicados de tempo do Liquidsoap). */
+const liqTime = (hhmm: string) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  return `${h}h${String(m).padStart(2, '0')}m`;
+};
+
+/** Predicado Liquidsoap, ex.: `{ (1w or 3w) and 8h00m-10h00m }`. */
+export function schedulePredicate(s: NonNullable<LiqPlaylist['schedule']>): string {
+  const parts: string[] = [];
+  if (s.days.length > 0 && s.days.length < 7) parts.push(`(${s.days.map((d) => `${d}w`).join(' or ')})`);
+  parts.push(`${liqTime(s.start)}-${liqTime(s.end)}`);
+  return `{ ${parts.join(' and ')} }`;
+}
+
+export const harborPort = (st: StationRow) => st.stream_port + 5;
+export const telnetPort = (st: StationRow) => st.stream_port + 6;
+
+/**
+ * Gera o script Liquidsoap da estação.
+ * Prioridade de fontes: DJ ao vivo > pedidos de ouvintes > rotação das playlists > silêncio.
+ */
+export function buildLiquidsoapScript(st: StationRow, playlists: LiqPlaylist[], extraMounts: MountRow[] = []): string {
+  const lines: string[] = [];
+  lines.push(
+    `settings.log.level := 3`,
+    `settings.server.telnet := true`,
+    `settings.server.telnet.bind_addr := "127.0.0.1"`,
+    `settings.server.telnet.port := ${telnetPort(st)}`,
+    ``,
+    `# Avisa a API de cada faixa tocada (histórico + now playing).`,
+    `def notify(m) =`,
+    `  payload = json.stringify({artist = m["artist"], title = m["title"], filename = m["filename"]})`,
+    `  thread.run({ignore(http.post(headers = [("Content-Type", "application/json"), ("X-Internal-Token", ${q(config.internalToken)})], data = payload, ${q(`${config.apiInternalUrl}/internal/stations/${st.id}/track`)}))})`,
+    `end`,
+    ``,
+  );
+
+  const names: string[] = [];
+  const weights: number[] = [];
+  const scheduled: string[] = [];
+  for (const p of playlists) {
+    const n = `pl_${p.id}`;
+    lines.push(
+      `${n} = playlist(id = ${q(n)}, mode = ${q(p.mode === 'shuffle' ? 'randomize' : 'normal')}, reload_mode = "watch", ${q(p.m3uPath)})`,
+    );
+    if (p.schedule) {
+      scheduled.push(`(${schedulePredicate(p.schedule)}, ${n})`);
+    } else {
+      names.push(n);
+      weights.push(Math.max(1, p.weight));
+    }
+  }
+
+  if (names.length === 0) {
+    lines.push(`rotation = blank(id = "no_playlists")`);
+  } else {
+    lines.push(`rotation = random(id = "rotation", weights = [${weights.join(', ')}], [${names.join(', ')}])`);
+  }
+
+  lines.push(`requests = request.queue(id = "requests")`);
+  // Playlists agendadas ficam indisponíveis fora da janela, então o fallback cai na rotação geral.
+  const auto = ['requests'];
+  if (scheduled.length > 0) {
+    lines.push(`scheduled = switch(id = "scheduled", track_sensitive = true, [${scheduled.join(', ')}])`);
+    auto.push('scheduled');
+  }
+  auto.push('rotation');
+  lines.push(`radio = fallback(id = "auto", track_sensitive = true, [${auto.join(', ')}])`);
+
+  // Normalização e crossfade só no áudio automático: o DJ ao vivo entra depois, sem processamento.
+  if (st.normalize) {
+    lines.push(`enable_replaygain_metadata()`, `radio = amplify(1., override = "replaygain_track_gain", radio)`);
+  }
+  if (st.crossfade_seconds > 0) {
+    lines.push(`radio = crossfade(duration = ${st.crossfade_seconds.toFixed(1)}, radio)`);
+  }
+
+  if (st.live_enabled) {
+    lines.push(
+      `live = input.harbor("live", port = ${harborPort(st)}, password = ${q(st.source_password)})`,
+      `radio = fallback(id = "dj", track_sensitive = false, [live, radio])`,
+    );
+  }
+
+  lines.push(`radio = mksafe(radio)`, `radio.on_metadata(notify)`, ``);
+
+  const encoder = (format: string, bitrate: number) =>
+    format === 'ogg' ? `%ogg(%vorbis.abr(bitrate = ${bitrate}))` : `%mp3(bitrate = ${bitrate})`;
+
+  // Um output por mountpoint, todos alimentados pela mesma fonte.
+  const outputs = [{ mount: st.mount, format: st.format, bitrate: st.bitrate }, ...extraMounts];
+  for (const o of outputs) {
+    lines.push(
+      `output.icecast(${encoder(o.format, o.bitrate)},`,
+      `  host = "127.0.0.1", port = ${st.stream_port}, password = ${q(st.source_password)},`,
+      `  mount = ${q(o.mount)}, name = ${q(st.name)}, description = ${q(st.description)},`,
+      `  radio)`,
+      ``,
+    );
+  }
+  return lines.join('\n');
+}

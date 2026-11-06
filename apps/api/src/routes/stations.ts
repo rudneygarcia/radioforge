@@ -1,0 +1,211 @@
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import { authenticate, HttpError, requireAdmin, stationFor } from '../auth.js';
+import { config, stationDir } from '../config.js';
+import { all, db, get, mountsFor, run, type StationRow } from '../db.js';
+import { ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
+import { harborPort } from '../engine/liquidsoap.js';
+import { getHistory, getListeners, getNowPlaying } from '../engine/nowplaying.js';
+
+const idParam = z.object({ id: z.coerce.number().int() });
+
+const settings = z.object({
+  name: z.string().min(1).max(80),
+  description: z.string().max(300).default(''),
+  format: z.enum(['mp3', 'ogg']).default('mp3'),
+  bitrate: z.number().int().min(32).max(320).default(128),
+  liveEnabled: z.boolean().default(true),
+  requestsEnabled: z.boolean().default(true),
+  autostart: z.boolean().default(true),
+  crossfadeSeconds: z.number().min(0).max(10).default(0),
+  normalize: z.boolean().default(false),
+  mounts: z
+    .array(
+      z.object({
+        mount: z.string().regex(/^\/[a-zA-Z0-9._-]{1,40}$/, 'Mountpoint inválido (ex.: /radio-hd)'),
+        format: z.enum(['mp3', 'ogg']),
+        bitrate: z.number().int().min(32).max(320),
+      }),
+    )
+    .max(4, 'No máximo 4 mountpoints extras')
+    .default([]),
+});
+
+/** Substitui os mountpoints extras da estação, rejeitando duplicados e nomes reservados. */
+function saveMounts(stationId: number, mainMount: string, mounts: z.infer<typeof settings>['mounts']) {
+  const seen = new Set<string>([mainMount, '/live']);
+  for (const m of mounts) {
+    if (seen.has(m.mount)) throw new HttpError(400, `Mountpoint duplicado ou reservado: ${m.mount}`);
+    seen.add(m.mount);
+  }
+  db.exec('BEGIN');
+  try {
+    run('DELETE FROM station_mounts WHERE station_id = ?', stationId);
+    for (const m of mounts)
+      run('INSERT INTO station_mounts (station_id, mount, format, bitrate) VALUES (?, ?, ?, ?)', stationId, m.mount, m.format, m.bitrate);
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+}
+
+const slugify = (s: string) =>
+  s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'radio';
+
+const randomPassword = () => crypto.randomBytes(12).toString('base64url');
+
+export function streamUrl(st: StationRow, mount = st.mount) {
+  return `http://${config.publicHost}:${st.stream_port}${mount}`;
+}
+
+/** Todos os streams da estação (principal primeiro). */
+export function streamsOf(st: StationRow) {
+  return [
+    { mount: st.mount, url: streamUrl(st), format: st.format, bitrate: st.bitrate },
+    ...mountsFor(st.id).map((m) => ({ mount: m.mount, url: streamUrl(st, m.mount), format: m.format, bitrate: m.bitrate })),
+  ];
+}
+
+export async function stationView(st: StationRow) {
+  return {
+    id: st.id,
+    name: st.name,
+    slug: st.slug,
+    description: st.description,
+    format: st.format,
+    bitrate: st.bitrate,
+    liveEnabled: !!st.live_enabled,
+    requestsEnabled: !!st.requests_enabled,
+    autostart: !!st.autostart,
+    crossfadeSeconds: st.crossfade_seconds,
+    normalize: !!st.normalize,
+    mounts: mountsFor(st.id).map((m) => ({ mount: m.mount, format: m.format, bitrate: m.bitrate })),
+    streams: streamsOf(st),
+    running: isRunning(st.id),
+    listeners: await getListeners(st),
+    nowPlaying: getNowPlaying(st.id),
+    streamUrl: streamUrl(st),
+    dj: st.live_enabled
+      ? { host: config.publicHost, port: harborPort(st), mount: '/live', username: 'source', password: st.source_password }
+      : null,
+  };
+}
+
+function nextPort(): number {
+  const row = get<{ p: number | null }>('SELECT MAX(stream_port) AS p FROM stations');
+  const port = row?.p ? row.p + 10 : config.engine.streamPortStart;
+  if (port + 9 > config.engine.streamPortEnd) throw new HttpError(409, 'Faixa de portas esgotada');
+  return port;
+}
+
+export async function stationRoutes(app: FastifyInstance) {
+  app.addHook('preHandler', authenticate);
+
+  app.get('/api/stations', async (req) => {
+    const rows =
+      req.user.role === 'admin'
+        ? all<StationRow>('SELECT * FROM stations ORDER BY name')
+        : all<StationRow>(
+            `SELECT s.* FROM stations s JOIN station_members m ON m.station_id = s.id
+             WHERE m.user_id = ? ORDER BY s.name`,
+            req.user.id,
+          );
+    return Promise.all(rows.map(stationView));
+  });
+
+  app.post('/api/stations', async (req, reply) => {
+    requireAdmin(req);
+    const body = settings.parse(req.body);
+    let slug = slugify(body.name);
+    if (get('SELECT 1 AS ok FROM stations WHERE slug = ?', slug)) slug += '-' + crypto.randomBytes(2).toString('hex');
+    const r = run(
+      `INSERT INTO stations (name, slug, description, stream_port, mount, format, bitrate,
+         source_password, admin_password, live_enabled, requests_enabled, autostart, crossfade_seconds, normalize)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      body.name,
+      slug,
+      body.description,
+      nextPort(),
+      '/radio',
+      body.format,
+      body.bitrate,
+      randomPassword(),
+      randomPassword(),
+      body.liveEnabled ? 1 : 0,
+      body.requestsEnabled ? 1 : 0,
+      body.autostart ? 1 : 0,
+      body.crossfadeSeconds,
+      body.normalize ? 1 : 0,
+    );
+    const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', Number(r.lastInsertRowid))!;
+    saveMounts(st.id, st.mount, body.mounts);
+    ensureStationDirs(st.id);
+    if (config.engine.enabled && st.autostart) await startStation(st);
+    return reply.code(201).send(await stationView(st));
+  });
+
+  app.get('/api/stations/:id', async (req) => {
+    const { id } = idParam.parse(req.params);
+    return stationView(stationFor(req, id));
+  });
+
+  app.put('/api/stations/:id', async (req) => {
+    const { id } = idParam.parse(req.params);
+    const st = stationFor(req, id);
+    requireAdmin(req);
+    const b = settings.parse(req.body);
+    run(
+      `UPDATE stations SET name = ?, description = ?, format = ?, bitrate = ?,
+         live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ? WHERE id = ?`,
+      b.name,
+      b.description,
+      b.format,
+      b.bitrate,
+      b.liveEnabled ? 1 : 0,
+      b.requestsEnabled ? 1 : 0,
+      b.autostart ? 1 : 0,
+      b.crossfadeSeconds,
+      b.normalize ? 1 : 0,
+      st.id,
+    );
+    saveMounts(st.id, st.mount, b.mounts);
+    const updated = get<StationRow>('SELECT * FROM stations WHERE id = ?', st.id)!;
+    if (config.engine.enabled && isRunning(st.id)) await restartStation(updated);
+    return stationView(updated);
+  });
+
+  app.delete('/api/stations/:id', async (req) => {
+    requireAdmin(req);
+    const { id } = idParam.parse(req.params);
+    const st = stationFor(req, id);
+    await stopStation(st.id);
+    run('DELETE FROM stations WHERE id = ?', st.id);
+    fs.rmSync(stationDir(st.id), { recursive: true, force: true });
+    return { ok: true };
+  });
+
+  for (const action of ['start', 'stop', 'restart'] as const) {
+    app.post(`/api/stations/:id/${action}`, async (req) => {
+      const { id } = idParam.parse(req.params);
+      const st = stationFor(req, id);
+      if (!config.engine.enabled) throw new HttpError(503, 'Engine desativada neste ambiente');
+      if (action === 'stop') await stopStation(st.id);
+      else if (action === 'start') await startStation(st);
+      else await restartStation(st);
+      return stationView(st);
+    });
+  }
+
+  app.get('/api/stations/:id/history', async (req) => {
+    const { id } = idParam.parse(req.params);
+    return getHistory(stationFor(req, id).id, 50);
+  });
+}
