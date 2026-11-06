@@ -1,5 +1,6 @@
+import crypto from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { get, type StationRow } from './db.js';
+import { get, run, type StationRow } from './db.js';
 
 declare module '@fastify/jwt' {
   interface FastifyJWT {
@@ -7,6 +8,14 @@ declare module '@fastify/jwt' {
     user: { id: number; role: 'admin' | 'user' };
   }
 }
+declare module 'fastify' {
+  interface FastifyRequest {
+    /** true quando a requisição foi autenticada por chave de API (e não por login). */
+    viaApiKey?: boolean;
+  }
+}
+
+export const hashKey = (key: string) => crypto.createHash('sha256').update(key).digest('hex');
 
 export class HttpError extends Error {
   constructor(
@@ -17,7 +26,28 @@ export class HttpError extends Error {
   }
 }
 
+/**
+ * Aceita login (JWT) ou chave de API (`Authorization: Bearer rfk_...` ou `X-API-Key: rfk_...`).
+ * A chave age com as mesmas permissões do usuário que a criou.
+ */
 export async function authenticate(req: FastifyRequest, reply: FastifyReply) {
+  const bearer = (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
+  const raw = bearer.startsWith('rfk_') ? bearer : String(req.headers['x-api-key'] ?? '');
+  if (raw.startsWith('rfk_')) {
+    const row = get<{ id: number; user_id: number; role: 'admin' | 'user' }>(
+      `SELECT k.id, k.user_id, u.role FROM api_keys k JOIN users u ON u.id = k.user_id WHERE k.key_hash = ?`,
+      hashKey(raw),
+    );
+    if (!row) return reply.code(401).send({ error: 'Chave de API inválida' });
+    // Atualiza o "último uso" no máximo uma vez por minuto para não escrever a cada requisição.
+    run(
+      "UPDATE api_keys SET last_used_at = datetime('now') WHERE id = ? AND (last_used_at IS NULL OR last_used_at < datetime('now', '-1 minute'))",
+      row.id,
+    );
+    req.user = { id: row.user_id, role: row.role };
+    req.viaApiKey = true;
+    return;
+  }
   try {
     await req.jwtVerify();
   } catch {

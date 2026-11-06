@@ -154,6 +154,46 @@ CREATE TABLE IF NOT EXISTS station_log_state (
 );
 `);
 
+// Chaves de API (só o hash é guardado) e webhooks por estação.
+db.exec(`
+CREATE TABLE IF NOT EXISTS api_keys (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  prefix TEXT NOT NULL,
+  key_hash TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_used_at TEXT
+);
+CREATE TABLE IF NOT EXISTS station_webhooks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('generic','discord')),
+  url TEXT NOT NULL,
+  secret TEXT NOT NULL,
+  events TEXT NOT NULL DEFAULT 'song_change',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  last_status TEXT NOT NULL DEFAULT '',
+  last_at TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`);
+
+export interface WebhookRow {
+  id: number;
+  station_id: number;
+  name: string;
+  type: 'generic' | 'discord';
+  url: string;
+  secret: string;
+  events: string;
+  enabled: number;
+  last_status: string;
+  last_at: string;
+  created_at: string;
+}
+
 export function all<T>(sql: string, ...params: SQLInputValue[]): T[] {
   return db.prepare(sql).all(...params) as T[];
 }

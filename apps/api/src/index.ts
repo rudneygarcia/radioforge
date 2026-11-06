@@ -13,6 +13,8 @@ import { startStatsCollector } from './engine/stats.js';
 import { authRoutes } from './routes/auth.js';
 import { djRoutes } from './routes/djs.js';
 import { reportRoutes } from './routes/reports.js';
+import { keyRoutes } from './routes/keys.js';
+import { webhookRoutes } from './routes/webhooks.js';
 import { mediaRoutes } from './routes/media.js';
 import { playlistRoutes } from './routes/playlists.js';
 import { publicRoutes } from './routes/public.js';
@@ -41,6 +43,8 @@ await app.register(mediaRoutes);
 await app.register(playlistRoutes);
 await app.register(djRoutes);
 await app.register(reportRoutes);
+await app.register(keyRoutes);
+await app.register(webhookRoutes);
 await app.register(publicRoutes);
 
 app.get('/api/health', async () => ({ ok: true, engine: config.engine.enabled }));

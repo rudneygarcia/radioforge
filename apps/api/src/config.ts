@@ -33,6 +33,8 @@ export const config = {
     streamPortStart: Number(process.env.STREAM_PORT_START ?? 8000),
     streamPortEnd: Number(process.env.STREAM_PORT_END ?? 8499),
   },
+  /** Só para desenvolvimento/testes: permite webhooks para endereços privados (desliga a proteção SSRF). */
+  webhooksAllowPrivate: (process.env.WEBHOOK_ALLOW_PRIVATE ?? 'false') === 'true',
   webDir: process.env.WEB_DIR ?? path.resolve('../web/dist'),
 };
 

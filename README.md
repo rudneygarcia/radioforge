@@ -47,11 +47,47 @@ Variáveis: `PUBLIC_HOST`, `PORT`, `DATA_DIR`, `ENGINE_ENABLED`, `JWT_SECRET`, `
 | Crossfade, normalização de volume (ReplayGain) e até 4 streams extras com formato/bitrate próprios | Pronto na API/painel/player; script Liquidsoap revisado, **não executado** |
 | DJs com usuário/senha próprios (o usuário `source` continua valendo) e gravação das transmissões ao vivo, com download | Pronto na API/painel, testado; autenticação do harbor e `output.file` no Liquidsoap **não executados** |
 | Relatórios de ouvintes: média/pico ao longo do tempo, países (GeoIP), players, horário de pico, com gráficos e tabela | Pronto e testado com logs de exemplo; **ainda não com o access.log real do Icecast** (ver nota abaixo) |
+| Chaves de API e webhooks (Discord e JSON assinado), com proteção SSRF | Pronto e testado (24 verificações automáticas) |
 | Player público, histórico, pedidos de músicas | Pronto (API testada; pedidos dependem do Liquidsoap) |
 | Geração de `icecast.xml` e `radio.liq`, supervisor de processos | Escrito, **ainda não executado contra Icecast/Liquidsoap reais** |
 | Imagem Docker | Escrita, **ainda não construída** |
 
 Próximo passo imediato: subir em um servidor Linux, rodar `docker compose up --build`, criar uma estação e ajustar o que o Liquidsoap reclamar nos logs (`DATA_DIR/stations/<id>/logs/`). A sintaxe do script depende da versão do Liquidsoap fixada no `Dockerfile`.
+
+## API e chaves de acesso
+
+Crie uma chave em **Chaves de API** (menu superior). Ela só é mostrada uma vez e tem as mesmas permissões da sua conta (administrador vê tudo; operador, só as próprias estações). Envie em qualquer requisição:
+
+```bash
+curl -H "X-API-Key: rfk_suachave" https://radio.seudominio.com/api/stations
+# ou: -H "Authorization: Bearer rfk_suachave"
+```
+
+Principais endpoints (JSON; os de estação usam o `id` numérico da estação):
+
+| Método e caminho | O que faz |
+|---|---|
+| `GET /api/stations`, `GET /api/stations/:id` | Lista / detalha estações (status, ouvintes, tocando agora, links de stream) |
+| `POST /api/stations/:id/start` · `stop` · `restart` | Controla a estação |
+| `GET /api/stations/:id/history` | Últimas músicas tocadas |
+| `GET/POST/PUT/DELETE /api/stations/:id/media` | Biblioteca (upload em `multipart/form-data`) |
+| `GET/POST/PUT/DELETE /api/stations/:id/playlists` | Playlists e agendamento |
+| `GET/POST/PUT/DELETE /api/stations/:id/djs` | Contas de DJ |
+| `GET /api/stations/:id/recordings` | Gravações das transmissões ao vivo |
+| `GET /api/stations/:id/reports?days=7` | Relatórios de ouvintes |
+| `GET/POST/PUT/DELETE /api/stations/:id/webhooks` | Webhooks |
+| `GET /api/public/stations/:slug` · `/history` · `/songs` | Dados públicos, **sem chave** (para sites e apps) |
+
+Chaves **não** criam nem listam outras chaves; isso só é possível logado no painel.
+
+## Webhooks
+
+Em cada estação, aba **Integrações**. Eventos: troca de música, estação iniciada e estação parada.
+
+- **Discord:** cole a URL de webhook do canal. A mensagem aparece como um cartão "Tocando agora".
+- **Genérico:** recebe um `POST` JSON `{ event, station, data, timestamp }` com os cabeçalhos `X-RadioForge-Event` e `X-RadioForge-Signature: sha256=<HMAC do corpo com o segredo do webhook>`. Confira a assinatura antes de confiar no conteúdo.
+- **Segurança (SSRF):** o servidor recusa URLs que apontem para endereços internos/privados (localhost, 10.x, 192.168.x, 169.254.x etc.) e não segue redirecionamentos, para que um operador não use webhooks para atingir serviços internos. Só em desenvolvimento, `WEBHOOK_ALLOW_PRIVATE=true` desliga essa proteção.
+- Uma falha no destino nunca afeta a rádio; o último resultado aparece na lista.
 
 ## Como os relatórios funcionam
 
@@ -69,7 +105,7 @@ Próximo passo imediato: subir em um servidor Linux, rodar `docker compose up --
 3. ~~Crossfade, normalização de volume (ReplayGain), vários mountpoints/bitrates por estação~~ (feito).
 4. ~~DJs com conta própria, gravação de transmissões ao vivo~~ (feito). Falta mostrar quem é o DJ no ar e agendar horários de DJ.
 5. ~~Relatórios de ouvintes (por país, player, tempo) e gráficos~~ (feito). Falta exportar CSV e comparar períodos.
-6. Webhooks e integrações (Discord, redes sociais), API com chaves de acesso.
+6. ~~Webhooks e integrações (Discord), API com chaves de acesso~~ (feito). Falta integração com redes sociais, escopos por chave (somente leitura) e documentação OpenAPI.
 7. Podcasts, backups agendados, atualização pelo painel.
 8. Relay/transmissão para outros serviços, HTTPS automático (Caddy) e multi-idioma.
 9. Migrar SQLite para Postgres se o volume pedir.

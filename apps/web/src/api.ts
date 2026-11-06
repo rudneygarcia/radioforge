@@ -81,6 +81,24 @@ export interface Media {
   size: number;
   originalName: string;
 }
+export interface Webhook {
+  id: number;
+  name: string;
+  type: 'generic' | 'discord';
+  url: string;
+  secret: string | null;
+  events: string[];
+  enabled: boolean;
+  lastStatus: string;
+  lastAt: string;
+}
+export interface ApiKey {
+  id: number;
+  name: string;
+  prefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
 export interface Dj {
   id: number;
   username: string;

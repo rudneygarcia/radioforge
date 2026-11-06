@@ -5,6 +5,7 @@ import path from 'node:path';
 import { config, stationDir } from '../config.js';
 import { all, djsFor, get, mountsFor, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
 import { buildIcecastConfig } from './icecast.js';
+import { dispatch } from './webhooks.js';
 import { buildLiquidsoapScript, telnetPort, type LiqPlaylist } from './liquidsoap.js';
 
 /** Mantém um processo vivo, reiniciando com backoff se cair. */
@@ -131,6 +132,7 @@ export async function startStation(st: StationRow) {
   );
   procs.set(st.id, { icecast, liquidsoap });
   icecast.start();
+  dispatch(st.id, 'station_start', {});
   // Dá um instante para o Icecast abrir a porta antes do Liquidsoap conectar.
   setTimeout(() => procs.get(st.id)?.liquidsoap.start(), 1500);
 }
@@ -140,6 +142,7 @@ export async function stopStation(stationId: number) {
   if (!p) return;
   procs.delete(stationId);
   await Promise.all([p.liquidsoap.stop(), p.icecast.stop()]);
+  dispatch(stationId, 'station_stop', {});
 }
 
 export async function restartStation(st: StationRow) {

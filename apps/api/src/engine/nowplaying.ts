@@ -1,4 +1,5 @@
 import { all, get, run, type StationRow } from '../db.js';
+import { dispatch } from './webhooks.js';
 
 export interface NowPlaying {
   title: string;
@@ -12,7 +13,9 @@ export function recordTrack(stationId: number, artist: string, title: string) {
   const last = getNowPlaying(stationId);
   if (last && last.artist === artist && last.title === title) return;
   run('INSERT INTO history (station_id, title, artist) VALUES (?, ?, ?)', stationId, title, artist);
-  current.set(stationId, { title, artist, playedAt: new Date().toISOString() });
+  const playedAt = new Date().toISOString();
+  current.set(stationId, { title, artist, playedAt });
+  dispatch(stationId, 'song_change', { artist, title, playedAt });
 }
 
 export function getNowPlaying(stationId: number): NowPlaying | null {

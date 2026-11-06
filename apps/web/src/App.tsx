@@ -9,6 +9,8 @@ import MediaPage from './pages/MediaPage';
 import Playlists from './pages/Playlists';
 import DjsPage from './pages/DjsPage';
 import ReportsPage from './pages/ReportsPage';
+import IntegrationsPage from './pages/IntegrationsPage';
+import AccountPage from './pages/AccountPage';
 import Settings from './pages/Settings';
 import Users from './pages/Users';
 
@@ -25,6 +27,7 @@ function Protected() {
         <nav>
           <Link to="/">Estações</Link>
           {user.role === 'admin' && <Link to="/users">Usuários</Link>}
+          <Link to="/account">Chaves de API</Link>
         </nav>
         <span className="spacer" />
         <span className="muted">{user.name}</span>
@@ -47,12 +50,14 @@ export default function App() {
       <Route element={<Protected />}>
         <Route path="/" element={<Stations />} />
         <Route path="/users" element={<Users />} />
+        <Route path="/account" element={<AccountPage />} />
         <Route path="/stations/:id" element={<StationLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="media" element={<MediaPage />} />
           <Route path="playlists" element={<Playlists />} />
           <Route path="djs" element={<DjsPage />} />
           <Route path="reports" element={<ReportsPage />} />
+          <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Route>
