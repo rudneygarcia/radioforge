@@ -104,6 +104,7 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
   const playlists = all<PlaylistRow>('SELECT * FROM playlists WHERE station_id = ? AND enabled = 1', stationId);
   const out: LiqPlaylist[] = [];
   for (const p of playlists) {
+    if (p.every_minutes > 0) continue; // entra por tempo (ver timed.ts), não na rotação
     const media = all<MediaRow>(
       `SELECT m.* FROM playlist_media pm JOIN media m ON m.id = pm.media_id
        WHERE pm.playlist_id = ? ORDER BY pm.position, m.id`,

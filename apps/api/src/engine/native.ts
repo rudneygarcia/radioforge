@@ -153,7 +153,7 @@ class NativeStation {
       const m = get<MediaRow>('SELECT * FROM media WHERE id = ? AND station_id = ?', this.queue.shift()!, this.st.id);
       if (m && /\.mp3$/i.test(m.path)) return m;
     }
-    const lists = all<PlaylistRow>('SELECT * FROM playlists WHERE station_id = ? AND enabled = 1', this.st.id)
+    const lists = all<PlaylistRow>('SELECT * FROM playlists WHERE station_id = ? AND enabled = 1 AND every_minutes = 0', this.st.id)
       .map((p) => ({
         p,
         media: all<MediaRow>(

@@ -113,7 +113,7 @@ Em cada estação, aba **Integrações**. Eventos: troca de música, estação i
 ## Roadmap (comparado ao AzuraCast)
 
 1. **Validar o motor de streaming** no Linux (item acima).
-2. ~~Playlists agendadas por dia/hora~~ (feito). Também há "intercalar 1 faixa a cada N músicas" (vinhetas/avisos; só no modo Liquidsoap, **script ainda não executado**). Falta o tipo "uma vez por hora".
+2. ~~Playlists agendadas por dia/hora~~ (feito). Também há "intercalar 1 faixa a cada N músicas" (vinhetas/avisos; só no modo Liquidsoap, **script ainda não executado**). Também "por tempo" (ex.: 60 min = uma faixa a cada início de hora, via fila de pedidos; funciona nos dois motores, intervalos alinhados ao relógio UTC).
 3. ~~Crossfade, normalização de volume (ReplayGain), vários mountpoints/bitrates por estação~~ (feito).
 4. ~~DJs com conta própria, gravação de transmissões ao vivo~~ (feito). O painel e o player público mostram quem está ao vivo (o Liquidsoap avisa a API ao conectar/desconectar; **não validado com um DJ real ainda**). Falta agendar horários de DJ.
 5. ~~Relatórios de ouvintes (por país, player, tempo) e gráficos~~ (feito, com exportação CSV: botão no painel ou `GET /api/stations/:id/reports?days=7&format=csv`). Os cartões comparam com o período anterior de mesma duração (▲/▼ %), também no CSV e em `previous` no JSON.

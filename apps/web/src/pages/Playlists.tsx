@@ -70,6 +70,13 @@ export default function Playlists() {
               </div>
               <div className="row">
                 <label>
+                  Por tempo: 1 faixa desta playlist a cada{' '}
+                  <input type="number" min={0} max={1440} value={p.everyMinutes} disabled={p.scheduleEnabled} onChange={(e) => patch(p.id, { everyMinutes: Math.max(0, Math.min(1440, Number(e.target.value) || 0)) })} style={{ width: 80 }} />{' '}
+                  minutos (0 = desligado; 60 = todo início de hora; sai da rotação e toca ao fim da faixa atual)
+                </label>
+              </div>
+              <div className="row">
+                <label>
                   Intercalar: 1 faixa desta playlist a cada{' '}
                   <input type="number" min={0} max={50} value={p.everySongs} disabled={p.scheduleEnabled} onChange={(e) => patch(p.id, { everySongs: Math.max(0, Math.min(50, Number(e.target.value) || 0)) })} style={{ width: 70 }} />{' '}
                   músicas da rotação (0 = desligado; para vinhetas e avisos; só no modo completo)
