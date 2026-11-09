@@ -129,7 +129,7 @@ Em cada estação, aba **Integrações**. Eventos: troca de música, estação i
 - **DJ ao vivo** conecta direto na porta do Liquidsoap (não passa pelo proxy): use o IP do servidor ou um subdomínio "somente DNS", ou defina `PUBLIC_HOST` para esse endereço.
 - **Formatos:** MP3, **AAC** (AAC-LC via FFmpeg do Liquidsoap, mountpoint padrão `/radio.aac`) e OGG. AAC e OGG só no modo Liquidsoap; o modo simples (Node) serve só MP3. Gravações de DJ em AAC são salvas em MP3. **O encoder AAC ainda não foi executado num Liquidsoap real**: se der erro ao iniciar, o painel mostra a mensagem.
 - **Processador de áudio** (Configurações): `Equilibrado` (compressão leve + limitador) e `Forte, estilo FM` (normaliza + compressão firme + limitador). Vale para tudo que vai ao ar (músicas e DJ), só no modo Liquidsoap. Os parâmetros ainda não foram validados num Liquidsoap real; padrão desligado.
-- **Histórico:** o painel mostra 5/10/20/50 últimas músicas (a escolha fica no navegador); o player público mostra a quantidade definida em Configurações (padrão 5, com "Ver mais").
+- **Histórico:** o painel mostra 5/10/20/50 últimas músicas (a escolha fica no navegador); o player público mostra exatamente a quantidade definida em Configurações (padrão 5, sem "Ver mais").
 
 ## Vinhetas e pedidos por playlist
 
