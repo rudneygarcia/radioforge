@@ -98,6 +98,15 @@ export function ensureStationDirs(id: number) {
   for (const d of ['media', 'playlists', 'config', 'logs', 'recordings']) fs.mkdirSync(path.join(base, d), { recursive: true });
 }
 
+/**
+ * URI de uma vinheta para o Liquidsoap: rf_jingle faz o aviso ao servidor ser ignorado e título/artista são
+ * trocados pelo nome da estação, para o Icecast e os players não exibirem as tags do arquivo.
+ */
+function jingleUri(stationName: string, abs: string) {
+  const label = stationName.replace(/["\\\r\n,]/g, ' ').trim();
+  return `annotate:rf_jingle="1",title="${label}",artist="",album="":${abs}`;
+}
+
 /** Reescreve os arquivos .m3u de cada playlist; o Liquidsoap recarrega sozinho (reload_mode=watch). */
 export function writePlaylists(stationId: number): LiqPlaylist[] {
   ensureStationDirs(stationId);
@@ -115,7 +124,7 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
     // Vinheta: o prefixo annotate marca a faixa para o Liquidsoap não avisar o servidor do nome dela.
     const uri = (m: MediaRow) => {
       const abs = path.join(config.dataDir, m.path);
-      return p.is_jingle ? `annotate:rf_jingle="1":${abs}` : abs;
+      return p.is_jingle ? jingleUri(st?.name ?? '', abs) : abs;
     };
     const content = media.map(uri).join('\n') + '\n';
     // Só regrava se mudou: cada gravação faz o Liquidsoap recarregar a playlist.
@@ -304,7 +313,7 @@ export function pushRequest(stationId: number, absPath: string, silent = false):
     });
     sock.on('error', reject);
     // Vinheta pedida pela fila: o annotate mantém o nome fora do servidor.
-    const uri = silent ? `annotate:rf_jingle="1":${absPath}` : absPath;
+    const uri = silent ? jingleUri(st.name, absPath) : absPath;
     sock.on('connect', () => sock.write(`requests.push ${uri}\nquit\n`));
     sock.on('close', () => resolve());
   });

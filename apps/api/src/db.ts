@@ -157,6 +157,8 @@ if ((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_v
   db.exec("UPDATE stations SET audio_preset = 'balanced' WHERE audio_preset = 'off'");
   db.exec('PRAGMA user_version = 1');
 }
+addColumn('media', 'cover', 'TEXT'); // arquivo da capa extraída das tags (null = sem capa)
+addColumn('media', 'cover_checked', 'INTEGER NOT NULL DEFAULT 0'); // 1 = já tentamos extrair a capa
 addColumn('media', 'folder_id', 'INTEGER REFERENCES media_folders(id) ON DELETE SET NULL');
 addColumn('playlists', 'schedule_enabled', 'INTEGER NOT NULL DEFAULT 0');
 // Playlist padrão (uma por estação): é a rotação base; as outras entram por regra e não se misturam com ela.
@@ -366,6 +368,8 @@ export interface MediaRow {
   duration: number;
   size: number;
   folder_id: number | null;
+  cover: string | null;
+  cover_checked: number;
   created_at: string;
 }
 export interface FolderRow {

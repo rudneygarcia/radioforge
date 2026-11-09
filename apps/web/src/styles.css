@@ -321,3 +321,10 @@ tr.picked td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .folder-ico { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .folder-info { display: flex; flex-direction: column; min-width: 0; }
 .folder-info strong { font-size: 15px; } .folder-info em { font-style: normal; color: var(--muted); font-size: 13px; }
+
+/* ===== Capas ===== */
+.cover-thumb { flex: none; display: inline-block; object-fit: cover; border-radius: 8px; background: var(--panel-2); }
+.cover-thumb.ph { display: inline-grid; place-items: center; color: var(--muted); box-shadow: inset 0 0 0 1px var(--border); }
+.np { display: flex; align-items: center; gap: 12px; margin-top: 8px; } .np .big { margin: 0; } .np img, .np .cover-thumb { border-radius: 12px; }
+.hist-item { align-items: center; }
+.cover { background-size: cover !important; }

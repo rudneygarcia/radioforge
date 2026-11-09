@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { api } from '../api';
-import { CopyButton, Empty, Icon, useUi } from '../ui';
+import { CopyButton, Cover, Empty, Icon, useUi } from '../ui';
 import type { StationCtx } from './StationLayout';
 
 interface Hist {
   title: string;
   artist: string;
   played_at: string;
+  coverUrl?: string | null;
 }
 
 export default function Dashboard() {
@@ -89,10 +90,13 @@ export default function Dashboard() {
         <div className="card">
           <div className="stat-label"><Icon name="music" /> Tocando agora</div>
           {station.nowPlaying ? (
-            <>
-              <p className="big small">{station.nowPlaying.title}</p>
-              <p className="muted">{station.nowPlaying.artist || '—'}</p>
-            </>
+            <div className="np">
+              <Cover url={station.nowPlaying.coverUrl} size={64} />
+              <div style={{ minWidth: 0 }}>
+                <p className="big small">{station.nowPlaying.title}</p>
+                <p className="muted">{station.nowPlaying.artist || '—'}</p>
+              </div>
+            </div>
           ) : (
             <p className="muted" style={{ marginTop: 10 }}>Nada tocando.</p>
           )}
@@ -151,7 +155,7 @@ export default function Dashboard() {
             <tbody>
               {history.slice(0, shown).map((h, i) => (
                 <tr key={i}>
-                  <td>{h.artist ? <span className="muted">{h.artist} — </span> : null}{h.title}</td>
+                  <td><span className="row" style={{ margin: 0, flexWrap: 'nowrap' }}><Cover url={h.coverUrl} size={36} />{h.artist ? <span className="muted">{h.artist} — </span> : null}{h.title}</span></td>
                   <td className="muted" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{new Date(h.played_at + 'Z').toLocaleString()}</td>
                 </tr>
               ))}

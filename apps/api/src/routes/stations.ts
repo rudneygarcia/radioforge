@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { authenticate, HttpError, requireAdmin, stationFor } from '../auth.js';
 import { config, stationDir } from '../config.js';
 import { all, db, get, mountsFor, run, type StationRow } from '../db.js';
+import { historyView, nowPlayingView } from '../engine/covers.js';
 import { audioWarningFor, engineMode, ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
 import { harborPort } from '../engine/liquidsoap.js';
 import { getHistory, getListeners, getLive, getNowPlaying } from '../engine/nowplaying.js';
@@ -127,7 +128,7 @@ export async function stationView(st: StationRow) {
     streams: streamsOf(st),
     running: isRunning(st.id),
     listeners: await getListeners(st),
-    nowPlaying: getNowPlaying(st.id),
+    nowPlaying: nowPlayingView(st.slug, getNowPlaying(st.id)),
     live: getLive(st.id),
     streamUrl: streamUrl(st),
     engine: engineMode(),
@@ -261,6 +262,7 @@ export async function stationRoutes(app: FastifyInstance) {
 
   app.get('/api/stations/:id/history', async (req) => {
     const { id } = idParam.parse(req.params);
-    return getHistory(stationFor(req, id).id, 50);
+    const st = stationFor(req, id);
+    return historyView(st.slug, getHistory(st.id, 50));
   });
 }

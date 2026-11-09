@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { api, uploadForm, type Folder, type Media } from '../api';
-import { Empty, Icon, Modal, useUi } from '../ui';
+import { Cover, Empty, Icon, Modal, useUi } from '../ui';
 import type { StationCtx } from './StationLayout';
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -222,7 +222,7 @@ export default function MediaPage() {
           {shown.map((m) => (
             <tr key={m.id} className={picked.has(m.id) ? 'picked' : ''}>
               <td><input type="checkbox" checked={picked.has(m.id)} onChange={() => togglePick(m.id)} aria-label={`Selecionar ${m.title}`} /></td>
-              <td>{m.title}</td>
+              <td><span className="row" style={{ margin: 0, flexWrap: 'nowrap' }}><Cover url={m.coverUrl} size={32} />{m.title}</span></td>
               <td className="muted">{m.artist || '—'}</td>
               {searching && <td className="hide-sm">{folderName(m.folderId) ? <span className="tag"><Icon name="folder" size={12} /> {folderName(m.folderId)}</span> : <span className="muted">sem pasta</span>}</td>}
               <td className="muted">{fmt(m.duration)}</td>

@@ -5,6 +5,8 @@ export interface NowPlaying {
   title: string;
   artist: string;
   playedAt: string;
+  /** Música da biblioteca (para achar a capa); null quando não identificada. */
+  mediaId: number | null;
 }
 
 const current = new Map<number, NowPlaying>();
@@ -14,19 +16,19 @@ export function recordTrack(stationId: number, artist: string, title: string, me
   if (last && last.artist === artist && last.title === title) return;
   run('INSERT INTO history (station_id, title, artist, media_id) VALUES (?, ?, ?, ?)', stationId, title, artist, mediaId);
   const playedAt = new Date().toISOString();
-  current.set(stationId, { title, artist, playedAt });
+  current.set(stationId, { title, artist, playedAt, mediaId });
   dispatch(stationId, 'song_change', { artist, title, playedAt });
 }
 
 export function getNowPlaying(stationId: number): NowPlaying | null {
   const cached = current.get(stationId);
   if (cached) return cached;
-  const row = get<{ title: string; artist: string; played_at: string }>(
-    'SELECT title, artist, played_at FROM history WHERE station_id = ? ORDER BY id DESC LIMIT 1',
+  const row = get<{ title: string; artist: string; played_at: string; media_id: number | null }>(
+    'SELECT title, artist, played_at, media_id FROM history WHERE station_id = ? ORDER BY id DESC LIMIT 1',
     stationId,
   );
   if (!row) return null;
-  const np = { title: row.title, artist: row.artist, playedAt: row.played_at };
+  const np = { title: row.title, artist: row.artist, playedAt: row.played_at, mediaId: row.media_id };
   current.set(stationId, np);
   return np;
 }
@@ -55,8 +57,9 @@ export const getLive = (stationId: number): LiveInfo | null => live.get(stationI
 export const clearLive = (stationId: number) => void live.delete(stationId);
 
 export function getHistory(stationId: number, limit = 20) {
-  return all<{ title: string; artist: string; played_at: string }>(
-    'SELECT title, artist, played_at FROM history WHERE station_id = ? ORDER BY id DESC LIMIT ?',
+  return all<{ title: string; artist: string; played_at: string; media_id: number | null; cover: string | null }>(
+    `SELECT h.title, h.artist, h.played_at, h.media_id, m.cover FROM history h LEFT JOIN media m ON m.id = h.media_id
+     WHERE h.station_id = ? ORDER BY h.id DESC LIMIT ?`,
     stationId,
     limit,
   );

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api, type NowPlaying, type StreamInfo } from '../api';
+import { Cover } from '../ui';
 
 interface Pub {
   name: string;
@@ -24,6 +25,7 @@ interface Song {
 interface Hist {
   title: string;
   artist: string;
+  coverUrl?: string | null;
 }
 
 /** Player público: não exige login e pode ser aberto em iframe. */
@@ -48,6 +50,18 @@ export default function Listen() {
     const t = setInterval(load, 10000);
     return () => clearInterval(t);
   }, [slug]);
+
+  // Tela de bloqueio / notificação do celular e teclas de mídia: mostra música, artista e capa.
+  useEffect(() => {
+    if (!info || !('mediaSession' in navigator)) return;
+    const np = info.nowPlaying;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: np?.title || info.name,
+      artist: np?.artist || info.name,
+      album: info.name,
+      artwork: np?.coverUrl ? [{ src: new URL(np.coverUrl, location.origin).href }] : [],
+    });
+  }, [info?.name, info?.nowPlaying?.title, info?.nowPlaying?.artist, info?.nowPlaying?.coverUrl]);
 
   function toggle() {
     const a = audio.current;
@@ -81,7 +95,7 @@ export default function Listen() {
     <div className="listen-wrap">
     <div className="listen">
       <div className="card player">
-        <div className="cover">📻</div>
+        <div className="cover" style={info.nowPlaying?.coverUrl ? { background: `center/cover url(${info.nowPlaying.coverUrl})` } : undefined}>{info.nowPlaying?.coverUrl ? null : '📻'}</div>
         <h1>{info.name}</h1>
         {info.description && <p className="muted">{info.description}</p>}
         <span className={`badge ${info.online ? 'on' : 'off'}`}>{info.online ? 'no ar' : 'offline'}</span>
@@ -105,7 +119,7 @@ export default function Listen() {
       {msg && <p className="muted center">{msg}</p>}
       <div className="card">
         <h3>Tocou recentemente</h3>
-        {history.slice(0, more ? 50 : info.historyLimit).map((h, i) => <div key={i} className="hist-item"><span>♪</span><span>{h.artist ? `${h.artist} — ` : ''}{h.title}</span></div>)}
+        {history.slice(0, more ? 50 : info.historyLimit).map((h, i) => <div key={i} className="hist-item"><Cover url={h.coverUrl} size={36} /><span>{h.artist ? `${h.artist} — ` : ''}{h.title}</span></div>)}
         {history.length === 0 && <p className="muted">Nada tocou ainda.</p>}
         {history.length > info.historyLimit && (
           <button className="ghost small" style={{ marginTop: 10 }} onClick={() => setMore(!more)}>{more ? 'Mostrar menos' : 'Ver mais'}</button>

@@ -156,6 +156,16 @@ export function UiProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/** Miniatura da capa; sem capa mostra um ícone de nota (mesmo tamanho, para alinhar). */
+export function Cover({ url, size = 40 }: { url?: string | null; size?: number }) {
+  const [failed, setFailed] = useState(false);
+  return url && !failed ? (
+    <img className="cover-thumb" src={url} width={size} height={size} alt="" loading="lazy" onError={() => setFailed(true)} />
+  ) : (
+    <span className="cover-thumb ph" style={{ width: size, height: size }}><Icon name="music" size={Math.round(size * 0.45)} /></span>
+  );
+}
+
 /* ---------- Blocos de página ---------- */
 export function PageHeader({ title, subtitle, actions }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) {
   return (

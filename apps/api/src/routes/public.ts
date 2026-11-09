@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -7,6 +8,7 @@ import { HttpError } from '../auth.js';
 import { config } from '../config.js';
 import { all, get, mountsFor, recentMedia, requestableMedia, run, type MediaRow, type StationRow } from '../db.js';
 import { isRunning, pushRequest, writePlaylists } from '../engine/manager.js';
+import { coverFile, coverMime, historyView, nowPlayingView } from '../engine/covers.js';
 import { getHistory, getListeners, getLive, getNowPlaying, recordTrack, setLive } from '../engine/nowplaying.js';
 import { streamsOf, streamUrl } from './stations.js';
 
@@ -34,6 +36,7 @@ function proxyStream(req: FastifyRequest, reply: FastifyReply, st: StationRow, m
   if (!isRunning(st.id)) return reply.code(503).send({ error: 'A rádio está offline' });
   reply.hijack();
   const res = reply.raw;
+  const wantsIcy = String(req.headers['icy-metadata'] ?? '') === '1';
   const fail = (code: number) => {
     if (!res.headersSent) res.writeHead(code, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Stream indisponível' }));
@@ -44,14 +47,26 @@ function proxyStream(req: FastifyRequest, reply: FastifyReply, st: StationRow, m
       port: st.stream_port,
       path: mount,
       // O Icecast (e o motor simples) confiam neste cabeçalho, vindo de 127.0.0.1, para registrar o IP real do ouvinte.
-      headers: { 'X-Forwarded-For': req.ip, 'User-Agent': String(req.headers['user-agent'] ?? 'RadioForge'), 'Icy-MetaData': '0' },
+      headers: {
+        'X-Forwarded-For': req.ip,
+        'User-Agent': String(req.headers['user-agent'] ?? 'RadioForge'),
+        // Players de rádio (VLC, apps) pedem metadados ICY: repassamos o pedido e o resultado, que o Icecast intercala no áudio.
+        'Icy-MetaData': wantsIcy ? '1' : '0',
+      },
     },
     (up) => {
       if (up.statusCode !== 200) {
         up.resume();
         return fail(502);
       }
+      // icy-metaint diz de quantos em quantos bytes vem o bloco de metadados; os bytes passam sem alteração.
+      const icy: Record<string, string> = {};
+      for (const h of ['icy-metaint', 'icy-name', 'icy-description', 'icy-genre', 'icy-br', 'icy-pub', 'icy-url']) {
+        const v = up.headers[h];
+        if (v && (wantsIcy || h !== 'icy-metaint')) icy[h] = String(v);
+      }
       res.writeHead(200, {
+        ...icy,
         'Content-Type': String(up.headers['content-type'] ?? 'audio/mpeg'),
         // no-store: impede o Cloudflare de guardar o stream (ele cacheia .mp3/.aac/.ogg por padrão).
         'Cache-Control': 'no-cache, no-store, private',
@@ -77,7 +92,7 @@ export async function publicRoutes(app: FastifyInstance) {
       format: st.format,
       online: isRunning(st.id),
       listeners: await getListeners(st),
-      nowPlaying: getNowPlaying(st.id),
+      nowPlaying: nowPlayingView(st.slug, getNowPlaying(st.id)),
       // No público, só o nome de exibição (nunca o usuário de login).
       live: getLive(st.id) ? { name: getLive(st.id)!.name, since: getLive(st.id)!.since } : null,
       requestsEnabled: !!st.requests_enabled,
@@ -106,9 +121,21 @@ export async function publicRoutes(app: FastifyInstance) {
     return proxyStream(req, reply, st, mount);
   });
 
+  // Capa de uma música da estação (extraída das tags). Pública: aparece no player e nos apps.
+  app.get('/api/public/stations/:slug/cover/:mediaId', async (req, reply) => {
+    const { slug, mediaId } = z.object({ slug: z.string(), mediaId: z.coerce.number().int() }).parse(req.params);
+    const st = stationBySlug(slug);
+    const file = coverFile(st.id, mediaId);
+    if (!file) throw new HttpError(404, 'Sem capa');
+    return reply
+      .header('Content-Type', coverMime(file))
+      .header('Cache-Control', 'public, max-age=86400')
+      .send(fs.createReadStream(file));
+  });
+
   app.get('/api/public/stations/:slug/history', async (req) => {
     const st = stationBySlug(slugParam.parse(req.params).slug);
-    return getHistory(st.id, 50);
+    return historyView(st.slug, getHistory(st.id, 50));
   });
 
   // Catálogo para a página de pedidos.

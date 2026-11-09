@@ -59,6 +59,8 @@ export interface NowPlaying {
   title: string;
   artist: string;
   playedAt: string;
+  /** Capa da música (extraída das tags), quando existe. */
+  coverUrl?: string | null;
 }
 export interface MountCfg {
   mount: string;
@@ -107,6 +109,7 @@ export interface Media {
   size: number;
   originalName: string;
   folderId: number | null;
+  coverUrl?: string | null;
 }
 export interface Folder {
   id: number;

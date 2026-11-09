@@ -8,12 +8,14 @@ import { z } from 'zod';
 import { authenticate, HttpError, stationFor } from '../auth.js';
 import { config, stationDir } from '../config.js';
 import { all, db, get, run, type FolderRow, type MediaRow } from '../db.js';
+import { coversDir, extractCover } from '../engine/covers.js';
 import { ensureStationDirs, writePlaylists } from '../engine/manager.js';
 
 const ALLOWED = new Set(['.mp3', '.ogg', '.opus', '.flac', '.wav', '.m4a', '.aac']);
 const params = z.object({ id: z.coerce.number().int(), mediaId: z.coerce.number().int().optional() });
 
-const mediaView = (m: MediaRow) => ({
+const mediaView = (m: MediaRow, slug = '') => ({
+  coverUrl: m.cover && slug ? `/api/public/stations/${slug}/cover/${m.id}` : null,
   id: m.id,
   title: m.title,
   artist: m.artist,
@@ -22,6 +24,7 @@ const mediaView = (m: MediaRow) => ({
   size: m.size,
   originalName: m.original_name,
   folderId: m.folder_id,
+  hasCover: !!m.cover,
   createdAt: m.created_at,
 });
 
@@ -39,7 +42,7 @@ export async function mediaRoutes(app: FastifyInstance) {
   app.get('/api/stations/:id/media', async (req) => {
     const { id } = params.parse(req.params);
     const st = stationFor(req, id);
-    return all<MediaRow>('SELECT * FROM media WHERE station_id = ? ORDER BY artist, title', st.id).map(mediaView);
+    return all<MediaRow>('SELECT * FROM media WHERE station_id = ? ORDER BY artist, title', st.id).map((m) => mediaView(m, st.slug));
   });
 
   app.post('/api/stations/:id/media', async (req, reply) => {
@@ -90,7 +93,9 @@ export async function mediaRoutes(app: FastifyInstance) {
         fs.statSync(abs).size,
         folderId,
       );
-      created.push(mediaView(get<MediaRow>('SELECT * FROM media WHERE id = ?', Number(r.lastInsertRowid))!));
+      const row = get<MediaRow>('SELECT * FROM media WHERE id = ?', Number(r.lastInsertRowid))!;
+      await extractCover(row); // capa embutida nas tags (se houver)
+      created.push(mediaView(get<MediaRow>('SELECT * FROM media WHERE id = ?', row.id)!, st.slug));
     }
     writePlaylists(st.id); // pasta escolhida em playlists passa a incluir as músicas novas
     return reply.code(201).send(created);
@@ -177,6 +182,7 @@ export async function mediaRoutes(app: FastifyInstance) {
     const m = get<MediaRow>('SELECT * FROM media WHERE id = ? AND station_id = ?', mediaId ?? -1, st.id);
     if (!m) throw new HttpError(404, 'Mídia não encontrada');
     run('DELETE FROM media WHERE id = ?', m.id);
+    if (m.cover) fs.rmSync(path.join(coversDir(st.id), m.cover), { force: true });
     fs.rmSync(path.join(config.dataDir, m.path), { force: true });
     writePlaylists(st.id);
     return { ok: true };

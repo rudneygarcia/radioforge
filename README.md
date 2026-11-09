@@ -149,3 +149,9 @@ Ao enviar músicas (Biblioteca) ou episódios (Podcast), o painel mostra o andam
 ## Playlist padrão
 
 Marque uma playlist como **padrão** (a primeira playlist de uma estação já nasce padrão): ela é a **rotação base e toca sempre**, sem se misturar com as outras. As demais só entram pela regra de cada uma: **a cada N músicas da padrão** (ex.: 1 vinheta a cada 3 músicas), **em dia e horário** ou **por tempo** (a cada N minutos). Playlist sem regra, com padrão definida, **não toca** (o painel avisa). A padrão não tem regras próprias, não pode ser vinheta e só existe uma por estação. Sem padrão, vale o comportamento antigo (playlists misturadas por peso). Vale no Liquidsoap e no motor simples (que agora também faz o "a cada N músicas").
+
+## Metadados e capas
+
+- **Metadados no stream:** o Liquidsoap envia título/artista de cada faixa ao Icecast (ICY), então VLC e apps de rádio mostram "Artista - Música". Pelo link do painel (`/stream/<estação>/<nome>`, que funciona atrás do Cloudflare) os metadados ICY também passam quando o player os pede (`Icy-MetaData: 1`). Vinhetas saem com o **nome da estação** no lugar das tags do arquivo (e sem avisar o servidor). O motor simples (Node) não envia ICY.
+- **Capas:** a capa embutida nas tags do arquivo (ID3/MP4/FLAC) é extraída no envio (e nas músicas já enviadas, em segundo plano ao iniciar a API) e aparece no "Tocando agora" do painel e do player público, nos históricos e na biblioteca; no celular também na tela de bloqueio (Media Session). Link público: `/api/public/stations/<slug>/cover/<id>`. Músicas sem capa embutida mostram um ícone.
+- **Icecast:** está instalado na imagem Docker (`icecast2`); `GET /api/health` mostra `engineMode: liquidsoap` quando Icecast + Liquidsoap estão em uso.
