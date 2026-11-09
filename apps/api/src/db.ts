@@ -90,13 +90,14 @@ CREATE TABLE IF NOT EXISTS playlist_folders (
 CREATE TABLE IF NOT EXISTS time_clips (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   station_id INTEGER NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
+  voice TEXT NOT NULL DEFAULT 'padrao',
   hour INTEGER NOT NULL,
   minute INTEGER NOT NULL DEFAULT 0,
   file TEXT NOT NULL,
   original_name TEXT NOT NULL DEFAULT '',
   duration REAL NOT NULL DEFAULT 0,
   size INTEGER NOT NULL DEFAULT 0,
-  UNIQUE (station_id, hour, minute)
+  UNIQUE (station_id, voice, hour, minute)
 );
 
 CREATE TABLE IF NOT EXISTS history (
@@ -171,6 +172,27 @@ addColumn('stations', 'time_announce', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('stations', 'timezone', "TEXT NOT NULL DEFAULT 'America/Sao_Paulo'");
 // 1 = quando não há arquivo de áudio enviado para o horário, usa a voz sintética; 0 = não avisa nesse horário.
 addColumn('stations', 'time_announce_voice', 'INTEGER NOT NULL DEFAULT 1');
+// Voz da hora certa em uso (vazio = a mais completa entre as enviadas).
+addColumn('stations', 'time_voice', "TEXT NOT NULL DEFAULT ''");
+// time_clips antiga (um arquivo por horário, sem voz) vira a voz "padrao".
+if (!(db.prepare('PRAGMA table_info(time_clips)').all() as { name: string }[]).some((c) => c.name === 'voice')) {
+  db.exec(`ALTER TABLE time_clips RENAME TO time_clips_old;
+    CREATE TABLE time_clips (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      station_id INTEGER NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
+      voice TEXT NOT NULL DEFAULT 'padrao',
+      hour INTEGER NOT NULL,
+      minute INTEGER NOT NULL DEFAULT 0,
+      file TEXT NOT NULL,
+      original_name TEXT NOT NULL DEFAULT '',
+      duration REAL NOT NULL DEFAULT 0,
+      size INTEGER NOT NULL DEFAULT 0,
+      UNIQUE (station_id, voice, hour, minute)
+    );
+    INSERT INTO time_clips (station_id, voice, hour, minute, file, original_name, duration, size)
+      SELECT station_id, 'padrao', hour, minute, file, original_name, duration, size FROM time_clips_old;
+    DROP TABLE time_clips_old;`);
+}
 addColumn('stations', 'cover', 'TEXT'); // capa/logo da rádio (arquivo dentro da pasta da estação); usada quando a música não tem capa
 addColumn('stations', 'no_repeat_minutes', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('history', 'media_id', 'INTEGER'); // música tocada (para a regra de não repetir); null em vinhetas/antigos
@@ -345,6 +367,7 @@ export interface StationRow {
   live_continue: number;
   time_announce: number;
   time_announce_voice: number;
+  time_voice: string;
   timezone: string;
   cover: string | null;
   created_at: string;

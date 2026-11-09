@@ -2,10 +2,10 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { stationDir } from '../config.js';
-import { all, type StationRow } from '../db.js';
-import { getLive } from './nowplaying.js';
+import { all, get, type StationRow } from '../db.js';
+import { getLive, getNowPlaying } from './nowplaying.js';
 import { engineMode, isRunning, pushRequest } from './manager.js';
-import { clipFor, clipPath, slotLabel } from './timeclips.js';
+import { activeVoice, anyClipFor, clipFor, clipPath, slotLabel } from './timeclips.js';
 
 /**
  * "Hora certa": a cada 15/30/60 min o AutoDJ avisa a hora com voz sintética (espeak-ng, português do Brasil).
@@ -85,15 +85,31 @@ export async function ensureClip(stationId: number, hour: number, minute: number
  * 2) se não houver e a voz sintética estiver ligada, a voz; 3) senão, nada (não avisa).
  */
 export async function resolveClip(st: StationRow, hour: number, minute: number): Promise<{ file: string; source: 'arquivo' | 'voz' } | null> {
-  const clip = clipFor(st.id, hour, minute);
+  // 1) a voz escolhida; 2) o mesmo horário em outra voz enviada (melhor que ficar sem); 3) voz sintética; 4) nada.
+  const voice = activeVoice(st.id, st.time_voice);
+  const clip = (voice ? clipFor(st.id, voice, hour, minute) : undefined) ?? anyClipFor(st.id, hour, minute);
   if (clip && fs.existsSync(clipPath(clip))) return { file: clipPath(clip), source: 'arquivo' };
   if (st.time_announce_voice) return { file: await ensureClip(st.id, hour, minute), source: 'voz' };
   return null;
 }
 
-/** Enfileira o aviso agora (hora atual do fuso da estação). */
+/**
+ * Quando a fala vai realmente tocar: o aviso entra na fila e só sai quando a música atual termina. Estimamos esse
+ * instante (início da faixa + duração) para falar o horário certo (com arquivos por minuto, importa).
+ */
+export function estimatedPlayTime(st: StationRow, now = new Date()): Date {
+  const np = getNowPlaying(st.id);
+  if (np?.mediaId) {
+    const m = get<{ duration: number }>('SELECT duration FROM media WHERE id = ?', np.mediaId);
+    const end = Date.parse(np.playedAt) + (m?.duration ?? 0) * 1000;
+    if (m?.duration && end > now.getTime()) return new Date(end + 1500);
+  }
+  return new Date(now.getTime() + 3000);
+}
+
+/** Enfileira o aviso agora, falando o horário em que ele deve tocar (fuso da estação). */
 export async function announceNow(st: StationRow, at = new Date()): Promise<{ text: string; source: 'arquivo' | 'voz' }> {
-  const { hour, minute } = localTime(st.timezone, at);
+  const { hour, minute } = localTime(st.timezone, estimatedPlayTime(st, at));
   const clip = await resolveClip(st, hour, minute);
   if (!clip) throw new Error(`Não há arquivo de áudio para ${slotLabel(hour, minute)} e a voz sintética está desligada`);
   await pushRequest(st.id, clip.file, true);

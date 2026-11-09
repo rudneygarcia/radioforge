@@ -35,6 +35,7 @@ export default function Settings() {
     liveContinue: station.liveContinue,
     timeAnnounce: station.timeAnnounce,
     timeAnnounceVoice: station.timeAnnounceVoice,
+    timeVoice: station.timeVoice,
     timezone: station.timezone,
     historyLimit: station.historyLimit,
     liveEnabled: station.liveEnabled,
@@ -196,7 +197,7 @@ export default function Settings() {
 
       <div className="card section">
         <div className="section-title"><h3>Hora certa</h3></div>
-        <p className="muted" style={{ marginTop: -4 }}>O AutoDJ avisa a hora usando os <strong>seus arquivos de áudio</strong> (um por horário, enviados abaixo) ou, se faltar, a voz sintética (ex.: “Hora certa. São catorze horas e meia.”). O aviso entra na fila e toca <strong>ao fim da música atual</strong>; não aparece em “Tocando agora” nem no histórico, e não toca enquanto há DJ ao vivo.</p>
+        <p className="muted" style={{ marginTop: -4 }}>O AutoDJ avisa a hora usando os <strong>seus áudios</strong> (um por minuto, enviados num ZIP abaixo) ou, se faltar, a voz sintética (ex.: “Hora certa. São catorze horas e meia.”). O aviso entra na fila e toca <strong>ao fim da música atual</strong> (o servidor estima esse instante e fala o minuto certo); não aparece em “Tocando agora” nem no histórico, e não toca enquanto há DJ ao vivo.</p>
         <div className="fields">
           <div className="field-row">
             <label className="field">
@@ -205,7 +206,10 @@ export default function Settings() {
                 <option value={0}>Desligada</option>
                 <option value={60}>A cada hora (:00)</option>
                 <option value={30}>A cada 30 minutos</option>
+                <option value={20}>A cada 20 minutos</option>
                 <option value={15}>A cada 15 minutos</option>
+                <option value={10}>A cada 10 minutos</option>
+                <option value={5}>A cada 5 minutos</option>
               </select>
             </label>
             <label className="field">
@@ -223,7 +227,7 @@ export default function Settings() {
           <Toggle checked={f.timeAnnounceVoice} onChange={(v) => setF({ ...f, timeAnnounceVoice: v })} disabled={!isAdmin} title="Usar a voz sintética quando não houver arquivo para o horário" hint="Desligue se você enviar os seus próprios áudios: nos horários sem arquivo a rádio simplesmente não avisa." />
           <small className="hint">Salve as configurações para valer a mudança. Só funciona no modo completo. A hora usa o fuso escolhido acima (o servidor costuma estar em UTC).</small>
         </div>
-        <TimeClips station={{ ...station, timeAnnounce: f.timeAnnounce }} isAdmin={isAdmin} voiceFallback={f.timeAnnounceVoice} />
+        <TimeClips station={station} isAdmin={isAdmin} voiceFallback={f.timeAnnounceVoice} voice={f.timeVoice} onVoice={(v) => setF({ ...f, timeVoice: v })} />
       </div>
 
       <div className="card section">

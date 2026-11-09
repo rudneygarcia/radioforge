@@ -53,7 +53,9 @@ const settings = z.object({
   /** Hora certa: 0 desligada, ou avisa a hora a cada 15, 30 ou 60 minutos. */
   /** Sem arquivo enviado para o horário, usa a voz sintética (senão, não avisa). */
   timeAnnounceVoice: z.boolean().default(true),
-  timeAnnounce: z.union([z.literal(0), z.literal(15), z.literal(30), z.literal(60)]).default(0),
+  timeAnnounce: z.union([z.literal(0), z.literal(5), z.literal(10), z.literal(15), z.literal(20), z.literal(30), z.literal(60)]).default(0),
+  /** Voz dos áudios enviados (vazio = a mais completa). */
+  timeVoice: z.string().max(40).default(''),
   /** Fuso horário (IANA) usado na hora certa e nos horários da estação. */
   timezone: z.string().max(64).refine(isValidTimezone, 'Fuso horário inválido').default('America/Sao_Paulo'),
   /** Mountpoint principal. Na criação, o padrão é /radio.mp3 (ou /radio.ogg); na edição, vazio mantém o atual. */
@@ -139,6 +141,7 @@ export async function stationView(st: StationRow) {
     liveContinue: !!st.live_continue,
     timeAnnounce: st.time_announce,
     timeAnnounceVoice: !!st.time_announce_voice,
+    timeVoice: st.time_voice,
     timezone: st.timezone,
     audioWarning: audioWarningFor(st.id),
     mounts: mountsFor(st.id).map((m) => ({ mount: m.mount, format: m.format, bitrate: m.bitrate })),
@@ -185,8 +188,8 @@ export async function stationRoutes(app: FastifyInstance) {
     if (get('SELECT 1 AS ok FROM stations WHERE slug = ?', slug)) slug += '-' + crypto.randomBytes(2).toString('hex');
     const r = run(
       `INSERT INTO stations (name, slug, description, stream_port, mount, format, bitrate,
-         source_password, admin_password, live_enabled, requests_enabled, autostart, crossfade_seconds, normalize, record_live, history_limit, audio_preset, audio_gain, no_repeat_minutes, live_timeout, live_continue, time_announce, timezone, time_announce_voice)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         source_password, admin_password, live_enabled, requests_enabled, autostart, crossfade_seconds, normalize, record_live, history_limit, audio_preset, audio_gain, no_repeat_minutes, live_timeout, live_continue, time_announce, timezone, time_announce_voice, time_voice)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       body.name,
       slug,
       body.description,
@@ -211,6 +214,7 @@ export async function stationRoutes(app: FastifyInstance) {
       body.timeAnnounce,
       body.timezone,
       body.timeAnnounceVoice ? 1 : 0,
+      body.timeVoice,
     );
     const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', Number(r.lastInsertRowid))!;
     saveMounts(st.id, st.mount, body.mounts);
@@ -237,7 +241,7 @@ export async function stationRoutes(app: FastifyInstance) {
     if (b.mounts.some((m) => m.mount === newMount)) throw new HttpError(400, `O nome ${newMount} já é usado por um stream extra`);
     run(
       `UPDATE stations SET name = ?, description = ?, mount = ?, format = ?, bitrate = ?,
-         live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ?, record_live = ?, history_limit = ?, audio_preset = ?, audio_gain = ?, no_repeat_minutes = ?, live_timeout = ?, live_continue = ?, time_announce = ?, timezone = ?, time_announce_voice = ? WHERE id = ?`,
+         live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ?, record_live = ?, history_limit = ?, audio_preset = ?, audio_gain = ?, no_repeat_minutes = ?, live_timeout = ?, live_continue = ?, time_announce = ?, timezone = ?, time_announce_voice = ?, time_voice = ? WHERE id = ?`,
       b.name,
       b.description,
       newMount,
@@ -258,6 +262,7 @@ export async function stationRoutes(app: FastifyInstance) {
       b.timeAnnounce,
       b.timezone,
       b.timeAnnounceVoice ? 1 : 0,
+      b.timeVoice,
       st.id,
     );
     saveMounts(st.id, newMount, b.mounts);
