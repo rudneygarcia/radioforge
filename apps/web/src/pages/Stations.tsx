@@ -11,6 +11,7 @@ export default function Stations() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [mount, setMount] = useState('radio.mp3');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -26,10 +27,11 @@ export default function Stations() {
     setBusy(true);
     setError('');
     try {
-      await api('/api/stations', { method: 'POST', body: { name, description } });
+      await api('/api/stations', { method: 'POST', body: { name, description, mount } });
       setOpen(false);
       setName('');
       setDescription('');
+      setMount('radio.mp3');
       toast('Estação criada');
       load();
     } catch (err) {
@@ -106,6 +108,11 @@ export default function Stations() {
           <label className="field">
             <span>Descrição <em className="hint">(opcional)</em></span>
             <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Uma frase sobre a programação" />
+          </label>
+          <label className="field">
+            <span>Nome do stream</span>
+            <input value={mount} onChange={(e) => setMount(e.target.value.replace(/[^a-zA-Z0-9._-]/g, ''))} placeholder="radio.mp3" maxLength={40} required />
+            <small className="hint">É o final do endereço de escuta. Padrão: radio.mp3 — dá para mudar depois nas Configurações.</small>
           </label>
           {error && <p className="error">{error}</p>}
         </form>

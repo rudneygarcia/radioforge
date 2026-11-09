@@ -11,6 +11,19 @@ import { getHistory, getListeners, getLive, getNowPlaying } from '../engine/nowp
 
 const idParam = z.object({ id: z.coerce.number().int() });
 
+/** Nome do mountpoint (parte final da URL do stream): aceita com ou sem a barra inicial. */
+const RESERVED_MOUNTS = new Set(['/live', '/admin', '/status.xsl', '/status-json.xsl', '/server_version.xsl']);
+const mountName = z
+  .string()
+  .trim()
+  .transform((v) => (v.startsWith('/') ? v : '/' + v))
+  .pipe(
+    z
+      .string()
+      .regex(/^\/[a-zA-Z0-9._-]{1,40}$/,'Nome do stream inválido: use letras, números, ponto, hífen ou sublinhado (ex.: radio.mp3)')
+      .refine((v) => !RESERVED_MOUNTS.has(v.toLowerCase()), 'Esse nome é reservado pelo servidor'),
+  );
+
 const settings = z.object({
   name: z.string().min(1).max(80),
   description: z.string().max(300).default(''),
@@ -22,6 +35,8 @@ const settings = z.object({
   crossfadeSeconds: z.number().min(0).max(10).default(0),
   normalize: z.boolean().default(false),
   recordLive: z.boolean().default(false),
+  /** Mountpoint principal. Na criação, o padrão é /radio.mp3 (ou /radio.ogg); na edição, vazio mantém o atual. */
+  mount: mountName.optional(),
   mounts: z
     .array(
       z.object({
@@ -81,6 +96,7 @@ export async function stationView(st: StationRow) {
     name: st.name,
     slug: st.slug,
     description: st.description,
+    mount: st.mount,
     format: st.format,
     bitrate: st.bitrate,
     liveEnabled: !!st.live_enabled,
@@ -138,7 +154,7 @@ export async function stationRoutes(app: FastifyInstance) {
       slug,
       body.description,
       nextPort(),
-      '/radio',
+      body.mount ?? `/radio.${body.format}`,
       body.format,
       body.bitrate,
       randomPassword(),
@@ -170,11 +186,15 @@ export async function stationRoutes(app: FastifyInstance) {
     const st = stationFor(req, id);
     requireAdmin(req);
     const b = settings.parse(req.body);
+    const newMount = b.mount ?? st.mount;
+    // Valida antes de gravar: o nome principal não pode repetir um stream extra.
+    if (b.mounts.some((m) => m.mount === newMount)) throw new HttpError(400, `O nome ${newMount} já é usado por um stream extra`);
     run(
-      `UPDATE stations SET name = ?, description = ?, format = ?, bitrate = ?,
+      `UPDATE stations SET name = ?, description = ?, mount = ?, format = ?, bitrate = ?,
          live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ?, record_live = ? WHERE id = ?`,
       b.name,
       b.description,
+      newMount,
       b.format,
       b.bitrate,
       b.liveEnabled ? 1 : 0,
@@ -185,7 +205,7 @@ export async function stationRoutes(app: FastifyInstance) {
       b.recordLive ? 1 : 0,
       st.id,
     );
-    saveMounts(st.id, st.mount, b.mounts);
+    saveMounts(st.id, newMount, b.mounts);
     const updated = get<StationRow>('SELECT * FROM stations WHERE id = ?', st.id)!;
     if (config.engine.enabled && isRunning(st.id)) await restartStation(updated);
     return stationView(updated);

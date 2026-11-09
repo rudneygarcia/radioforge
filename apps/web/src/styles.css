@@ -291,3 +291,9 @@ tr.picked td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
   .big { font-size: 32px; }
   .card { padding: 16px; }
 }
+
+/* Campo com prefixo (endereço do stream) */
+.input-prefix { display: flex; align-items: stretch; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-2); overflow: hidden; }
+.input-prefix:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+.input-prefix > span { display: flex; align-items: center; padding: 0 10px; color: var(--muted); font-size: 13.5px; background: var(--panel-2); border-right: 1px solid var(--border); white-space: nowrap; font-weight: 400; }
+.input-prefix input { flex: 1; min-width: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none !important; }

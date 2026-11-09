@@ -73,6 +73,7 @@ export interface Station {
   name: string;
   slug: string;
   description: string;
+  mount: string;
   format: 'mp3' | 'ogg';
   bitrate: number;
   liveEnabled: boolean;

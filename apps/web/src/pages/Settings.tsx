@@ -22,6 +22,7 @@ export default function Settings() {
   const [f, setF] = useState({
     name: station.name,
     description: station.description,
+    mount: station.mount,
     format: station.format,
     bitrate: station.bitrate,
     liveEnabled: station.liveEnabled,
@@ -67,6 +68,21 @@ export default function Settings() {
         <div className="fields">
           <label className="field"><span>Nome</span><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} disabled={!isAdmin} required /></label>
           <label className="field"><span>Descrição</span><input value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} disabled={!isAdmin} /></label>
+          <label className="field">
+            <span>Nome do stream <em className="hint">(endereço de escuta)</em></span>
+            <div className="input-prefix">
+              <span>{station.streams[0] ? new URL(station.streams[0].url).host : location.host}/</span>
+              <input
+                value={f.mount.replace(/^\//, '')}
+                onChange={(e) => setF({ ...f, mount: e.target.value.replace(/[^a-zA-Z0-9._-]/g, '') })}
+                disabled={!isAdmin}
+                placeholder="radio.mp3"
+                maxLength={40}
+                required
+              />
+            </div>
+            <small className="hint">Letras, números, ponto, hífen e sublinhado. Ex.: radio.mp3. Quem já usa o endereço antigo precisa trocar para o novo.</small>
+          </label>
           <Toggle checked={f.autostart} onChange={(v) => setF({ ...f, autostart: v })} disabled={!isAdmin} title="Iniciar automaticamente com o servidor" />
         </div>
       </div>

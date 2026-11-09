@@ -46,7 +46,7 @@ A API escolhe sozinha (`ENGINE_MODE=auto`, padrão):
 | `liquidsoap` | Icecast e Liquidsoap instalados (imagem Docker) | Tudo: DJ ao vivo, crossfade, normalização, gravação, vários formatos/bitrates |
 | `native` | Sem esses programas (ex.: Windows, para testar) | Motor simples em Node: **só MP3**, playlists e agendamento, pedidos, relatórios. Sem DJ, crossfade, normalização, gravação ou transcodificação (streams extras repetem o principal). Sem playlists, toca a biblioteca inteira |
 
-Force um modo com `ENGINE_MODE=native` ou `ENGINE_MODE=liquidsoap`. O painel avisa quando está no modo simples. O endereço do stream é `http://<PUBLIC_HOST>:<porta>/radio`; no Windows, libere o Node no firewall se ele perguntar.
+Force um modo com `ENGINE_MODE=native` ou `ENGINE_MODE=liquidsoap`. O painel avisa quando está no modo simples. O endereço do stream é `http://<host>:<porta>/radio.mp3` (nome padrão de estações novas; editável em Configurações → Nome do stream, ou `/radio.ogg` se o formato for OGG; estações antigas continuam em `/radio` até serem editadas); no Windows, libere o Node no firewall se ele perguntar.
 
 ## Estado atual
 
