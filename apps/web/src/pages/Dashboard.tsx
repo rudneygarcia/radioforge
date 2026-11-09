@@ -4,6 +4,15 @@ import { api } from '../api';
 import { CopyButton, Cover, Empty, Icon, useUi } from '../ui';
 import type { StationCtx } from './StationLayout';
 
+interface Req {
+  id: number;
+  title: string;
+  artist: string;
+  ip: string;
+  createdAt: string;
+  status: 'waiting' | 'queued' | 'played';
+}
+
 interface Hist {
   title: string;
   artist: string;
@@ -59,6 +68,7 @@ export default function Dashboard() {
   const { toast, confirm } = useUi();
   const [history, setHistory] = useState<Hist[]>([]);
   const [busy, setBusy] = useState(false);
+  const [reqs, setReqs] = useState<Req[]>([]);
   // Quantas músicas mostrar no histórico (lembra a escolha neste navegador).
   const [shown, setShown] = useState(() => {
     try {
@@ -79,6 +89,11 @@ export default function Dashboard() {
   useEffect(() => {
     api<Hist[]>(`/api/stations/${station.id}/history`).then(setHistory);
   }, [station.id, station.nowPlaying?.playedAt]);
+
+  useEffect(() => {
+    if (!station.requestsEnabled) return;
+    api<Req[]>(`/api/stations/${station.id}/requests`).then(setReqs).catch(() => {});
+  }, [station.id, station.requestsEnabled, station.nowPlaying?.playedAt]);
 
   async function kick() {
     if (!(await confirm({ title: 'Derrubar a transmissão ao vivo?', message: 'O encoder atual é desconectado e o AutoDJ assume na hora. O DJ pode reconectar se o programa dele tentar de novo.', confirmLabel: 'Voltar ao AutoDJ', danger: true }))) return;
@@ -164,6 +179,26 @@ export default function Dashboard() {
           <MiniPlayer slug={station.slug} online={station.running} />
         </div>
       </div>
+
+      {station.requestsEnabled && (
+        <div className="card section">
+          <div className="section-title"><h3>Pedidos dos ouvintes</h3></div>
+          {reqs.length === 0 ? (
+            <p className="muted" style={{ margin: 0 }}>Nenhum pedido ainda.</p>
+          ) : (
+            reqs.slice(0, 15).map((r) => (
+              <div key={r.id} className="req-item" style={{ marginBottom: 6 }}>
+                <span className="req-ico"><Icon name="music" size={16} /></span>
+                <span className="req-txt">
+                  <strong>{r.title}</strong>
+                  <small>{r.artist || '—'} · {new Date(r.createdAt.replace(' ', 'T') + 'Z').toLocaleString()} · {r.ip}</small>
+                </span>
+                <span className={`req-state ${r.status === 'played' ? 'played' : 'queued'}`}>{r.status === 'played' ? 'Tocou' : r.status === 'waiting' ? 'Agendado' : 'Na fila'}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
 
       <div className="card section">
         <div className="section-title"><h3>Links de transmissão</h3></div>

@@ -449,4 +449,28 @@ export async function stationRoutes(app: FastifyInstance) {
     const st = stationFor(req, id);
     return historyView(st, getHistory(st.id, 50));
   });
+
+  // Pedidos dos ouvintes (painel): últimos 50, com IP e situação (agendado / na fila / tocou).
+  app.get('/api/stations/:id/requests', async (req) => {
+    const { id } = idParam.parse(req.params);
+    const st = stationFor(req, id);
+    const rows = all<{ id: number; title: string; artist: string; ip: string; created_at: string; due_at: string; pushed: number }>(
+      `SELECT r.id, m.title, m.artist, r.ip, r.created_at, r.due_at, r.pushed FROM song_requests r JOIN media m ON m.id = r.media_id
+       WHERE r.station_id = ? ORDER BY r.id DESC LIMIT 50`,
+      st.id,
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      artist: r.artist,
+      ip: r.ip,
+      createdAt: r.created_at,
+      dueAt: r.due_at,
+      status: !r.pushed
+        ? 'waiting'
+        : get('SELECT 1 AS ok FROM history WHERE station_id = ? AND title = ? AND artist = ? AND played_at >= ? LIMIT 1', st.id, r.title, r.artist, r.created_at)
+          ? 'played'
+          : 'queued',
+    }));
+  });
 }
