@@ -9,10 +9,10 @@ export interface NowPlaying {
 
 const current = new Map<number, NowPlaying>();
 
-export function recordTrack(stationId: number, artist: string, title: string) {
+export function recordTrack(stationId: number, artist: string, title: string, mediaId: number | null = null) {
   const last = getNowPlaying(stationId);
   if (last && last.artist === artist && last.title === title) return;
-  run('INSERT INTO history (station_id, title, artist) VALUES (?, ?, ?)', stationId, title, artist);
+  run('INSERT INTO history (station_id, title, artist, media_id) VALUES (?, ?, ?, ?)', stationId, title, artist, mediaId);
   const playedAt = new Date().toISOString();
   current.set(stationId, { title, artist, playedAt });
   dispatch(stationId, 'song_change', { artist, title, playedAt });

@@ -32,24 +32,35 @@ export function schedulePredicate(s: NonNullable<LiqPlaylist['schedule']>): stri
 }
 
 /**
- * Cadeia de processamento de áudio (estilo "rádio"): compressão para nivelar o volume e limitador
- * para não estourar. Os presets são pontos de partida; "loud" soa mais forte (estilo FM).
+ * Cadeia de processamento de áudio (estilo "rádio"): normalizador (nivela o volume entre faixas),
+ * compressor (aproxima o baixo do alto), ganho extra opcional e LIMITADOR no fim, que impede o som de
+ * estourar/distorcer mesmo com volume alto. Presets: balanced (padrão) e loud (estilo FM).
+ *
+ * `variant`: 0 = completa (com parâmetros); 1 = só valores padrão do Liquidsoap (se algum nome de
+ * parâmetro não existir nesta versão); o manager tenta 0, depois 1, e por fim sem processamento.
  */
-export function audioChain(preset: 'off' | 'balanced' | 'loud'): string[] {
+export function audioChain(preset: 'off' | 'balanced' | 'loud', gainDb = 0, variant: 0 | 1 = 0): string[] {
+  if (preset === 'off' && gainDb <= 0) return [];
+  const out: string[] = [];
+  const gain = gainDb > 0 ? [`radio = amplify(${Math.pow(10, gainDb / 20).toFixed(3)}, radio)`] : [];
+  if (variant === 1) {
+    if (preset !== 'off') out.push(`radio = normalize(radio)`, `radio = compress(radio)`);
+    out.push(...gain, `radio = limit(radio)`);
+    return out;
+  }
   if (preset === 'balanced') {
-    return [
-      `radio = compress(threshold = -18., ratio = 2.5, attack = 40., release = 400., gain = 2., radio)`,
-      `radio = limit(radio)`,
-    ];
-  }
-  if (preset === 'loud') {
-    return [
+    out.push(
       `radio = normalize(radio)`,
-      `radio = compress(threshold = -22., ratio = 4., attack = 25., release = 300., gain = 4., radio)`,
-      `radio = limit(radio)`,
-    ];
+      `radio = compress(threshold = -18., ratio = 3., attack = 30., release = 300., gain = 3., radio)`,
+    );
+  } else if (preset === 'loud') {
+    out.push(
+      `radio = normalize(radio)`,
+      `radio = compress(threshold = -22., ratio = 4., attack = 20., release = 250., gain = 5., radio)`,
+    );
   }
-  return [];
+  out.push(...gain, `radio = limit(threshold = -1., radio)`);
+  return out;
 }
 
 export const harborPort = (st: StationRow) => st.stream_port + 5;
@@ -65,6 +76,7 @@ export function buildLiquidsoapScript(
   extraMounts: MountRow[] = [],
   djs: DjRow[] = [],
   recordingsDir = '',
+  audioVariant: 0 | 1 | 2 = 0,
 ): string {
   const lines: string[] = [];
   lines.push(
@@ -179,7 +191,7 @@ export function buildLiquidsoapScript(
   }
 
   // Processador de áudio: sobre tudo que vai ao ar (músicas e DJ). Sem a opção, o áudio sai como veio.
-  lines.push(...audioChain(st.audio_preset));
+  if (audioVariant === 0 || audioVariant === 1) lines.push(...audioChain(st.audio_preset, st.audio_gain, audioVariant));
 
   lines.push(`radio = mksafe(radio)`, `radio.on_metadata(notify)`, ``);
 

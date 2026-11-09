@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { config } from '../config.js';
-import { all, get, mountsFor, playlistMedia, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
+import { all, avoidRecent, get, mountsFor, playlistMedia, recentMedia, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
 import { recordTrack, setNativeListenerCounter } from './nowplaying.js';
 import { recordSession } from './sessions.js';
 
@@ -169,13 +169,17 @@ class NativeStation {
       }))
       .filter((l) => l.media.length > 0);
 
+    // Regra "não repetir por N minutos" (vinhetas ficam de fora).
+    const recent = recentMedia(this.st.id, this.st.no_repeat_minutes);
+    for (const l of lists) if (!l.p.is_jingle) l.media = avoidRecent(l.media, recent);
+
     const now = new Date();
     const scheduled = lists.filter((l) => inWindow(l.p, now));
     const pool = scheduled.length ? scheduled : lists.filter((l) => !l.p.schedule_enabled);
 
     if (pool.length === 0) {
       // Sem playlists utilizáveis: toca a biblioteca inteira em ordem aleatória.
-      const media = all<MediaRow>("SELECT * FROM media WHERE station_id = ? AND lower(path) LIKE '%.mp3'", this.st.id);
+      const media = avoidRecent(all<MediaRow>("SELECT * FROM media WHERE station_id = ? AND lower(path) LIKE '%.mp3'", this.st.id), recent);
       return media.length ? { m: this.shuffle(media), silent: false } : null;
     }
 
@@ -236,7 +240,7 @@ class NativeStation {
       // Anuncia a música no momento em que ela realmente começa a tocar.
       const wait = startedAt - Date.now();
       if (wait > 0) await sleep(wait);
-      if (!pick.silent) recordTrack(this.st.id, m.artist, m.title);
+      if (!pick.silent) recordTrack(this.st.id, m.artist, m.title, m.id);
 
       let sent = 0;
       while (this.running && sent < audio.length) {

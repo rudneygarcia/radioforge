@@ -4,7 +4,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { HttpError } from '../auth.js';
 import { config, stationDir } from '../config.js';
-import { all, djsFor, get, mountsFor, playlistMedia, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
+import { all, avoidRecent, djsFor, get, mountsFor, playlistMedia, recentMedia, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
 import { buildIcecastConfig } from './icecast.js';
 import { dispatch } from './webhooks.js';
 import { clearLive } from './nowplaying.js';
@@ -103,9 +103,13 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
   ensureStationDirs(stationId);
   const playlists = all<PlaylistRow>('SELECT * FROM playlists WHERE station_id = ? AND enabled = 1', stationId);
   const out: LiqPlaylist[] = [];
+  // Regra "não repetir por N minutos": as tocadas há pouco ficam fora do arquivo (o Liquidsoap recarrega sozinho).
+  const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', stationId);
+  const recent = recentMedia(stationId, st?.no_repeat_minutes ?? 0);
   for (const p of playlists) {
     if (p.every_minutes > 0) continue; // entra por tempo (ver timed.ts), não na rotação
-    const media = playlistMedia(p.id);
+    const full = playlistMedia(p.id);
+    const media = p.is_jingle ? full : avoidRecent(full, recent); // vinhetas não entram na regra
     if (media.length === 0) continue;
     const m3uPath = path.join(stationDir(stationId), 'playlists', `${p.id}.m3u`);
     // Vinheta: o prefixo annotate marca a faixa para o Liquidsoap não avisar o servidor do nome dela.
@@ -113,7 +117,9 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
       const abs = path.join(config.dataDir, m.path);
       return p.is_jingle ? `annotate:rf_jingle="1":${abs}` : abs;
     };
-    fs.writeFileSync(m3uPath, media.map(uri).join('\n') + '\n');
+    const content = media.map(uri).join('\n') + '\n';
+    // Só regrava se mudou: cada gravação faz o Liquidsoap recarregar a playlist.
+    if (!fs.existsSync(m3uPath) || fs.readFileSync(m3uPath, 'utf8') !== content) fs.writeFileSync(m3uPath, content);
     out.push({
       id: p.id,
       mode: p.mode,
@@ -129,12 +135,20 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
   return out;
 }
 
-function writeConfigs(st: StationRow) {
+/** Qual versão do processador de áudio vale por estação (0 completa, 1 só padrões, 2 desligada por erro). */
+const audioVariant = new Map<number, 0 | 1 | 2>();
+const audioWarnings = new Map<number, string>();
+/** Aviso para o painel quando o processador precisou ser reduzido/desligado por erro no script. */
+export const audioWarningFor = (stationId: number): string | null => audioWarnings.get(stationId) ?? null;
+
+function writeConfigs(st: StationRow, variant: 0 | 1 | 2 = audioVariant.get(st.id) ?? 0) {
   ensureStationDirs(st.id);
   const base = stationDir(st.id);
   const playlists = writePlaylists(st.id);
   fs.writeFileSync(path.join(base, 'config', 'icecast.xml'), buildIcecastConfig(st, path.join(base, 'logs')));
-  fs.writeFileSync(path.join(base, 'config', 'radio.liq'), buildLiquidsoapScript(st, playlists, mountsFor(st.id), djsFor(st.id), path.join(base, 'recordings')),
+  fs.writeFileSync(
+    path.join(base, 'config', 'radio.liq'),
+    buildLiquidsoapScript(st, playlists, mountsFor(st.id), djsFor(st.id), path.join(base, 'recordings'), variant),
   );
 }
 
@@ -152,18 +166,32 @@ export async function startStation(st: StationRow) {
     return;
   }
   if (procs.has(st.id)) await stopStation(st.id);
-  writeConfigs(st);
   const base = stationDir(st.id);
+  const runCheck = () =>
+    spawnSync(config.engine.liquidsoapBin, ['--check', path.join(base, 'config', 'radio.liq')], { encoding: 'utf8', timeout: 60_000 });
 
   // Valida o script antes de subir: erros de sintaxe/tipo aparecem direto no painel.
-  const check = spawnSync(config.engine.liquidsoapBin, ['--check', path.join(base, 'config', 'radio.liq')], {
-    encoding: 'utf8',
-    timeout: 60_000,
-  });
-  if (check.error) throw startError(`Não foi possível executar o Liquidsoap: ${check.error.message}`);
-  if (check.status !== 0) {
-    throw startError(`Script do Liquidsoap inválido:\n${tail(`${check.stdout}\n${check.stderr}`)}`);
+  // Se o erro for do processador de áudio, tenta uma versão mais simples e por fim sem processamento,
+  // para a rádio ir ao ar mesmo assim (e o painel avisa o que aconteceu).
+  const wantsChain = st.audio_preset !== 'off' || st.audio_gain > 0;
+  const variants: (0 | 1 | 2)[] = wantsChain ? [0, 1, 2] : [2];
+  audioWarnings.delete(st.id);
+  let firstError = '';
+  for (const v of variants) {
+    writeConfigs(st, v);
+    const check = runCheck();
+    if (check.error) throw startError(`Não foi possível executar o Liquidsoap: ${check.error.message}`);
+    if (check.status === 0) {
+      audioVariant.set(st.id, v);
+      if (wantsChain && v === 1) audioWarnings.set(st.id, `O processador de áudio roda só com valores padrão (os ajustes finos não foram aceitos pelo Liquidsoap):\n${firstError}`);
+      if (wantsChain && v === 2) audioWarnings.set(st.id, `O processador de áudio foi DESLIGADO porque o Liquidsoap recusou o script:\n${firstError}`);
+      break;
+    }
+    if (!firstError) firstError = tail(`${check.stdout}\n${check.stderr}`);
+    // Sem processador e ainda inválido: o problema é outro, mostra o erro.
+    if (v === 2) throw startError(`Script do Liquidsoap inválido:\n${tail(`${check.stdout}\n${check.stderr}`)}`);
   }
+  if (audioWarnings.has(st.id)) console.warn(`[engine] ${st.slug}: ${audioWarnings.get(st.id)}`);
 
   const icecast = new Supervised(
     `icecast:${st.slug}`,

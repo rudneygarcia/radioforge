@@ -26,6 +26,8 @@ export default function Settings() {
     format: station.format,
     bitrate: station.bitrate,
     audioPreset: station.audioPreset,
+    audioGain: station.audioGain,
+    noRepeatMinutes: station.noRepeatMinutes,
     historyLimit: station.historyLimit,
     liveEnabled: station.liveEnabled,
     requestsEnabled: station.requestsEnabled,
@@ -116,16 +118,22 @@ export default function Settings() {
 
       <div className="card section">
         <div className="section-title"><h3>Processador de áudio</h3></div>
-        <p className="muted" style={{ marginTop: -4 }}>Nivela o volume entre músicas e DJ e evita estouros, para um som mais cheio e constante, no estilo de rádio FM.</p>
+        <p className="muted" style={{ marginTop: -4 }}>Nivela o volume entre músicas e DJ, deixa o som mais alto e cheio e evita estouros (distorção), no estilo de rádio FM.</p>
+        {station.audioWarning && <div className="card notice" style={{ whiteSpace: 'pre-wrap' }}><strong>Atenção:</strong> {station.audioWarning}</div>}
         <div className="fields">
           <label className="field">
             <span>Predefinição</span>
             <select value={f.audioPreset} onChange={(e) => setF({ ...f, audioPreset: e.target.value as typeof f.audioPreset })} disabled={!isAdmin}>
-              <option value="off">Desligado (áudio original)</option>
-              <option value="balanced">Equilibrado (compressão leve + limitador)</option>
+              <option value="off">Desligado (áudio original, sem nivelar)</option>
+              <option value="balanced">Equilibrado (normaliza + compressão + limitador) — recomendado</option>
               <option value="loud">Forte, estilo FM (normaliza + compressão firme + limitador)</option>
             </select>
-            <small className="hint">Só no modo completo (Icecast + Liquidsoap). Comece pelo Equilibrado; o Forte deixa o som mais alto e “colado”.</small>
+            <small className="hint">Só no modo completo (Icecast + Liquidsoap). O limitador no final impede a distorção mesmo com o volume alto.</small>
+          </label>
+          <label className="field">
+            <span>Volume extra: {f.audioGain === 0 ? 'sem ganho' : `+${f.audioGain} dB`}</span>
+            <input type="range" min={0} max={12} step={1} value={f.audioGain} onChange={(e) => setF({ ...f, audioGain: Number(e.target.value) })} disabled={!isAdmin} style={{ padding: 0 }} />
+            <small className="hint">Se ainda estiver baixo, suba de 2 em 2 dB. Acima de uns +8 dB o som pode ficar “espremido”; o limitador evita o estouro, mas escute antes de deixar fixo.</small>
           </label>
         </div>
       </div>
@@ -158,6 +166,11 @@ export default function Settings() {
         <div className="fields">
           <Toggle checked={f.liveEnabled} onChange={(v) => setF({ ...f, liveEnabled: v })} disabled={!isAdmin} title="Permitir DJ ao vivo" />
           <Toggle checked={f.recordLive} onChange={(v) => setF({ ...f, recordLive: v })} disabled={!isAdmin || !f.liveEnabled} title="Gravar as transmissões ao vivo" hint="Salva cada transmissão de DJ para baixar depois." />
+          <label className="field" style={{ maxWidth: 340 }}>
+            <span>Não repetir a mesma música por (minutos)</span>
+            <input type="number" min={0} max={1440} value={f.noRepeatMinutes} onChange={(e) => setF({ ...f, noRepeatMinutes: Math.max(0, Math.min(1440, Number(e.target.value) || 0)) })} disabled={!isAdmin} />
+            <small className="hint">Uma música que tocou só volta depois desse tempo (0 = desligado; 60 = 1 hora). Se a biblioteca for pequena e todas já tiverem tocado, a rádio continua tocando (nunca fica sem música). Vinhetas não entram na regra.</small>
+          </label>
           <label className="field" style={{ maxWidth: 260 }}>
             <span>Músicas recentes no player público</span>
             <input type="number" min={1} max={50} value={f.historyLimit} onChange={(e) => setF({ ...f, historyLimit: Math.max(1, Math.min(50, Number(e.target.value) || 1)) })} disabled={!isAdmin} />

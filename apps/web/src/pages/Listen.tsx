@@ -18,6 +18,8 @@ interface Song {
   id: number;
   title: string;
   artist: string;
+  /** Tocou há pouco (regra de não repetir): não dá para pedir agora. */
+  recent: boolean;
 }
 interface Hist {
   title: string;
@@ -116,7 +118,7 @@ export default function Listen() {
             {songs.map((s) => (
               <div key={s.id} className="row between">
                 <span>{s.artist ? `${s.artist} — ` : ''}{s.title}</span>
-                <button className="small" onClick={() => request(s.id)}>Pedir</button>
+                <button className="small" onClick={() => request(s.id)} disabled={s.recent} title={s.recent ? "Tocou há pouco" : undefined}>{s.recent ? "Tocou há pouco" : "Pedir"}</button>
               </div>
             ))}
           </div>

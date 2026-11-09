@@ -59,6 +59,12 @@ export default function Dashboard() {
         </div>
       )}
 
+      {station.audioWarning && (
+        <div className="card notice" style={{ whiteSpace: 'pre-wrap' }}>
+          <strong>Processador de áudio:</strong> {station.audioWarning}
+        </div>
+      )}
+
       <div className="stat-grid">
         <div className="card">
           <div className="stat-label"><Icon name="radio" /> Status</div>

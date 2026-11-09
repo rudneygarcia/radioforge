@@ -79,6 +79,9 @@ export interface Station {
   bitrate: number;
   historyLimit: number;
   audioPreset: 'off' | 'balanced' | 'loud';
+  audioGain: number;
+  audioWarning: string | null;
+  noRepeatMinutes: number;
   liveEnabled: boolean;
   requestsEnabled: boolean;
   autostart: boolean;

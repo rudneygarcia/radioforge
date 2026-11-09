@@ -148,6 +148,15 @@ function allowAacFormat() {
 allowAacFormat();
 addColumn('stations', 'history_limit', 'INTEGER NOT NULL DEFAULT 5'); // quantas músicas recentes o player público mostra
 addColumn('stations', 'audio_preset', "TEXT NOT NULL DEFAULT 'off'"); // off | balanced | loud (Liquidsoap)
+// Não repetir a mesma música por N minutos (0 = desligado).
+addColumn('stations', 'no_repeat_minutes', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('history', 'media_id', 'INTEGER'); // música tocada (para a regra de não repetir); null em vinhetas/antigos
+addColumn('stations', 'audio_gain', 'REAL NOT NULL DEFAULT 0'); // ganho extra em dB (0 a 12), antes do limitador
+// Migração única (user_version 1): quem estava sem processador passa ao "Equilibrado", que nivela o volume (o áudio original saía baixo).
+if ((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version < 1) {
+  db.exec("UPDATE stations SET audio_preset = 'balanced' WHERE audio_preset = 'off'");
+  db.exec('PRAGMA user_version = 1');
+}
 addColumn('media', 'folder_id', 'INTEGER REFERENCES media_folders(id) ON DELETE SET NULL');
 addColumn('playlists', 'schedule_enabled', 'INTEGER NOT NULL DEFAULT 0');
 // Vinheta: toca normalmente, mas o nome do arquivo NÃO é enviado ao servidor (não entra no "tocando agora", histórico nem webhooks).
@@ -303,6 +312,8 @@ export interface StationRow {
   record_live: number;
   history_limit: number;
   audio_preset: 'off' | 'balanced' | 'loud';
+  audio_gain: number;
+  no_repeat_minutes: number;
   created_at: string;
 }
 export interface EpisodeRow {
@@ -378,6 +389,34 @@ export function playlistMedia(playlistId: number): MediaRow[] {
   const seen = new Set(direct.map((m) => m.id));
   return [...direct, ...fromFolders.filter((m) => !seen.has(m.id))];
 }
+export interface RecentPlays {
+  ids: Set<number>;
+  /** A última música tocada (para nunca repetir a faixa de trás para a frente). */
+  last: number | null;
+}
+
+/** Músicas tocadas nos últimos `minutes` minutos (vazio se a regra estiver desligada). */
+export function recentMedia(stationId: number, minutes: number): RecentPlays {
+  if (minutes <= 0) return { ids: new Set(), last: null };
+  const rows = all<{ media_id: number }>(
+    `SELECT media_id FROM history WHERE station_id = ? AND media_id IS NOT NULL AND played_at >= datetime('now', ?) ORDER BY id DESC`,
+    stationId,
+    `-${Math.floor(minutes)} minutes`,
+  );
+  return { ids: new Set(rows.map((r) => r.media_id)), last: rows[0]?.media_id ?? null };
+}
+
+/**
+ * Tira da lista as músicas tocadas há pouco. Se não sobrar nenhuma (biblioteca pequena), nunca deixa a
+ * rádio sem música: usa tudo, menos a última tocada (quando houver outra).
+ */
+export function avoidRecent<T extends { id: number }>(media: T[], recent: RecentPlays): T[] {
+  if (recent.ids.size === 0) return media;
+  const fresh = media.filter((m) => !recent.ids.has(m.id));
+  if (fresh.length > 0) return fresh;
+  return media.length > 1 ? media.filter((m) => m.id !== recent.last) : media;
+}
+
 /** Músicas que os ouvintes podem pedir: as de playlists ativas com pedidos ligados (e que não são vinhetas). */
 export function requestableMedia(stationId: number): MediaRow[] {
   const lists = all<{ id: number }>('SELECT id FROM playlists WHERE station_id = ? AND enabled = 1 AND requestable = 1 AND is_jingle = 0', stationId);

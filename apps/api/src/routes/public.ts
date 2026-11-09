@@ -5,8 +5,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { HttpError } from '../auth.js';
 import { config } from '../config.js';
-import { all, get, mountsFor, requestableMedia, run, type MediaRow, type StationRow } from '../db.js';
-import { isRunning, pushRequest } from '../engine/manager.js';
+import { all, get, mountsFor, recentMedia, requestableMedia, run, type MediaRow, type StationRow } from '../db.js';
+import { isRunning, pushRequest, writePlaylists } from '../engine/manager.js';
 import { getHistory, getListeners, getLive, getNowPlaying, recordTrack, setLive } from '../engine/nowplaying.js';
 import { streamsOf, streamUrl } from './stations.js';
 
@@ -116,7 +116,8 @@ export async function publicRoutes(app: FastifyInstance) {
     const st = stationBySlug(slugParam.parse(req.params).slug);
     if (!st.requests_enabled) return [];
     // Só as músicas de playlists com "Permitir pedidos" ligado (e que não são vinhetas).
-    return requestableMedia(st.id).map((m) => ({ id: m.id, title: m.title, artist: m.artist }));
+    const recent = recentMedia(st.id, st.no_repeat_minutes);
+    return requestableMedia(st.id).map((m) => ({ id: m.id, title: m.title, artist: m.artist, recent: recent.ids.has(m.id) }));
   });
 
   app.post('/api/public/stations/:slug/request', async (req, reply) => {
@@ -130,6 +131,9 @@ export async function publicRoutes(app: FastifyInstance) {
     // Só pode pedir quem está em playlist com pedidos ligados.
     const m = requestableMedia(st.id).find((x) => x.id === mediaId);
     if (!m) throw new HttpError(404, 'Música não disponível para pedido');
+    if (st.no_repeat_minutes > 0 && recentMedia(st.id, st.no_repeat_minutes).ids.has(m.id)) {
+      throw new HttpError(409, 'Essa música tocou há pouco. Peça outra ou tente mais tarde.');
+    }
     await pushRequest(st.id, path.join(config.dataDir, m.path));
     lastRequest.set(key, Date.now());
     run('INSERT INTO song_requests (station_id, media_id, ip) VALUES (?, ?, ?)', st.id, m.id, req.ip);
@@ -157,7 +161,13 @@ export async function publicRoutes(app: FastifyInstance) {
       .parse(req.body);
     if (!get('SELECT 1 AS ok FROM stations WHERE id = ?', id)) throw new HttpError(404, 'Estação não encontrada');
     const title = b.title || path.basename(b.filename, path.extname(b.filename)) || 'Desconhecido';
-    recordTrack(id, b.artist, title);
+    // Descobre qual música da biblioteca é (pelo caminho) para a regra de não repetir.
+    const rel = b.filename ? path.relative(config.dataDir, b.filename) : '';
+    const media = rel ? get<{ id: number }>('SELECT id FROM media WHERE station_id = ? AND path = ?', id, rel) : undefined;
+    recordTrack(id, b.artist, title, media?.id ?? null);
+    // A faixa que acabou de tocar sai das playlists por um tempo (o Liquidsoap recarrega o arquivo).
+    const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', id);
+    if (st && st.no_repeat_minutes > 0) writePlaylists(id);
     return { ok: true };
   });
 }

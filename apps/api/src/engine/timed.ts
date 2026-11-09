@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { config } from '../config.js';
-import { all, playlistMedia, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
-import { isRunning, pushRequest } from './manager.js';
+import { all, avoidRecent, playlistMedia, recentMedia, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
+import { isRunning, pushRequest, writePlaylists } from './manager.js';
 
 /**
  * Playlists "a cada N minutos" (ex.: 60 = uma faixa no início de cada hora).
@@ -13,6 +13,14 @@ const seq = new Map<number, number>();
 
 export function tickTimedPlaylists(now = Date.now()) {
   for (const st of all<StationRow>('SELECT * FROM stations')) {
+    // Músicas que já passaram do tempo de "não repetir" voltam para as playlists.
+    if (st.no_repeat_minutes > 0 && isRunning(st.id)) {
+      try {
+        writePlaylists(st.id);
+      } catch (e) {
+        console.error('[timed] falha ao atualizar playlists:', (e as Error).message);
+      }
+    }
     const lists = all<PlaylistRow>('SELECT * FROM playlists WHERE station_id = ? AND enabled = 1 AND every_minutes > 0', st.id);
     for (const p of lists) {
       const bucket = Math.floor(now / (p.every_minutes * 60_000));
@@ -21,6 +29,7 @@ export function tickTimedPlaylists(now = Date.now()) {
       // Na primeira vez só registra o intervalo atual (não dispara logo ao ligar a API).
       if (prev === undefined || prev === bucket || !isRunning(st.id)) continue;
       const media = playlistMedia(p.id);
+      if (!p.is_jingle) media.splice(0, media.length, ...avoidRecent(media, recentMedia(st.id, st.no_repeat_minutes)));
       if (media.length === 0) continue;
       let m: MediaRow;
       if (p.mode === 'sequential') {

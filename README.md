@@ -139,3 +139,9 @@ Em cada estação, aba **Integrações**. Eventos: troca de música, estação i
 ## Progresso de envio
 
 Ao enviar músicas (Biblioteca) ou episódios (Podcast), o painel mostra o andamento: barra total com porcentagem, MB enviados, velocidade e tempo restante, e uma lista por arquivo (na fila, enviando %, processando, enviado ou erro). Dá para cancelar o envio; arquivos com erro ficam listados até você fechar o painel.
+
+## Volume, não repetir músicas e biblioteca por pastas
+
+- **Volume do auto DJ:** o processador de áudio agora vem **ligado (Equilibrado)** em estações novas e foi ligado nas existentes que estavam desligadas (migração única). Cadeia: normalizador → compressor → ganho extra opcional (**Volume extra**, 0 a +12 dB) → **limitador no fim**, que impede estouro/distorção. Se o Liquidsoap recusar algum parâmetro, a estação tenta uma versão com valores padrão e, em último caso, sobe sem processador, **mostrando um aviso** no painel (a rádio não cai por causa disso). Parâmetros ainda não validados num Liquidsoap real.
+- **Não repetir músicas:** em Configurações, "Não repetir a mesma música por N minutos" (padrão 60 em estações novas; 0 desliga). As músicas tocadas há menos tempo saem das playlists (o Liquidsoap recarrega o `.m3u`; o motor simples escolhe sem elas), não podem ser pedidas pelos ouvintes ("Tocou há pouco") e voltam sozinhas depois do prazo. Se todas já tocaram (biblioteca pequena), a rádio continua tocando, só evita repetir a faixa anterior. Vinhetas não entram na regra.
+- **Biblioteca:** o início mostra as **pastas** e, abaixo, só as músicas **sem pasta**; abrir uma pasta mostra as músicas dela. Dá para soltar arquivos sobre uma pasta para enviar direto. A busca procura em toda a biblioteca.
