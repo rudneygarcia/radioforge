@@ -30,6 +30,7 @@ const PATHS: Record<string, string> = {
   back: 'M15 18l-6-6 6-6',
   home: 'M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10',
   menu: 'M4 6h16M4 12h16M4 18h16',
+  heart: 'M12 20s-7-4.5-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.5-9 9-9 9z',
   chevron: 'M6 9l6 6 6-6',
   list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
   chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2',

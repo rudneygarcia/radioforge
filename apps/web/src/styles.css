@@ -416,3 +416,7 @@ tr.picked td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .req-msg.ok { background: color-mix(in srgb, #22c55e 14%, transparent); border-color: color-mix(in srgb, #22c55e 45%, transparent); color: #15803d; }
 .req-msg.err { background: color-mix(in srgb, #ef4444 12%, transparent); border-color: color-mix(in srgb, #ef4444 45%, transparent); color: #b91c1c; }
 @media (prefers-color-scheme: dark) { .req-msg.ok, .req-btn.done, .req-state.played { color: #4ade80; } .req-msg.err { color: #f87171; } .req-state.queued { color: #fbbf24; } }
+
+.fchips { display: flex; gap: 6px; flex-wrap: wrap; }
+.fchip { padding: 6px 14px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); font-size: 13px; box-shadow: none; }
+.fchip.active { color: var(--accent-text); background: var(--accent); border-color: var(--accent); }

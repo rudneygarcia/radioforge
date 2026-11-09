@@ -450,6 +450,66 @@ export async function stationRoutes(app: FastifyInstance) {
     return historyView(st, getHistory(st.id, 50));
   });
 
+  // Página de pedidos: filtro por situação/busca, paginação, números do dia e as mais pedidas.
+  const PLAYED = 'EXISTS (SELECT 1 FROM history h WHERE h.station_id = r.station_id AND h.title = m.title AND h.artist = m.artist AND h.played_at >= r.created_at)';
+  app.get('/api/stations/:id/requests/all', async (req) => {
+    const { id } = idParam.parse(req.params);
+    const st = stationFor(req, id);
+    const q = z
+      .object({ status: z.enum(['all', 'waiting', 'queued', 'played']).default('all'), q: z.string().max(100).default(''), limit: z.coerce.number().int().min(1).max(200).default(30) })
+      .parse(req.query);
+    const where = ['r.station_id = ?'];
+    const args: (string | number)[] = [st.id];
+    if (q.status === 'waiting') where.push('r.pushed = 0');
+    if (q.status === 'queued') where.push(`r.pushed = 1 AND NOT ${PLAYED}`);
+    if (q.status === 'played') where.push(`r.pushed = 1 AND ${PLAYED}`);
+    if (q.q.trim()) {
+      where.push('(m.title LIKE ? OR m.artist LIKE ? OR r.ip LIKE ?)');
+      const like = `%${q.q.trim()}%`;
+      args.push(like, like, like);
+    }
+    const from = `FROM song_requests r JOIN media m ON m.id = r.media_id WHERE ${where.join(' AND ')}`;
+    const total = get<{ n: number }>(`SELECT COUNT(*) AS n ${from}`, ...args)?.n ?? 0;
+    const items = all<{ id: number; title: string; artist: string; ip: string; created_at: string; due_at: string; pushed: number; played: number }>(
+      `SELECT r.id, m.title, m.artist, r.ip, r.created_at, r.due_at, r.pushed, ${PLAYED} AS played ${from} ORDER BY r.id DESC LIMIT ?`,
+      ...args,
+      q.limit,
+    );
+    const stats = {
+      total: get<{ n: number }>('SELECT COUNT(*) AS n FROM song_requests WHERE station_id = ?', st.id)?.n ?? 0,
+      today: get<{ n: number }>("SELECT COUNT(*) AS n FROM song_requests WHERE station_id = ? AND date(created_at) = date('now')", st.id)?.n ?? 0,
+      waiting: get<{ n: number }>('SELECT COUNT(*) AS n FROM song_requests WHERE station_id = ? AND pushed = 0', st.id)?.n ?? 0,
+      listeners: get<{ n: number }>('SELECT COUNT(DISTINCT ip) AS n FROM song_requests WHERE station_id = ?', st.id)?.n ?? 0,
+      top: all<{ title: string; artist: string; count: number }>(
+        'SELECT m.title, m.artist, COUNT(*) AS count FROM song_requests r JOIN media m ON m.id = r.media_id WHERE r.station_id = ? GROUP BY r.media_id ORDER BY count DESC, MAX(r.id) DESC LIMIT 5',
+        st.id,
+      ),
+    };
+    return {
+      total,
+      stats,
+      items: items.map((r) => ({
+        id: r.id,
+        title: r.title,
+        artist: r.artist,
+        ip: r.ip,
+        createdAt: r.created_at,
+        dueAt: r.due_at,
+        status: !r.pushed ? 'waiting' : r.played ? 'played' : 'queued',
+      })),
+    };
+  });
+
+  // Cancela um pedido ainda agendado (que não entrou na fila do AutoDJ).
+  app.delete('/api/stations/:id/requests/:rid', async (req) => {
+    const { id, rid } = z.object({ id: z.coerce.number().int(), rid: z.coerce.number().int() }).parse(req.params);
+    requireAdmin(req);
+    const st = stationFor(req, id);
+    const r = run('DELETE FROM song_requests WHERE id = ? AND station_id = ? AND pushed = 0', rid, st.id);
+    if (!r.changes) throw new HttpError(409, 'Esse pedido já entrou na fila do AutoDJ e não pode ser cancelado.');
+    return { ok: true };
+  });
+
   // Pedidos dos ouvintes (painel): últimos 50, com IP e situação (agendado / na fila / tocou).
   app.get('/api/stations/:id/requests', async (req) => {
     const { id } = idParam.parse(req.params);
