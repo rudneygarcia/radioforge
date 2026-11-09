@@ -384,3 +384,7 @@ tr.picked td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
   .station-shell.menu-open .tabs { display: grid; grid-template-columns: 1fr; }
   .station-shell .tabs a { justify-content: flex-start; padding: 11px 12px; font-size: 14.5px; }
 }
+
+.mini-player { display: inline-flex; align-items: center; gap: 4px; }
+.mini-player input[type=range] { width: 70px; padding: 0; }
+.mini-player .big-icon { color: var(--accent); }

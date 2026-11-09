@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { api } from '../api';
 import { CopyButton, Cover, Empty, Icon, useUi } from '../ui';
@@ -9,6 +9,48 @@ interface Hist {
   artist: string;
   played_at: string;
   coverUrl?: string | null;
+}
+
+/** Mini player só com ícones: ouvir a própria estação sem sair do painel. */
+function MiniPlayer({ slug, online }: { slug: string; online: boolean }) {
+  const audio = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [volume, setVolume] = useState(() => {
+    try { const v = localStorage.getItem('rf_volume'); return v === null ? 1 : Math.min(1, Math.max(0, Number(v) || 0)); } catch { return 1; }
+  });
+  const [muted, setMuted] = useState(false);
+  useEffect(() => {
+    if (audio.current) { audio.current.volume = volume; audio.current.muted = muted; }
+    try { localStorage.setItem('rf_volume', String(volume)); } catch { /* sem armazenamento */ }
+  }, [volume, muted]);
+  // Ao sair do painel, para o áudio (e a conexão com o stream).
+  useEffect(() => () => { const a = audio.current; if (a) { a.pause(); a.removeAttribute('src'); a.load(); } }, []);
+  useEffect(() => {
+    if (!online && playing) { const a = audio.current; if (a) { a.pause(); a.removeAttribute('src'); a.load(); } setPlaying(false); }
+  }, [online, playing]);
+
+  function toggle() {
+    const a = audio.current;
+    if (!a) return;
+    if (playing) {
+      a.pause(); a.removeAttribute('src'); a.load(); setPlaying(false);
+    } else {
+      a.src = `/api/public/stations/${slug}/stream/0?t=${Date.now()}`;
+      a.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+    }
+  }
+  return (
+    <div className="mini-player">
+      <button type="button" className="icon-btn big-icon" onClick={toggle} disabled={!online} title={playing ? 'Parar de ouvir' : 'Ouvir a estação'} aria-label={playing ? 'Parar de ouvir' : 'Ouvir a estação'}>
+        <Icon name={playing ? 'stop' : 'play'} size={20} />
+      </button>
+      <button type="button" className="icon-btn" onClick={() => setMuted((m) => !m)} title={muted || volume === 0 ? 'Ativar o som' : 'Silenciar'} aria-label="Silenciar">
+        <Icon name={muted || volume === 0 ? 'mute' : 'volume'} size={18} />
+      </button>
+      <input type="range" min={0} max={1} step={0.01} value={muted ? 0 : volume} aria-label="Volume" onChange={(e) => { setVolume(Number(e.target.value)); setMuted(false); }} />
+      <audio ref={audio} />
+    </div>
+  );
 }
 
 export default function Dashboard() {
@@ -106,7 +148,10 @@ export default function Dashboard() {
           <Link to="listeners" className="small-text">Ver quem está ouvindo →</Link>
         </div>
         <div className="card">
-          <div className="stat-label"><Icon name="music" /> Tocando agora</div>
+          <div className="stat-label" style={{ justifyContent: 'space-between' }}>
+            <span><Icon name="music" /> Tocando agora</span>
+            <MiniPlayer slug={station.slug} online={station.running} />
+          </div>
           {station.nowPlaying ? (
             <div className="np">
               <Cover url={station.nowPlaying.coverUrl} size={64} />
