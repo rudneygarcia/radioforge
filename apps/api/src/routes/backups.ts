@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authenticate, HttpError, requireAdmin } from '../auth.js';
 import { backupsDir, createBackup, KEEP_BACKUPS, listBackups, SAFE_BACKUP } from '../engine/backups.js';
+import { stageRestore, validateBackupFile } from '../engine/restore.js';
 
 const fileParam = z.object({ file: z.string() });
 
@@ -34,6 +35,25 @@ export async function backupRoutes(app: FastifyInstance) {
       .header('Content-Length', fs.statSync(abs).size)
       .header('Content-Disposition', `attachment; filename="${path.basename(abs)}"`)
       .send(fs.createReadStream(abs));
+  });
+
+  /**
+   * Restaura o banco a partir de um backup. Antes, guarda uma cópia do banco atual (aparece na lista).
+   * A troca acontece no reinício: a API se encerra em seguida e o Docker a sobe de novo.
+   */
+  app.post('/api/backups/:file/restore', async (req) => {
+    const abs = backupFile(fileParam.parse(req.params).file);
+    try {
+      validateBackupFile(abs);
+    } catch (e) {
+      throw new HttpError(422, `Backup inválido: ${(e as Error).message}`);
+    }
+    const safety = createBackup();
+    stageRestore(abs);
+    console.log(`[restore] agendada a partir de ${path.basename(abs)}; cópia de segurança: ${safety.name}`);
+    // Dá tempo de a resposta chegar; o SIGTERM passa pelo desligamento normal (para as estações).
+    setTimeout(() => process.kill(process.pid, 'SIGTERM'), 1500).unref();
+    return { ok: true, safetyBackup: safety.name };
   });
 
   app.delete('/api/backups/:file', async (req) => {

@@ -14,6 +14,7 @@ export default function BackupsPage() {
   const [keep, setKeep] = useState(7);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [restarting, setRestarting] = useState(false);
 
   const load = () =>
     api<{ keep: number; backups: Backup[] }>('/api/backups')
@@ -39,6 +40,34 @@ export default function BackupsPage() {
     }
   }
 
+  async function restore(b: Backup) {
+    if (
+      !confirm(
+        `Restaurar o backup ${b.name}?\n\nO banco atual será substituído (uma cópia de segurança dele é guardada antes) e a API reinicia em alguns segundos. As estações caem por instantes. Músicas e gravações não mudam.`,
+      )
+    )
+      return;
+    setError('');
+    try {
+      await api('/api/backups/' + b.name + '/restore', { method: 'POST' });
+      setRestarting(true);
+      // Espera a API voltar e recarrega a página.
+      const t = setInterval(async () => {
+        try {
+          const r = await fetch('/api/health');
+          if (r.ok) {
+            clearInterval(t);
+            location.reload();
+          }
+        } catch {
+          /* ainda reiniciando */
+        }
+      }, 3000);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
   async function remove(b: Backup) {
     if (!confirm(`Apagar o backup ${b.name}?`)) return;
     await api(`/api/backups/${b.name}`, { method: 'DELETE' });
@@ -57,6 +86,7 @@ export default function BackupsPage() {
         O arquivo contém dados sensíveis (hashes de senha, senhas de DJ): guarde-o em local seguro.
       </p>
       {error && <p className="error">{error}</p>}
+      {restarting && <div className="card notice">Restaurando… a API está reiniciando. Esta página recarrega sozinha quando ela voltar.</div>}
       <div className="card">
         <table>
           <thead><tr><th>Arquivo</th><th>Criado em</th><th>Tamanho</th><th /></tr></thead>
@@ -68,6 +98,7 @@ export default function BackupsPage() {
                 <td className="muted">{fmtSize(b.size)}</td>
                 <td>
                   <button className="ghost small" onClick={() => downloadFile(`/api/backups/${b.name}`, b.name).catch((e) => setError((e as Error).message))}>Baixar</button>{' '}
+                  <button className="ghost small" onClick={() => restore(b)} disabled={restarting}>Restaurar</button>{' '}
                   <button className="danger small" onClick={() => remove(b)}>Apagar</button>
                 </td>
               </tr>

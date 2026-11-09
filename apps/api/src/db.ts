@@ -1,6 +1,9 @@
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import path from 'node:path';
 import { config } from './config.js';
+import { applyPendingRestore } from './engine/restore.js';
+
+applyPendingRestore(); // precisa rodar antes de abrir o banco
 
 export const db = new DatabaseSync(path.join(config.dataDir, 'radioforge.db'));
 db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
