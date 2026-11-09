@@ -12,6 +12,8 @@ const body = z.object({
   mode: z.enum(['shuffle', 'sequential']).default('shuffle'),
   weight: z.number().int().min(1).max(100).default(1),
   jingle: z.boolean().default(false),
+  /** Playlist padrão da estação (uma só): rotação base; as outras entram por regra. Omitido = mantém / 1ª playlist vira padrão. */
+  isDefault: z.boolean().optional(),
   requestable: z.boolean().default(false),
   everySongs: z.number().int().min(0).max(50).default(0),
   everyMinutes: z.number().int().min(0).max(1440).default(0),
@@ -36,6 +38,7 @@ function view(p: PlaylistRow) {
     mode: p.mode,
     weight: p.weight,
     jingle: !!p.is_jingle,
+    isDefault: !!p.is_default,
     requestable: !!p.requestable,
     everySongs: p.every_songs,
     everyMinutes: p.every_minutes,
@@ -48,6 +51,27 @@ function view(p: PlaylistRow) {
     // Total real de faixas: as escolhidas + as das pastas (sem repetir).
     trackCount: playlistMedia(p.id).length,
   };
+}
+
+/**
+ * A playlist padrão é a base da programação: não tem regra própria (nem agendamento, nem "a cada N"),
+ * e vinheta não pode ser padrão. Ajusta o corpo e devolve se ela deve ser a padrão.
+ */
+function normalizeDefault(b: z.infer<typeof body>, wanted: boolean): boolean {
+  const isDef = wanted && !b.jingle;
+  if (isDef) {
+    b.everySongs = 0;
+    b.everyMinutes = 0;
+    b.scheduleEnabled = false;
+    b.enabled = true; // a padrão precisa estar ativa
+  }
+  return isDef;
+}
+
+/** Marca (ou desmarca) a padrão; só pode existir uma por estação. */
+function applyDefault(stationId: number, playlistId: number, isDef: boolean) {
+  if (isDef) run('UPDATE playlists SET is_default = 0 WHERE station_id = ? AND id <> ?', stationId, playlistId);
+  run('UPDATE playlists SET is_default = ? WHERE id = ? AND station_id = ?', isDef ? 1 : 0, playlistId, stationId);
 }
 
 /** Grava as pastas escolhidas, ignorando as que não pertencem à estação. */
@@ -89,6 +113,8 @@ export async function playlistRoutes(app: FastifyInstance) {
     const { id } = params.parse(req.params);
     const st = stationFor(req, id);
     const b = body.parse(req.body);
+    const first = !get('SELECT 1 AS ok FROM playlists WHERE station_id = ?', st.id);
+    const makeDefault = normalizeDefault(b, b.isDefault ?? first);
     const r = run(
       `INSERT INTO playlists (station_id, name, enabled, mode, weight, every_songs, every_minutes, is_jingle, requestable, schedule_enabled, start_time, end_time, days)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -107,6 +133,7 @@ export async function playlistRoutes(app: FastifyInstance) {
       [...new Set(b.days)].sort().join(','),
     );
     const pid = Number(r.lastInsertRowid);
+    applyDefault(st.id, pid, makeDefault);
     setMedia(pid, st.id, b.mediaIds);
     setFolders(pid, st.id, b.folderIds);
     writePlaylists(st.id);
@@ -117,6 +144,8 @@ export async function playlistRoutes(app: FastifyInstance) {
     const { id, playlistId } = params.parse(req.params);
     const st = stationFor(req, id);
     const b = body.parse(req.body);
+    const cur = get<PlaylistRow>('SELECT * FROM playlists WHERE id = ? AND station_id = ?', playlistId ?? -1, st.id);
+    const makeDefault = normalizeDefault(b, b.isDefault ?? !!cur?.is_default);
     const r = run(
       `UPDATE playlists SET name = ?, enabled = ?, mode = ?, weight = ?, every_songs = ?, every_minutes = ?, is_jingle = ?, requestable = ?,
          schedule_enabled = ?, start_time = ?, end_time = ?, days = ? WHERE id = ? AND station_id = ?`,
@@ -136,6 +165,7 @@ export async function playlistRoutes(app: FastifyInstance) {
       st.id,
     );
     if (r.changes === 0) throw new HttpError(404, 'Playlist não encontrada');
+    applyDefault(st.id, playlistId!, makeDefault);
     setMedia(playlistId!, st.id, b.mediaIds);
     setFolders(playlistId!, st.id, b.folderIds);
     writePlaylists(st.id);

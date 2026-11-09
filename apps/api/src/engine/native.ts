@@ -63,6 +63,8 @@ class NativeStation {
   private recentBytes = 0;
   private running = false;
   private queue: { id: number; silent: boolean }[] = [];
+  /** Quantas faixas da rotação base já tocaram desde a última entrada de cada playlist "a cada N". */
+  private since = new Map<number, number>();
   private seqIndex = new Map<number, number>();
   private lastPlayed: number[] = [];
   private nextStart = 0;
@@ -175,7 +177,26 @@ class NativeStation {
 
     const now = new Date();
     const scheduled = lists.filter((l) => inWindow(l.p, now));
-    const pool = scheduled.length ? scheduled : lists.filter((l) => !l.p.schedule_enabled);
+    // Com playlist padrão, ela é a rotação; as outras só entram por regra (agendamento, "a cada N músicas" ou por tempo).
+    const hasDefault = lists.some((l) => l.p.is_default && !l.p.schedule_enabled);
+    const inserts = lists.filter((l) => !l.p.schedule_enabled && !l.p.is_default && l.p.every_songs > 0);
+
+    let pool: typeof lists;
+    if (scheduled.length) {
+      pool = scheduled; // janela agendada ativa tem prioridade
+    } else {
+      // "A cada N músicas": quando a base já tocou N, entra uma faixa da playlist de inserção.
+      for (const l of inserts) {
+        if ((this.since.get(l.p.id) ?? 0) >= l.p.every_songs) {
+          this.since.set(l.p.id, 0);
+          return this.takeFrom(l);
+        }
+      }
+      pool = hasDefault ? lists.filter((l) => l.p.is_default) : lists.filter((l) => !l.p.schedule_enabled && l.p.every_songs === 0);
+      // Sem playlist padrão e só com playlists "a cada N": viram rotação comum (como no Liquidsoap).
+      if (pool.length === 0 && !hasDefault) pool = inserts;
+      if (!hasDefault || pool.length > 0) for (const l of inserts) this.since.set(l.p.id, (this.since.get(l.p.id) ?? 0) + 1);
+    }
 
     if (pool.length === 0) {
       // Sem playlists utilizáveis: toca a biblioteca inteira em ordem aleatória.
@@ -183,7 +204,7 @@ class NativeStation {
       return media.length ? { m: this.shuffle(media), silent: false } : null;
     }
 
-    // Sorteio ponderado entre as playlists elegíveis.
+    // Sorteio ponderado entre as playlists elegíveis (com a padrão sozinha no pool, é ela).
     const total = pool.reduce((s, l) => s + Math.max(1, l.p.weight), 0);
     let r = Math.random() * total;
     let chosen = pool[0];
@@ -194,12 +215,17 @@ class NativeStation {
         break;
       }
     }
-    if (chosen.p.mode === 'sequential') {
-      const i = this.seqIndex.get(chosen.p.id) ?? 0;
-      this.seqIndex.set(chosen.p.id, (i + 1) % chosen.media.length);
-      return { m: chosen.media[i % chosen.media.length], silent: !!chosen.p.is_jingle };
+    return this.takeFrom(chosen);
+  }
+
+  /** Próxima faixa de uma playlist (sequencial ou aleatória); vinheta sai silenciosa. */
+  private takeFrom(l: { p: PlaylistRow; media: MediaRow[] }): { m: MediaRow; silent: boolean } {
+    if (l.p.mode === 'sequential') {
+      const i = this.seqIndex.get(l.p.id) ?? 0;
+      this.seqIndex.set(l.p.id, (i + 1) % l.media.length);
+      return { m: l.media[i % l.media.length], silent: !!l.p.is_jingle };
     }
-    return { m: this.shuffle(chosen.media), silent: !!chosen.p.is_jingle };
+    return { m: this.shuffle(l.media), silent: !!l.p.is_jingle };
   }
 
   /** Aleatório evitando repetir as últimas faixas tocadas. */

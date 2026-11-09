@@ -12,6 +12,8 @@ export interface LiqPlaylist {
   everySongs: number;
   /** Vinheta: as faixas vão ao ar sem enviar o nome do arquivo ao servidor. */
   jingle?: boolean;
+  /** Playlist padrão: é a rotação base. As demais só entram por regra (a cada N músicas, horário ou tempo). */
+  isDefault?: boolean;
   m3uPath: string;
   /** Se presente, a playlist só toca na janela indicada e tem prioridade sobre a rotação geral. */
   schedule?: { days: number[]; start: string; end: string };
@@ -100,18 +102,23 @@ export function buildLiquidsoapScript(
   const weights: number[] = [];
   const scheduled: string[] = [];
   const inserts: { n: string; every: number }[] = [];
+  // Com playlist padrão, a rotação é SÓ ela; as outras entram por regra e, sem regra, não tocam (não se misturam).
+  const hasDefault = playlists.some((p) => p.isDefault && !p.schedule);
   for (const p of playlists) {
     const n = `pl_${p.id}`;
+    let role: 'scheduled' | 'insert' | 'rotation' | 'skip';
+    if (p.schedule) role = 'scheduled';
+    else if (hasDefault) role = p.isDefault ? 'rotation' : p.everySongs > 0 ? 'insert' : 'skip';
+    else role = p.everySongs > 0 ? 'insert' : 'rotation';
+    if (role === 'skip') continue;
     lines.push(
       `${n} = playlist(id = ${q(n)}, mode = ${q(p.mode === 'shuffle' ? 'randomize' : 'normal')}, reload_mode = "watch", ${q(p.m3uPath)})`,
     );
-    if (p.schedule) {
-      scheduled.push(`(${schedulePredicate(p.schedule)}, ${n})`);
-    } else if (p.everySongs > 0) {
-      inserts.push({ n, every: p.everySongs });
-    } else {
+    if (role === 'scheduled') scheduled.push(`(${schedulePredicate(p.schedule!)}, ${n})`);
+    else if (role === 'insert') inserts.push({ n, every: p.everySongs });
+    else {
       names.push(n);
-      weights.push(Math.max(1, p.weight));
+      weights.push(hasDefault ? 1 : Math.max(1, p.weight));
     }
   }
   // Playlists "a cada N" sem nenhuma playlist normal para intercalar viram rotação comum.

@@ -7,13 +7,15 @@ import type { StationCtx } from './StationLayout';
 const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 /** Resumo em etiquetas do que a playlist faz. */
-function summary(p: Playlist): string[] {
+function summary(p: Playlist, hasDefault: boolean): string[] {
   const out: string[] = [p.mode === 'shuffle' ? 'Aleatória' : 'Sequencial'];
+  if (p.isDefault) return [...out, 'Toca sempre (base da programação)'];
   if (p.jingle) out.push('Vinheta');
   if (p.requestable) out.push('Permite pedidos');
   if (p.scheduleEnabled) out.push(`${p.startTime}–${p.endTime} · ${p.days.length === 7 ? 'todos os dias' : p.days.map((d) => DAYS[d]).join(', ')}`);
   else if (p.everyMinutes > 0) out.push(`1 faixa a cada ${p.everyMinutes} min`);
   else if (p.everySongs > 0) out.push(`1 faixa a cada ${p.everySongs} músicas`);
+  else if (hasDefault) out.push('⚠ Sem regra: não toca');
   else out.push(`Peso ${p.weight}`);
   return out;
 }
@@ -82,6 +84,8 @@ export default function Playlists() {
     load();
   }
 
+  const hasDefault = !!lists?.some((p) => p.isDefault && p.trackCount > 0);
+  const sortedLists = lists ? [...lists].sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name)) : null;
   const patch = (change: Partial<Playlist>) => setEditing((p) => (p ? { ...p, ...change } : p));
   const shown = media.filter((m) => {
     if (folderView === 'none' && m.folderId !== null) return false;
@@ -98,20 +102,34 @@ export default function Playlists() {
         <button onClick={() => setCreating(true)}><Icon name="plus" /> Nova playlist</button>
       </div>
 
+      {lists && lists.length > 0 && (
+        <div className="card notice">
+          {hasDefault ? (
+            <>
+              <strong>Playlist padrão:</strong> é a base da programação e toca sempre. As outras <strong>não se misturam</strong> com ela: cada uma entra pela regra que você definir — a cada N músicas da padrão, em um dia e horário, ou a cada N minutos. Playlist sem regra não toca.
+            </>
+          ) : (
+            <>
+              <strong>Dica:</strong> marque uma playlist como <strong>padrão</strong> para ser a base da programação. Hoje, sem padrão, as playlists se misturam por peso. Com uma padrão, as demais entram só quando a regra delas manda (ex.: 1 vinheta a cada 3 músicas).
+            </>
+          )}
+        </div>
+      )}
+
       {lists === null && <div className="card skeleton" style={{ height: 90 }} />}
       {lists && lists.length === 0 && (
         <div className="card">
           <Empty icon="music" title="Nenhuma playlist ainda" text="Sem playlists, a estação toca a biblioteca inteira. Crie playlists para organizar a programação." action={<button onClick={() => setCreating(true)}><Icon name="plus" /> Criar playlist</button>} />
         </div>
       )}
-      {lists?.map((p) => (
-        <div className="card item-card" key={p.id}>
+      {sortedLists?.map((p) => (
+        <div className="card item-card" key={p.id} style={p.isDefault ? { borderColor: 'color-mix(in srgb, var(--accent) 55%, var(--border))' } : undefined}>
           <div>
-            <div className="item-title">{p.name} {!p.enabled && <span className="badge off">desativada</span>}</div>
+            <div className="item-title">{p.name} {p.isDefault && <span className="badge on" style={{ marginLeft: 4 }}>padrão</span>} {!p.enabled && <span className="badge off">desativada</span>}</div>
             <div className="meta">
               <span className="tag"><Icon name="music" size={12} /> {p.trackCount} faixas</span>
               {p.folderIds.map((id) => folders.find((f) => f.id === id)).filter(Boolean).map((f) => <span className="tag" key={f!.id}><Icon name="folder" size={12} /> {f!.name}</span>)}
-              {summary(p).map((t) => <span className="tag accent" key={t}>{t}</span>)}
+              {summary(p, hasDefault).map((t) => <span className={`tag ${t.startsWith('⚠') ? '' : 'accent'}`} style={t.startsWith('⚠') ? { color: 'var(--danger)' } : undefined} key={t}>{t}</span>)}
             </div>
           </div>
           <div className="row" style={{ margin: 0 }}>
@@ -159,18 +177,25 @@ export default function Playlists() {
                   <option value="sequential">Sequencial</option>
                 </select>
               </label>
-              <label className="field">
-                <span>Peso na rotação</span>
-                <input type="number" min={1} max={100} value={editing.weight} onChange={(e) => patch({ weight: Number(e.target.value) || 1 })} />
-              </label>
+              {!hasDefault && !editing.isDefault && (
+                <label className="field">
+                  <span>Peso na rotação</span>
+                  <input type="number" min={1} max={100} value={editing.weight} onChange={(e) => patch({ weight: Number(e.target.value) || 1 })} />
+                  <small className="hint">Só vale sem playlist padrão.</small>
+                </label>
+              )}
             </div>
-            <label className="check-line"><input type="checkbox" checked={editing.enabled} onChange={(e) => patch({ enabled: e.target.checked })} /> <span>Playlist ativa</span></label>
+            <label className="check-line"><input type="checkbox" checked={editing.enabled || editing.isDefault} disabled={editing.isDefault} onChange={(e) => patch({ enabled: e.target.checked })} /> <span>Playlist ativa</span></label>
+            <label className="check-line" style={{ opacity: editing.jingle ? 0.55 : 1 }}>
+              <input type="checkbox" checked={editing.isDefault && !editing.jingle} disabled={editing.jingle} onChange={(e) => patch(e.target.checked ? { isDefault: true, everySongs: 0, everyMinutes: 0, scheduleEnabled: false, enabled: true } : { isDefault: false })} />
+              <span>Playlist padrão <small>É a base da programação: toca sempre e não se mistura com as outras. Só uma por estação (marcar aqui desmarca a anterior). As demais entram pelas regras delas.</small></span>
+            </label>
 
             <div className="card" style={{ margin: 0, background: 'var(--panel-2)', boxShadow: 'none' }}>
               <h3>Tipo e pedidos</h3>
               <div className="fields">
                 <label className="check-line">
-                  <input type="checkbox" checked={editing.jingle} onChange={(e) => patch({ jingle: e.target.checked, requestable: e.target.checked ? false : editing.requestable })} />
+                  <input type="checkbox" checked={editing.jingle} onChange={(e) => patch({ jingle: e.target.checked, requestable: e.target.checked ? false : editing.requestable, isDefault: e.target.checked ? false : editing.isDefault })} />
                   <span>Vinheta <small>Toca normalmente, mas o nome do arquivo não é enviado ao servidor: não aparece em “Tocando agora”, no histórico nem nos webhooks.</small></span>
                 </label>
                 <label className="check-line" style={{ opacity: editing.jingle ? 0.55 : 1 }}>
@@ -180,11 +205,15 @@ export default function Playlists() {
               </div>
             </div>
 
+            {editing.isDefault ? (
+              <div className="card notice" style={{ margin: 0 }}>Esta é a <strong>playlist padrão</strong>: toca o tempo todo. Defina as regras de entrada (a cada N músicas, horário ou tempo) nas <strong>outras</strong> playlists.</div>
+            ) : (
             <div className="card" style={{ margin: 0, background: 'var(--panel-2)', boxShadow: 'none' }}>
               <h3>Quando tocar</h3>
+              {hasDefault && <p className="muted small-text" style={{ marginTop: -4 }}>Esta playlist não se mistura com a padrão: ela entra por uma destas regras.</p>}
               <div className="field-row">
                 <label className="field">
-                  <span>Intercalar a cada N músicas <em className="hint">(0 = desligado)</em></span>
+                  <span>{hasDefault ? 'Entra a cada N músicas da padrão' : 'Intercalar a cada N músicas'} <em className="hint">(0 = desligado)</em></span>
                   <input type="number" min={0} max={50} disabled={editing.scheduleEnabled} value={editing.everySongs} onChange={(e) => patch({ everySongs: Math.max(0, Math.min(50, Number(e.target.value) || 0)) })} />
                   <small className="hint">Para vinhetas e avisos. Só no modo completo.</small>
                 </label>
@@ -215,6 +244,7 @@ export default function Playlists() {
                 </div>
               )}
             </div>
+            )}
 
             <div className="card" style={{ margin: 0, background: 'var(--panel-2)', boxShadow: 'none' }}>
               <h3>Pastas da biblioteca</h3>

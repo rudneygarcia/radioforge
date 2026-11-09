@@ -155,6 +155,7 @@ export interface Playlist {
   mode: 'shuffle' | 'sequential';
   weight: number;
   jingle: boolean;
+  isDefault: boolean;
   requestable: boolean;
   everySongs: number;
   everyMinutes: number;

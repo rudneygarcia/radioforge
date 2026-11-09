@@ -159,6 +159,8 @@ if ((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_v
 }
 addColumn('media', 'folder_id', 'INTEGER REFERENCES media_folders(id) ON DELETE SET NULL');
 addColumn('playlists', 'schedule_enabled', 'INTEGER NOT NULL DEFAULT 0');
+// Playlist padrão (uma por estação): é a rotação base; as outras entram por regra e não se misturam com ela.
+addColumn('playlists', 'is_default', 'INTEGER NOT NULL DEFAULT 0');
 // Vinheta: toca normalmente, mas o nome do arquivo NÃO é enviado ao servidor (não entra no "tocando agora", histórico nem webhooks).
 addColumn('playlists', 'is_jingle', 'INTEGER NOT NULL DEFAULT 0');
 // Pedidos dos ouvintes: só as músicas das playlists com esta opção ligada aparecem para pedir.
@@ -433,6 +435,7 @@ export interface PlaylistRow {
   weight: number;
   every_songs: number;
   every_minutes: number;
+  is_default: number;
   is_jingle: number;
   requestable: number;
   schedule_enabled: number;
