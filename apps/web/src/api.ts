@@ -99,6 +99,12 @@ export interface Media {
   duration: number;
   size: number;
   originalName: string;
+  folderId: number | null;
+}
+export interface Folder {
+  id: number;
+  name: string;
+  count: number;
 }
 export interface Webhook {
   id: number;
@@ -148,4 +154,6 @@ export interface Playlist {
   endTime: string;
   days: number[];
   mediaIds: number[];
+  folderIds: number[];
+  trackCount: number;
 }

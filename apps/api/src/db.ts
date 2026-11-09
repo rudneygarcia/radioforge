@@ -72,6 +72,20 @@ CREATE TABLE IF NOT EXISTS playlist_media (
   PRIMARY KEY (playlist_id, media_id)
 );
 
+-- Pastas da biblioteca (planas) e pastas escolhidas por playlist (entram todas as músicas da pasta, inclusive as futuras).
+CREATE TABLE IF NOT EXISTS media_folders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (station_id, name)
+);
+CREATE TABLE IF NOT EXISTS playlist_folders (
+  playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+  folder_id INTEGER NOT NULL REFERENCES media_folders(id) ON DELETE CASCADE,
+  PRIMARY KEY (playlist_id, folder_id)
+);
+
 CREATE TABLE IF NOT EXISTS history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   station_id INTEGER NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
@@ -109,6 +123,7 @@ function addColumn(table: string, column: string, ddl: string) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!cols.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
 }
+addColumn('media', 'folder_id', 'INTEGER REFERENCES media_folders(id) ON DELETE SET NULL');
 addColumn('playlists', 'schedule_enabled', 'INTEGER NOT NULL DEFAULT 0');
 // 0 = rotação normal; N > 0 = toca 1 faixa desta playlist a cada N faixas da rotação (vinhetas, avisos).
 addColumn('playlists', 'every_songs', 'INTEGER NOT NULL DEFAULT 0');
@@ -306,7 +321,31 @@ export interface MediaRow {
   album: string;
   duration: number;
   size: number;
+  folder_id: number | null;
   created_at: string;
+}
+export interface FolderRow {
+  id: number;
+  station_id: number;
+  name: string;
+  created_at: string;
+}
+
+/**
+ * Todas as músicas de uma playlist: as escolhidas uma a uma (na ordem) + as de cada pasta escolhida
+ * (por artista/título), sem repetir. Músicas novas numa pasta escolhida entram sozinhas.
+ */
+export function playlistMedia(playlistId: number): MediaRow[] {
+  const direct = all<MediaRow>(
+    `SELECT m.* FROM playlist_media pm JOIN media m ON m.id = pm.media_id WHERE pm.playlist_id = ? ORDER BY pm.position, m.id`,
+    playlistId,
+  );
+  const fromFolders = all<MediaRow>(
+    `SELECT m.* FROM media m WHERE m.folder_id IN (SELECT folder_id FROM playlist_folders WHERE playlist_id = ?) ORDER BY m.artist, m.title, m.id`,
+    playlistId,
+  );
+  const seen = new Set(direct.map((m) => m.id));
+  return [...direct, ...fromFolders.filter((m) => !seen.has(m.id))];
 }
 export interface PlaylistRow {
   id: number;

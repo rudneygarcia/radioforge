@@ -4,7 +4,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { HttpError } from '../auth.js';
 import { config, stationDir } from '../config.js';
-import { all, djsFor, get, mountsFor, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
+import { all, djsFor, get, mountsFor, playlistMedia, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
 import { buildIcecastConfig } from './icecast.js';
 import { dispatch } from './webhooks.js';
 import { clearLive } from './nowplaying.js';
@@ -105,11 +105,7 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
   const out: LiqPlaylist[] = [];
   for (const p of playlists) {
     if (p.every_minutes > 0) continue; // entra por tempo (ver timed.ts), não na rotação
-    const media = all<MediaRow>(
-      `SELECT m.* FROM playlist_media pm JOIN media m ON m.id = pm.media_id
-       WHERE pm.playlist_id = ? ORDER BY pm.position, m.id`,
-      p.id,
-    );
+    const media = playlistMedia(p.id);
     if (media.length === 0) continue;
     const m3uPath = path.join(stationDir(stationId), 'playlists', `${p.id}.m3u`);
     fs.writeFileSync(m3uPath, media.map((m) => path.join(config.dataDir, m.path)).join('\n') + '\n');

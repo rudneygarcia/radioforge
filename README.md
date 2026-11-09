@@ -53,6 +53,7 @@ Force um modo com `ENGINE_MODE=native` ou `ENGINE_MODE=liquidsoap`. O painel avi
 | Área | Situação |
 |---|---|
 | Login, primeiro setup, papéis admin/operador | Pronto, testado localmente |
+| Biblioteca com **pastas** (criar/renomear/excluir, enviar direto para a pasta, mover em lote); as playlists podem usar pastas inteiras (inclusive músicas futuras) e/ou músicas avulsas | Pronto e testado |
 | CRUD de estações, usuários, playlists, biblioteca (upload + tags) | Pronto, testado localmente |
 | Playlists agendadas por dia da semana e horário (prioridade sobre a rotação geral) | Pronto na API/painel; o script Liquidsoap gerado foi revisado, mas **não executado** |
 | Crossfade, normalização de volume (ReplayGain) e até 4 streams extras com formato/bitrate próprios | Pronto na API/painel/player; script Liquidsoap revisado, **não executado** |

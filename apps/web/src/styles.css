@@ -222,6 +222,25 @@ button.small { gap: 5px; }
 .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .skeleton { background: linear-gradient(90deg, var(--panel) 25%, var(--panel-2) 37%, var(--panel) 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; }
 @keyframes shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+/* ===== Biblioteca com pastas ===== */
+.lib { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: start; }
+.lib .folders { position: sticky; top: 76px; margin: 0; padding: 16px; }
+.lib-main { min-width: 0; }
+.lib-main > .dropzone { margin-bottom: 16px; }
+.folder-list { display: flex; flex-direction: column; gap: 2px; }
+.folder-item { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border-radius: 9px; border: 1px solid transparent; background: transparent; color: var(--muted); font-weight: 550; text-align: left; filter: none !important; }
+.folder-item span { flex: 1; min-width: 0; }
+.folder-item em { font-style: normal; font-size: 12px; color: var(--muted); background: var(--panel-2); padding: 1px 8px; border-radius: 99px; }
+.folder-item:hover { background: var(--panel-2); color: var(--text); }
+.folder-item.active { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.bulkbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 12px 20px 0; padding: 10px 14px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); }
+tr.picked td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+@media (max-width: 860px) {
+  .lib { grid-template-columns: 1fr; }
+  .lib .folders { position: static; }
+  .folder-list { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+  .folder-item { width: auto; border-color: var(--border); }
+}
 /* ===== Seções, vazios, dropzone, barras de ferramentas ===== */
 .section { margin-bottom: 22px; }
 .section-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; }

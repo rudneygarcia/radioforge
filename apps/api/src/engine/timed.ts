@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { config } from '../config.js';
-import { all, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
+import { all, playlistMedia, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
 import { isRunning, pushRequest } from './manager.js';
 
 /**
@@ -20,10 +20,7 @@ export function tickTimedPlaylists(now = Date.now()) {
       lastBucket.set(p.id, bucket);
       // Na primeira vez só registra o intervalo atual (não dispara logo ao ligar a API).
       if (prev === undefined || prev === bucket || !isRunning(st.id)) continue;
-      const media = all<MediaRow>(
-        `SELECT m.* FROM playlist_media pm JOIN media m ON m.id = pm.media_id WHERE pm.playlist_id = ? ORDER BY pm.position, m.id`,
-        p.id,
-      );
+      const media = playlistMedia(p.id);
       if (media.length === 0) continue;
       let m: MediaRow;
       if (p.mode === 'sequential') {

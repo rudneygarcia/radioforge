@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { config } from '../config.js';
-import { all, get, mountsFor, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
+import { all, get, mountsFor, playlistMedia, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
 import { recordTrack, setNativeListenerCounter } from './nowplaying.js';
 import { recordSession } from './sessions.js';
 
@@ -156,11 +156,7 @@ class NativeStation {
     const lists = all<PlaylistRow>('SELECT * FROM playlists WHERE station_id = ? AND enabled = 1 AND every_minutes = 0', this.st.id)
       .map((p) => ({
         p,
-        media: all<MediaRow>(
-          `SELECT m.* FROM playlist_media pm JOIN media m ON m.id = pm.media_id
-           WHERE pm.playlist_id = ? AND lower(m.path) LIKE '%.mp3' ORDER BY pm.position, m.id`,
-          p.id,
-        ),
+        media: playlistMedia(p.id).filter((m) => /\.mp3$/i.test(m.path)),
       }))
       .filter((l) => l.media.length > 0);
 

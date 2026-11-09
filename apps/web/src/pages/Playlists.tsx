@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { api, type Media, type Playlist } from '../api';
+import { api, type Folder, type Media, type Playlist } from '../api';
 import { Empty, Icon, Modal, useUi } from '../ui';
 import type { StationCtx } from './StationLayout';
 
@@ -21,6 +21,8 @@ export default function Playlists() {
   const { confirm, toast } = useUi();
   const [lists, setLists] = useState<Playlist[] | null>(null);
   const [media, setMedia] = useState<Media[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [folderView, setFolderView] = useState<string>('all');
   const [editing, setEditing] = useState<Playlist | null>(null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
@@ -31,6 +33,7 @@ export default function Playlists() {
   const load = async () => {
     setLists(await api<Playlist[]>(`${base}/playlists`));
     setMedia(await api<Media[]>(`${base}/media`));
+    setFolders(await api<Folder[]>(`${base}/folders`));
   };
   useEffect(() => {
     load();
@@ -78,7 +81,13 @@ export default function Playlists() {
   }
 
   const patch = (change: Partial<Playlist>) => setEditing((p) => (p ? { ...p, ...change } : p));
-  const shown = media.filter((m) => !filter.trim() || `${m.title} ${m.artist}`.toLowerCase().includes(filter.trim().toLowerCase()));
+  const shown = media.filter((m) => {
+    if (folderView === 'none' && m.folderId !== null) return false;
+    if (folderView !== 'all' && folderView !== 'none' && m.folderId !== Number(folderView)) return false;
+    return !filter.trim() || `${m.title} ${m.artist}`.toLowerCase().includes(filter.trim().toLowerCase());
+  });
+  // Total que a playlist terá: músicas avulsas + as das pastas marcadas (sem contar duas vezes).
+  const total = editing ? new Set([...editing.mediaIds, ...media.filter((m) => m.folderId !== null && editing.folderIds.includes(m.folderId)).map((m) => m.id)]).size : 0;
 
   return (
     <>
@@ -98,7 +107,8 @@ export default function Playlists() {
           <div>
             <div className="item-title">{p.name} {!p.enabled && <span className="badge off">desativada</span>}</div>
             <div className="meta">
-              <span className="tag"><Icon name="music" size={12} /> {p.mediaIds.length} faixas</span>
+              <span className="tag"><Icon name="music" size={12} /> {p.trackCount} faixas</span>
+              {p.folderIds.map((id) => folders.find((f) => f.id === id)).filter(Boolean).map((f) => <span className="tag" key={f!.id}><Icon name="folder" size={12} /> {f!.name}</span>)}
               {summary(p).map((t) => <span className="tag accent" key={t}>{t}</span>)}
             </div>
           </div>
@@ -190,18 +200,45 @@ export default function Playlists() {
               )}
             </div>
 
+            <div className="card" style={{ margin: 0, background: 'var(--panel-2)', boxShadow: 'none' }}>
+              <h3>Pastas da biblioteca</h3>
+              <p className="muted small-text" style={{ marginTop: -4 }}>Marque uma pasta para incluir todas as músicas dela — inclusive as que você enviar para ela depois.</p>
+              {folders.length === 0 ? (
+                <p className="muted small-text">Você ainda não criou pastas. Crie na aba Biblioteca para organizar as músicas.</p>
+              ) : (
+                <div className="chips">
+                  {folders.map((f) => (
+                    <label className="chip" key={f.id}>
+                      <input type="checkbox" checked={editing.folderIds.includes(f.id)} onChange={(e) => patch({ folderIds: e.target.checked ? [...editing.folderIds, f.id] : editing.folderIds.filter((x) => x !== f.id) })} />
+                      <Icon name="folder" size={13} /> {f.name} <span className="muted">({f.count})</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <p className="small-text" style={{ margin: '12px 0 0' }}><strong>{total}</strong> <span className="muted">faixa(s) no total nesta playlist</span></p>
+            </div>
+
             <div>
               <div className="section-title" style={{ marginBottom: 8 }}>
-                <h3>Músicas <span className="muted">({editing.mediaIds.length} selecionadas)</span></h3>
+                <h3>Músicas avulsas <span className="muted">({editing.mediaIds.length} escolhidas)</span></h3>
                 <div className="row" style={{ margin: 0 }}>
                   <button type="button" className="ghost small" onClick={() => patch({ mediaIds: [...new Set([...editing.mediaIds, ...shown.map((m) => m.id)])] })}>Marcar todas</button>
                   <button type="button" className="ghost small" onClick={() => patch({ mediaIds: editing.mediaIds.filter((id) => !shown.some((m) => m.id === id)) })}>Limpar</button>
                 </div>
               </div>
               {media.length > 0 && (
-                <div className="search" style={{ maxWidth: 'none', marginBottom: 10 }}>
-                  <Icon name="search" />
-                  <input placeholder="Filtrar músicas" value={filter} onChange={(e) => setFilter(e.target.value)} />
+                <div className="toolbar">
+                  <div className="search" style={{ maxWidth: 'none' }}>
+                    <Icon name="search" />
+                    <input placeholder="Filtrar músicas" value={filter} onChange={(e) => setFilter(e.target.value)} />
+                  </div>
+                  {folders.length > 0 && (
+                    <select value={folderView} onChange={(e) => setFolderView(e.target.value)}>
+                      <option value="all">Todas as pastas</option>
+                      <option value="none">Sem pasta</option>
+                      {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                    </select>
+                  )}
                 </div>
               )}
               <div className="picker">
