@@ -3,8 +3,8 @@ services:
     build: .
     restart: unless-stopped
     environment:
-      # Domínio ou IP público do servidor (usado nas URLs de stream mostradas no painel).
-      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
+      # Opcional: domínio ou IP público usado nas URLs de stream. Vazio = usa o endereço pelo qual o painel foi aberto.
+      PUBLIC_HOST: ${PUBLIC_HOST:-}
     ports:
       - "3000:3000"            # painel + API
       - "8000-8499:8000-8499"  # Icecast/DJ/telnet das estações (10 portas por estação)

@@ -1,6 +1,10 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+
+/** Host da requisição em andamento (preenchido em index.ts). */
+export const hostContext = new AsyncLocalStorage<string>();
 
 const dataDir = path.resolve(process.env.DATA_DIR ?? './data');
 fs.mkdirSync(path.join(dataDir, '.secrets'), { recursive: true });
@@ -23,8 +27,13 @@ export const config = {
   jwtSecret: secret('JWT_SECRET', 'jwt'),
   /** Token que o Liquidsoap usa para avisar a API sobre troca de faixa. */
   internalToken: secret('INTERNAL_TOKEN', 'internal'),
-  /** Host público usado para montar as URLs de stream mostradas aos ouvintes. */
-  publicHost: process.env.PUBLIC_HOST ?? 'localhost',
+  /**
+   * Host público usado nas URLs de stream mostradas aos ouvintes. Se PUBLIC_HOST não for definido,
+   * usa o endereço (IP ou domínio) pelo qual o painel foi acessado nesta requisição.
+   */
+  get publicHost(): string {
+    return process.env.PUBLIC_HOST || hostContext.getStore() || 'localhost';
+  },
   apiInternalUrl: process.env.API_INTERNAL_URL ?? `http://127.0.0.1:${process.env.PORT ?? 3000}`,
   engine: {
     enabled: (process.env.ENGINE_ENABLED ?? 'true') === 'true',

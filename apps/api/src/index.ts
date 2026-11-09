@@ -6,7 +6,7 @@ import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import { ZodError } from 'zod';
-import { config } from './config.js';
+import { config, hostContext } from './config.js';
 import './db.js';
 import { engineMode, startAutostart, stopAll } from './engine/manager.js';
 import { startStatsCollector } from './engine/stats.js';
@@ -22,6 +22,12 @@ import { stationRoutes } from './routes/stations.js';
 import { userRoutes } from './routes/users.js';
 
 const app = Fastify({ logger: true, trustProxy: true });
+
+// Guarda o host da requisição para montar os links de stream quando PUBLIC_HOST não está definido.
+app.addHook('onRequest', (req, _reply, done) => {
+  const host = req.hostname.replace(/:\d+$/, '').replace(/^\[(.*)\]$/, '$1');
+  /^[A-Za-z0-9.-]+$|^[0-9a-fA-F:]+$/.test(host) ? hostContext.run(host.includes(':') ? `[${host}]` : host, done) : done();
+});
 
 await app.register(cors, { origin: true });
 await app.register(jwt, { secret: config.jwtSecret });
