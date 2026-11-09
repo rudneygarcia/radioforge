@@ -19,6 +19,7 @@ interface LiveListener {
 }
 interface Data {
   running: boolean;
+  icecastError: string | null;
   total: number;
   unique: number;
   countries: { name: string; count: number }[];
@@ -62,6 +63,11 @@ export default function ListenersPage() {
   const multi = station.streams.length > 1;
   return (
     <>
+      {data.icecastError && (
+        <div className="card notice">
+          <strong>Aviso:</strong> não foi possível consultar o Icecast ({data.icecastError}). Os ouvintes que entram pelo player do site e pelos links do painel aparecem normalmente; só quem usa o <em>link direto</em> (porta do stream) pode não aparecer.
+        </div>
+      )}
       <div className="stat-grid">
         <div className="card">
           <div className="stat-label"><Icon name="users" /> Conectados agora</div>

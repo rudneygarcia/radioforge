@@ -25,7 +25,7 @@ export interface LiveListener {
 
 const xmlUnescape = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
 const tag = (block: string, name: string) => {
-  const m = new RegExp(`<${name}>([\s\S]*?)</${name}>`).exec(block);
+  const m = new RegExp(`<${name}>([\\s\\S]*?)</${name}>`).exec(block);
   return m ? xmlUnescape(m[1].trim()) : '';
 };
 
@@ -51,26 +51,63 @@ async function listMount(st: StationRow, mount: string): Promise<LiveListener[]>
   return out;
 }
 
-const cache = new Map<number, { at: number; items: LiveListener[] | null }>();
+// ---------- Conexões que passam pelo proxy da API ----------
+// Todo link do painel/player (/stream/..., player do site) passa pela API, então contamos aqui com o IP real
+// (CF-Connecting-IP atrás do Cloudflare). O Icecast só precisa ser consultado para o link direto (porta do stream).
+/** Marca no User-Agent enviado ao Icecast, para não contar duas vezes a mesma conexão. */
+export const PROXY_MARK = 'RF-Proxy/1';
+
+interface Conn {
+  ip: string;
+  ua: string;
+  mount: string;
+  startedAt: number;
+}
+const proxyConns = new Map<number, Map<number, Conn>>();
+let connSeq = 0;
+
+/** Registra uma conexão de ouvinte no proxy; devolve a função que a remove quando ela fecha. */
+export function registerProxyConn(stationId: number, ip: string, ua: string, mount: string): () => void {
+  const id = ++connSeq;
+  let m = proxyConns.get(stationId);
+  if (!m) proxyConns.set(stationId, (m = new Map()));
+  m.set(id, { ip, ua, mount, startedAt: Date.now() });
+  return () => void proxyConns.get(stationId)?.delete(id);
+}
+
+const cache = new Map<number, { at: number; items: LiveListener[] }>();
+const errors = new Map<number, string | null>();
+/** Último erro ao consultar o Icecast (null = ok). Afeta só os ouvintes do link direto. */
+export const icecastError = (stationId: number): string | null => errors.get(stationId) ?? null;
 
 /**
- * Ouvintes conectados agora (cada conexão = 1). Vem do Icecast ou, no modo simples, do próprio motor.
- * Devolve null se não for possível ler (estação parada ou Icecast fora do ar). Cache de 4 s.
+ * Ouvintes conectados agora (cada conexão = 1): os do proxy da API (sempre, em tempo real) + os que entram
+ * direto pela porta do Icecast (consulta com cache de 4 s). No modo simples, vem do próprio motor.
+ * Devolve null só no modo simples com a estação parada.
  */
 export async function liveListeners(st: StationRow, engine: 'liquidsoap' | 'native'): Promise<LiveListener[] | null> {
   if (engine === 'native') {
     const c = nativeProvider?.(st.id) ?? null;
     return c ? c.map((x, i) => build(`n#${i}`, x.ip, x.ua, x.seconds, x.mount)) : null;
   }
+  const now = Date.now();
+  const viaProxy = [...(proxyConns.get(st.id)?.entries() ?? [])].map(([id, c]) => build(`p#${id}`, c.ip, c.ua, Math.round((now - c.startedAt) / 1000), c.mount));
+
+  let direct: LiveListener[];
   const hit = cache.get(st.id);
-  if (hit && Date.now() - hit.at < 4000) return hit.items;
-  let items: LiveListener[] | null = null;
-  try {
-    const mounts = [st.mount, ...mountsFor(st.id).map((m) => m.mount)];
-    items = (await Promise.all(mounts.map((m) => listMount(st, m)))).flat();
-  } catch {
-    items = null;
+  if (hit && now - hit.at < 4000) {
+    direct = hit.items;
+  } else {
+    try {
+      const mounts = [st.mount, ...mountsFor(st.id).map((m) => m.mount)];
+      const all = (await Promise.all(mounts.map((m) => listMount(st, m)))).flat();
+      direct = all.filter((l) => !l.userAgent.includes(PROXY_MARK)); // as do proxy já estão em viaProxy
+      errors.set(st.id, null);
+    } catch (e) {
+      direct = [];
+      errors.set(st.id, (e as Error).message || 'falha ao consultar o Icecast');
+    }
+    cache.set(st.id, { at: now, items: direct });
   }
-  cache.set(st.id, { at: Date.now(), items });
-  return items;
+  return [...viaProxy, ...direct];
 }

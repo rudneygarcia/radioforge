@@ -1,5 +1,5 @@
 import { all, get, run, type StationRow } from '../db.js';
-import { liveListeners } from './listeners.js';
+import { icecastError, liveListeners } from './listeners.js';
 import { dispatch } from './webhooks.js';
 
 export interface NowPlaying {
@@ -80,9 +80,11 @@ export async function getListeners(st: StationRow): Promise<number> {
   if (own !== null && own !== undefined) return own;
   // Contagem real: cada conexão aberta no Icecast (mesma fonte da lista de ouvintes do painel).
   const live = await liveListeners(st, 'liquidsoap');
-  if (live) return live.length;
+  const proxied = live?.length ?? 0;
+  if (live && !icecastError(st.id)) return proxied;
+  // O Icecast não respondeu à lista: usa o total do status-json como piso (pode incluir o link direto).
   const hit = listenerCache.get(st.id);
-  if (hit && Date.now() - hit.at < 5000) return hit.value;
+  if (hit && Date.now() - hit.at < 5000) return Math.max(hit.value, proxied);
   let value = 0;
   try {
     const res = await fetch(`http://127.0.0.1:${st.stream_port}/status-json.xsl`, {
@@ -96,5 +98,5 @@ export async function getListeners(st: StationRow): Promise<number> {
     value = 0;
   }
   listenerCache.set(st.id, { at: Date.now(), value });
-  return value;
+  return Math.max(value, proxied);
 }

@@ -8,6 +8,7 @@ import { HttpError } from '../auth.js';
 import { config } from '../config.js';
 import { all, get, mountsFor, recentMedia, requestableMedia, run, type MediaRow, type StationRow } from '../db.js';
 import { isRunning, pushRequest, writePlaylists } from '../engine/manager.js';
+import { PROXY_MARK, registerProxyConn } from '../engine/listeners.js';
 import { coverFile, coverMime, historyView, nowPlayingView, stationCoverPath, stationCoverUrl } from '../engine/covers.js';
 import { getHistory, getListeners, getLive, getNowPlaying, recordTrack, setLive } from '../engine/nowplaying.js';
 import { streamsOf, streamUrl } from './stations.js';
@@ -50,7 +51,8 @@ function proxyStream(req: FastifyRequest, reply: FastifyReply, st: StationRow, m
       headers: {
         // Atrás do Cloudflare, CF-Connecting-IP é o IP real do ouvinte (X-Forwarded-For pode ter valores do cliente).
         'X-Forwarded-For': String(req.headers['cf-connecting-ip'] ?? req.ip),
-        'User-Agent': String(req.headers['user-agent'] ?? 'RadioForge'),
+        // A marca no fim do User-Agent evita contar a mesma conexão duas vezes (aqui e na lista do Icecast).
+        'User-Agent': `${String(req.headers['user-agent'] ?? 'RadioForge')} ${PROXY_MARK}`,
         // Players de rádio (VLC, apps) pedem metadados ICY: repassamos o pedido e o resultado, que o Icecast intercala no áudio.
         'Icy-MetaData': wantsIcy ? '1' : '0',
       },
@@ -74,6 +76,9 @@ function proxyStream(req: FastifyRequest, reply: FastifyReply, st: StationRow, m
         'Access-Control-Allow-Origin': '*',
         'X-Accel-Buffering': 'no',
       });
+      // Conta o ouvinte aqui, com o IP real (CF-Connecting-IP atrás do Cloudflare), enquanto a conexão estiver aberta.
+      const unregister = registerProxyConn(st.id, String(req.headers['cf-connecting-ip'] ?? req.ip), String(req.headers['user-agent'] ?? ''), mount);
+      res.on('close', unregister);
       up.pipe(res);
     },
   );
