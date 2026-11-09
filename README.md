@@ -116,8 +116,8 @@ Em cada estação, aba **Integrações**. Eventos: troca de música, estação i
 2. ~~Playlists agendadas por dia/hora~~ (feito). Falta o tipo "uma vez por hora / a cada X músicas".
 3. ~~Crossfade, normalização de volume (ReplayGain), vários mountpoints/bitrates por estação~~ (feito).
 4. ~~DJs com conta própria, gravação de transmissões ao vivo~~ (feito). Falta mostrar quem é o DJ no ar e agendar horários de DJ.
-5. ~~Relatórios de ouvintes (por país, player, tempo) e gráficos~~ (feito). Falta exportar CSV e comparar períodos.
-6. ~~Webhooks e integrações (Discord), API com chaves de acesso~~ (feito). Falta integração com redes sociais, escopos por chave (somente leitura) e documentação OpenAPI.
+5. ~~Relatórios de ouvintes (por país, player, tempo) e gráficos~~ (feito, com exportação CSV: botão no painel ou `GET /api/stations/:id/reports?days=7&format=csv`). Falta comparar períodos.
+6. ~~Webhooks e integrações (Discord), API com chaves de acesso~~ (feito, chaves podem ser **somente leitura**: só GET/HEAD). Falta integração com redes sociais e documentação OpenAPI.
 7. Podcasts, backups agendados, atualização pelo painel.
 8. Relay/transmissão para outros serviços, HTTPS automático (Caddy) e multi-idioma.
 9. Migrar SQLite para Postgres se o volume pedir.

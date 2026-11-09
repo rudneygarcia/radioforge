@@ -34,11 +34,14 @@ export async function authenticate(req: FastifyRequest, reply: FastifyReply) {
   const bearer = (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
   const raw = bearer.startsWith('rfk_') ? bearer : String(req.headers['x-api-key'] ?? '');
   if (raw.startsWith('rfk_')) {
-    const row = get<{ id: number; user_id: number; role: 'admin' | 'user' }>(
-      `SELECT k.id, k.user_id, u.role FROM api_keys k JOIN users u ON u.id = k.user_id WHERE k.key_hash = ?`,
+    const row = get<{ id: number; user_id: number; role: 'admin' | 'user'; read_only: number }>(
+      `SELECT k.id, k.user_id, k.read_only, u.role FROM api_keys k JOIN users u ON u.id = k.user_id WHERE k.key_hash = ?`,
       hashKey(raw),
     );
     if (!row) return reply.code(401).send({ error: 'Chave de API inválida' });
+    if (row.read_only && req.method !== 'GET' && req.method !== 'HEAD') {
+      return reply.code(403).send({ error: 'Esta chave é somente leitura' });
+    }
     // Atualiza o "último uso" no máximo uma vez por minuto para não escrever a cada requisição.
     run(
       "UPDATE api_keys SET last_used_at = datetime('now') WHERE id = ? AND (last_used_at IS NULL OR last_used_at < datetime('now', '-1 minute'))",

@@ -179,6 +179,8 @@ CREATE TABLE IF NOT EXISTS station_webhooks (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 `);
+// Chaves somente leitura só podem fazer requisições GET/HEAD.
+addColumn('api_keys', 'read_only', 'INTEGER NOT NULL DEFAULT 0');
 
 export interface WebhookRow {
   id: number;

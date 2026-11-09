@@ -5,6 +5,7 @@ export default function AccountPage() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [name, setName] = useState('');
   const [newKey, setNewKey] = useState<string | null>(null);
+  const [readOnly, setReadOnly] = useState(false);
   const [error, setError] = useState('');
 
   const load = () => api<ApiKey[]>('/api/me/keys').then(setKeys);
@@ -16,7 +17,7 @@ export default function AccountPage() {
     e.preventDefault();
     setError('');
     try {
-      const r = await api<{ key: string }>('/api/me/keys', { method: 'POST', body: { name } });
+      const r = await api<{ key: string }>('/api/me/keys', { method: 'POST', body: { name, readOnly } });
       setNewKey(r.key);
       setName('');
       load();
@@ -38,6 +39,7 @@ export default function AccountPage() {
 
       <form className="card row" onSubmit={create}>
         <input placeholder="Nome da chave (ex.: Bot do Discord)" value={name} onChange={(e) => setName(e.target.value)} required />
+        <label className="row"><input type="checkbox" checked={readOnly} onChange={(e) => setReadOnly(e.target.checked)} /> Somente leitura</label>
         <button>Criar chave</button>
         {error && <p className="error">{error}</p>}
       </form>
@@ -53,11 +55,12 @@ export default function AccountPage() {
 
       <div className="card">
         <table>
-          <thead><tr><th>Nome</th><th>Início da chave</th><th>Criada</th><th>Último uso</th><th /></tr></thead>
+          <thead><tr><th>Nome</th><th>Acesso</th><th>Início da chave</th><th>Criada</th><th>Último uso</th><th /></tr></thead>
           <tbody>
             {keys.map((k) => (
               <tr key={k.id}>
                 <td>{k.name}</td>
+                <td>{k.readOnly ? 'Somente leitura' : 'Total'}</td>
                 <td><code>{k.prefix}…</code></td>
                 <td className="muted">{new Date(k.createdAt + 'Z').toLocaleString()}</td>
                 <td className="muted">{k.lastUsedAt ? new Date(k.lastUsedAt + 'Z').toLocaleString() : 'nunca'}</td>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { api } from '../api';
+import { api, downloadFile } from '../api';
 import type { StationCtx } from './StationLayout';
 
 interface Report {
@@ -163,12 +163,24 @@ export default function ReportsPage() {
     <>
       <div className="row between">
         <h3>Relatórios</h3>
-        <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
-          <option value={1}>Últimas 24 horas</option>
-          <option value={7}>Últimos 7 dias</option>
-          <option value={30}>Últimos 30 dias</option>
-          <option value={90}>Últimos 90 dias</option>
-        </select>
+        <div className="row">
+          <button
+            className="ghost small"
+            onClick={() =>
+              downloadFile(`/api/stations/${station.id}/reports?days=${days}&format=csv`, `relatorio-${days}d.csv`).catch((e) =>
+                setError((e as Error).message),
+              )
+            }
+          >
+            Exportar CSV
+          </button>
+          <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+            <option value={1}>Últimas 24 horas</option>
+            <option value={7}>Últimos 7 dias</option>
+            <option value={30}>Últimos 30 dias</option>
+            <option value={90}>Últimos 90 dias</option>
+          </select>
+        </div>
       </div>
 
       <div className="grid">

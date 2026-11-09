@@ -32,6 +32,23 @@ export async function api<T = unknown>(path: string, init: { method?: string; bo
   return data as T;
 }
 
+/** Baixa um arquivo protegido por login (o token vai no cabeçalho, então não dá para usar um link simples). */
+export async function downloadFile(path: string, fallbackName: string) {
+  const token = getToken();
+  const res = await fetch(path, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, (data as { error?: string }).error ?? `Erro ${res.status}`);
+  }
+  const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? fallbackName;
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export interface User {
   id: number;
   email: string;
@@ -99,6 +116,7 @@ export interface ApiKey {
   prefix: string;
   createdAt: string;
   lastUsedAt: string | null;
+  readOnly: boolean;
 }
 export interface Dj {
   id: number;
