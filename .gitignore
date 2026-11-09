@@ -4,3 +4,4 @@ data
 .env
 *.log
 .claude
+BUILD_INFO.json

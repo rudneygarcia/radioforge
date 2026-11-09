@@ -13,6 +13,7 @@ import { startBackupScheduler } from './engine/backups.js';
 import { startTimedPlaylists } from './engine/timed.js';
 import { startStatsCollector } from './engine/stats.js';
 import { backupRoutes } from './routes/backups.js';
+import { systemRoutes } from './routes/system.js';
 import { authRoutes } from './routes/auth.js';
 import { djRoutes } from './routes/djs.js';
 import { reportRoutes } from './routes/reports.js';
@@ -56,6 +57,7 @@ await app.register(keyRoutes);
 await app.register(webhookRoutes);
 await app.register(publicRoutes);
 await app.register(backupRoutes);
+await app.register(systemRoutes);
 
 app.get('/api/health', async () => ({ ok: true, engine: config.engine.enabled, engineMode: engineMode() }));
 

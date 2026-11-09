@@ -14,6 +14,7 @@ import AccountPage from './pages/AccountPage';
 import Settings from './pages/Settings';
 import Users from './pages/Users';
 import BackupsPage from './pages/BackupsPage';
+import SystemPage from './pages/SystemPage';
 
 function Protected() {
   const { user, loading, logout } = useAuth();
@@ -29,6 +30,7 @@ function Protected() {
           <Link to="/">Estações</Link>
           {user.role === 'admin' && <Link to="/users">Usuários</Link>}
           {user.role === 'admin' && <Link to="/backups">Backups</Link>}
+          {user.role === 'admin' && <Link to="/system">Sistema</Link>}
           <Link to="/account">Chaves de API</Link>
         </nav>
         <span className="spacer" />
@@ -53,6 +55,7 @@ export default function App() {
         <Route path="/" element={<Stations />} />
         <Route path="/users" element={<Users />} />
         <Route path="/backups" element={<BackupsPage />} />
+        <Route path="/system" element={<SystemPage />} />
         <Route path="/account" element={<AccountPage />} />
         <Route path="/stations/:id" element={<StationLayout />}>
           <Route index element={<Dashboard />} />

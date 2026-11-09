@@ -6,7 +6,7 @@ COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 RUN npm install
 COPY . .
-RUN npm run build
+RUN npm run build && node scripts/build-info.mjs
 
 # --- Etapa 2: imagem final com Icecast + Liquidsoap + Node ---
 # NOTA: a imagem oficial do Liquidsoap traz a versão 2.x exigida pelos scripts gerados
@@ -31,6 +31,7 @@ COPY --from=build --chown=radio:radio /src/node_modules ./node_modules
 COPY --from=build --chown=radio:radio /src/apps/api/package.json ./apps/api/package.json
 COPY --from=build --chown=radio:radio /src/apps/api/dist ./apps/api/dist
 COPY --from=build --chown=radio:radio /src/apps/web/dist ./apps/web/dist
+COPY --from=build --chown=radio:radio /src/BUILD_INFO.json ./BUILD_INFO.json
 
 USER radio
 ENV NODE_ENV=production DATA_DIR=/data WEB_DIR=/app/apps/web/dist PORT=3000
