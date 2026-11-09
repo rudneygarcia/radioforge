@@ -89,6 +89,7 @@ export interface Station {
   liveTimeout: number;
   liveContinue: boolean;
   timeAnnounce: 0 | 15 | 30 | 60;
+  timeAnnounceVoice: boolean;
   timezone: string;
   liveEnabled: boolean;
   requestsEnabled: boolean;

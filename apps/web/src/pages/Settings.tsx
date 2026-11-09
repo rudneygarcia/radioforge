@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 import { api, getToken, uploadForm, type MountCfg, type Station } from '../api';
 import { useAuth } from '../auth';
 import { Cover, Icon, useUi } from '../ui';
+import TimeClips from './TimeClips';
 import type { StationCtx } from './StationLayout';
 
 const TIMEZONES = ['America/Sao_Paulo', 'America/Manaus', 'America/Cuiaba', 'America/Belem', 'America/Fortaleza', 'America/Recife', 'America/Bahia', 'America/Rio_Branco', 'America/Noronha', 'Europe/Lisbon', 'America/New_York', 'UTC'];
@@ -33,6 +34,7 @@ export default function Settings() {
     liveTimeout: station.liveTimeout,
     liveContinue: station.liveContinue,
     timeAnnounce: station.timeAnnounce,
+    timeAnnounceVoice: station.timeAnnounceVoice,
     timezone: station.timezone,
     historyLimit: station.historyLimit,
     liveEnabled: station.liveEnabled,
@@ -194,7 +196,7 @@ export default function Settings() {
 
       <div className="card section">
         <div className="section-title"><h3>Hora certa</h3></div>
-        <p className="muted" style={{ marginTop: -4 }}>O AutoDJ avisa a hora com voz (ex.: “Hora certa. São catorze horas e meia.”). O aviso entra na fila e toca <strong>ao fim da música atual</strong>; não aparece em “Tocando agora” nem no histórico, e não toca enquanto há DJ ao vivo.</p>
+        <p className="muted" style={{ marginTop: -4 }}>O AutoDJ avisa a hora usando os <strong>seus arquivos de áudio</strong> (um por horário, enviados abaixo) ou, se faltar, a voz sintética (ex.: “Hora certa. São catorze horas e meia.”). O aviso entra na fila e toca <strong>ao fim da música atual</strong>; não aparece em “Tocando agora” nem no histórico, e não toca enquanto há DJ ao vivo.</p>
         <div className="fields">
           <div className="field-row">
             <label className="field">
@@ -218,8 +220,10 @@ export default function Settings() {
             <button type="button" className="ghost small" onClick={previewTime} disabled={coverBusy}><Icon name="play" size={13} /> Ouvir exemplo (hora atual)</button>
             {isAdmin && station.running && <button type="button" className="ghost small" onClick={announceNowClick}><Icon name="mic" size={13} /> Tocar agora na rádio</button>}
           </div>
-          <small className="hint">Salve as configurações para valer a mudança. A voz é sintética (espeak-ng) e só funciona no modo completo. A hora usa o fuso escolhido acima (o servidor costuma estar em UTC).</small>
+          <Toggle checked={f.timeAnnounceVoice} onChange={(v) => setF({ ...f, timeAnnounceVoice: v })} disabled={!isAdmin} title="Usar a voz sintética quando não houver arquivo para o horário" hint="Desligue se você enviar os seus próprios áudios: nos horários sem arquivo a rádio simplesmente não avisa." />
+          <small className="hint">Salve as configurações para valer a mudança. Só funciona no modo completo. A hora usa o fuso escolhido acima (o servidor costuma estar em UTC).</small>
         </div>
+        <TimeClips station={{ ...station, timeAnnounce: f.timeAnnounce }} isAdmin={isAdmin} voiceFallback={f.timeAnnounceVoice} />
       </div>
 
       <div className="card section">

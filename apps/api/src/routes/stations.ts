@@ -6,7 +6,7 @@ import { authenticate, HttpError, requireAdmin, stationFor } from '../auth.js';
 import { config, stationDir } from '../config.js';
 import { all, db, get, mountsFor, run, type StationRow } from '../db.js';
 import { historyView, nowPlayingView, removeStationCover, saveStationCover, sniffImage, stationCoverUrl } from '../engine/covers.js';
-import { announceNow, ensureClip, isValidTimezone, localTime } from '../engine/announce.js';
+import { announceNow, isValidTimezone, localTime, resolveClip } from '../engine/announce.js';
 import { audioWarningFor, kickLive, engineMode, ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
 import { harborPort } from '../engine/liquidsoap.js';
 import { icecastError, liveListeners } from '../engine/listeners.js';
@@ -51,6 +51,8 @@ const settings = z.object({
   /** Ao voltar do ao vivo, o AutoDJ continua a música em andamento (em vez de começar outra). */
   liveContinue: z.boolean().default(true),
   /** Hora certa: 0 desligada, ou avisa a hora a cada 15, 30 ou 60 minutos. */
+  /** Sem arquivo enviado para o horário, usa a voz sintética (senão, não avisa). */
+  timeAnnounceVoice: z.boolean().default(true),
   timeAnnounce: z.union([z.literal(0), z.literal(15), z.literal(30), z.literal(60)]).default(0),
   /** Fuso horário (IANA) usado na hora certa e nos horários da estação. */
   timezone: z.string().max(64).refine(isValidTimezone, 'Fuso horário inválido').default('America/Sao_Paulo'),
@@ -136,6 +138,7 @@ export async function stationView(st: StationRow) {
     liveTimeout: st.live_timeout,
     liveContinue: !!st.live_continue,
     timeAnnounce: st.time_announce,
+    timeAnnounceVoice: !!st.time_announce_voice,
     timezone: st.timezone,
     audioWarning: audioWarningFor(st.id),
     mounts: mountsFor(st.id).map((m) => ({ mount: m.mount, format: m.format, bitrate: m.bitrate })),
@@ -182,8 +185,8 @@ export async function stationRoutes(app: FastifyInstance) {
     if (get('SELECT 1 AS ok FROM stations WHERE slug = ?', slug)) slug += '-' + crypto.randomBytes(2).toString('hex');
     const r = run(
       `INSERT INTO stations (name, slug, description, stream_port, mount, format, bitrate,
-         source_password, admin_password, live_enabled, requests_enabled, autostart, crossfade_seconds, normalize, record_live, history_limit, audio_preset, audio_gain, no_repeat_minutes, live_timeout, live_continue, time_announce, timezone)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         source_password, admin_password, live_enabled, requests_enabled, autostart, crossfade_seconds, normalize, record_live, history_limit, audio_preset, audio_gain, no_repeat_minutes, live_timeout, live_continue, time_announce, timezone, time_announce_voice)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       body.name,
       slug,
       body.description,
@@ -207,6 +210,7 @@ export async function stationRoutes(app: FastifyInstance) {
       body.liveContinue ? 1 : 0,
       body.timeAnnounce,
       body.timezone,
+      body.timeAnnounceVoice ? 1 : 0,
     );
     const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', Number(r.lastInsertRowid))!;
     saveMounts(st.id, st.mount, body.mounts);
@@ -233,7 +237,7 @@ export async function stationRoutes(app: FastifyInstance) {
     if (b.mounts.some((m) => m.mount === newMount)) throw new HttpError(400, `O nome ${newMount} já é usado por um stream extra`);
     run(
       `UPDATE stations SET name = ?, description = ?, mount = ?, format = ?, bitrate = ?,
-         live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ?, record_live = ?, history_limit = ?, audio_preset = ?, audio_gain = ?, no_repeat_minutes = ?, live_timeout = ?, live_continue = ?, time_announce = ?, timezone = ? WHERE id = ?`,
+         live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ?, record_live = ?, history_limit = ?, audio_preset = ?, audio_gain = ?, no_repeat_minutes = ?, live_timeout = ?, live_continue = ?, time_announce = ?, timezone = ?, time_announce_voice = ? WHERE id = ?`,
       b.name,
       b.description,
       newMount,
@@ -253,6 +257,7 @@ export async function stationRoutes(app: FastifyInstance) {
       b.liveContinue ? 1 : 0,
       b.timeAnnounce,
       b.timezone,
+      b.timeAnnounceVoice ? 1 : 0,
       st.id,
     );
     saveMounts(st.id, newMount, b.mounts);
@@ -268,8 +273,10 @@ export async function stationRoutes(app: FastifyInstance) {
     const q = z.object({ hour: z.coerce.number().int().min(0).max(23).optional(), minute: z.coerce.number().int().min(0).max(59).optional() }).parse(req.query);
     const now = localTime(st.timezone);
     try {
-      const file = await ensureClip(st.id, q.hour ?? now.hour, q.minute ?? now.minute);
-      return reply.header('Content-Type', 'audio/wav').header('Cache-Control', 'no-store').send(fs.createReadStream(file));
+      const clip = await resolveClip(st, q.hour ?? now.hour, q.minute ?? now.minute);
+      if (!clip) throw new Error('Não há arquivo para esse horário e a voz sintética está desligada');
+      const file = clip.file;
+      return reply.header('Content-Type', file.endsWith('.wav') ? 'audio/wav' : file.endsWith('.mp3') ? 'audio/mpeg' : 'application/octet-stream').header('Cache-Control', 'no-store').send(fs.createReadStream(file));
     } catch (e) {
       throw new HttpError(424, (e as Error).message);
     }

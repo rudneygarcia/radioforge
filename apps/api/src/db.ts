@@ -86,6 +86,19 @@ CREATE TABLE IF NOT EXISTS playlist_folders (
   PRIMARY KEY (playlist_id, folder_id)
 );
 
+-- Arquivos de áudio da hora certa enviados pelo usuário (um por horário).
+CREATE TABLE IF NOT EXISTS time_clips (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
+  hour INTEGER NOT NULL,
+  minute INTEGER NOT NULL DEFAULT 0,
+  file TEXT NOT NULL,
+  original_name TEXT NOT NULL DEFAULT '',
+  duration REAL NOT NULL DEFAULT 0,
+  size INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (station_id, hour, minute)
+);
+
 CREATE TABLE IF NOT EXISTS history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   station_id INTEGER NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
@@ -156,6 +169,8 @@ addColumn('stations', 'live_continue', 'INTEGER NOT NULL DEFAULT 1');
 // Hora certa: 0 = desligada; 15, 30 ou 60 = avisa a hora a cada N minutos (fuso da estação).
 addColumn('stations', 'time_announce', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('stations', 'timezone', "TEXT NOT NULL DEFAULT 'America/Sao_Paulo'");
+// 1 = quando não há arquivo de áudio enviado para o horário, usa a voz sintética; 0 = não avisa nesse horário.
+addColumn('stations', 'time_announce_voice', 'INTEGER NOT NULL DEFAULT 1');
 addColumn('stations', 'cover', 'TEXT'); // capa/logo da rádio (arquivo dentro da pasta da estação); usada quando a música não tem capa
 addColumn('stations', 'no_repeat_minutes', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('history', 'media_id', 'INTEGER'); // música tocada (para a regra de não repetir); null em vinhetas/antigos
@@ -329,6 +344,7 @@ export interface StationRow {
   live_timeout: number;
   live_continue: number;
   time_announce: number;
+  time_announce_voice: number;
   timezone: string;
   cover: string | null;
   created_at: string;

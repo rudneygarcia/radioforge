@@ -5,6 +5,7 @@ import { stationDir } from '../config.js';
 import { all, type StationRow } from '../db.js';
 import { getLive } from './nowplaying.js';
 import { engineMode, isRunning, pushRequest } from './manager.js';
+import { clipFor, clipPath, slotLabel } from './timeclips.js';
 
 /**
  * "Hora certa": a cada 15/30/60 min o AutoDJ avisa a hora com voz sintética (espeak-ng, português do Brasil).
@@ -79,12 +80,24 @@ export async function ensureClip(stationId: number, hour: number, minute: number
   return file;
 }
 
+/**
+ * Escolhe o áudio certo para o horário: 1) o arquivo enviado pelo usuário para exatamente esse horário;
+ * 2) se não houver e a voz sintética estiver ligada, a voz; 3) senão, nada (não avisa).
+ */
+export async function resolveClip(st: StationRow, hour: number, minute: number): Promise<{ file: string; source: 'arquivo' | 'voz' } | null> {
+  const clip = clipFor(st.id, hour, minute);
+  if (clip && fs.existsSync(clipPath(clip))) return { file: clipPath(clip), source: 'arquivo' };
+  if (st.time_announce_voice) return { file: await ensureClip(st.id, hour, minute), source: 'voz' };
+  return null;
+}
+
 /** Enfileira o aviso agora (hora atual do fuso da estação). */
-export async function announceNow(st: StationRow, at = new Date()): Promise<{ text: string }> {
+export async function announceNow(st: StationRow, at = new Date()): Promise<{ text: string; source: 'arquivo' | 'voz' }> {
   const { hour, minute } = localTime(st.timezone, at);
-  const file = await ensureClip(st.id, hour, minute);
-  await pushRequest(st.id, file, true);
-  return { text: timeText(hour, minute) };
+  const clip = await resolveClip(st, hour, minute);
+  if (!clip) throw new Error(`Não há arquivo de áudio para ${slotLabel(hour, minute)} e a voz sintética está desligada`);
+  await pushRequest(st.id, clip.file, true);
+  return { text: clip.source === 'voz' ? timeText(hour, minute) : `arquivo das ${slotLabel(hour, minute)}`, source: clip.source };
 }
 
 const lastSlot = new Map<number, string>();
