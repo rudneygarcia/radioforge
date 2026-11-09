@@ -356,7 +356,9 @@ export function pushRequest(stationId: number, absPath: string, silent = false, 
   }
   return new Promise((resolve, reject) => {
     const sock = net.connect(telnetPort(st), '127.0.0.1');
-    sock.setTimeout(3000, () => {
+    // requests.push só responde depois que o Liquidsoap prepara o arquivo (com AutoCue isso inclui a análise da música,
+    // que pode levar vários segundos): 3 s dava "erro interno" no pedido do ouvinte.
+    sock.setTimeout(45_000, () => {
       sock.destroy();
       reject(new Error('Timeout falando com o Liquidsoap'));
     });

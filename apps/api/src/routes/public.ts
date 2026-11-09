@@ -8,6 +8,7 @@ import { HttpError } from '../auth.js';
 import { config } from '../config.js';
 import { all, get, mountsFor, recentMedia, requestableMedia, run, type MediaRow, type StationRow } from '../db.js';
 import { isRunning, pushRequest, writePlaylists } from '../engine/manager.js';
+import { isHiddenTrack } from '../engine/hide.js';
 import { PROXY_MARK, registerProxyConn } from '../engine/listeners.js';
 import { coverFile, coverMime, historyView, nowPlayingView, stationCoverPath, stationCoverUrl } from '../engine/covers.js';
 import { getHistory, getListeners, getLive, getNowPlaying, recordTrack, setLive } from '../engine/nowplaying.js';
@@ -179,7 +180,7 @@ export async function publicRoutes(app: FastifyInstance) {
     if (st.no_repeat_minutes > 0 && recentMedia(st.id, st.no_repeat_minutes).ids.has(m.id)) {
       throw new HttpError(409, 'Essa música tocou há pouco. Peça outra ou tente mais tarde.');
     }
-    await pushRequest(st.id, path.join(config.dataDir, m.path));
+    await pushRequest(st.id, path.join(config.dataDir, m.path), false, 0, isHiddenTrack(st, m));
     lastRequest.set(key, Date.now());
     run('INSERT INTO song_requests (station_id, media_id, ip) VALUES (?, ?, ?)', st.id, m.id, req.ip);
     return reply.code(202).send({ ok: true, title: m.title, artist: m.artist });
