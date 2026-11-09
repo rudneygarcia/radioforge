@@ -11,6 +11,7 @@ const body = z.object({
   enabled: z.boolean().default(true),
   mode: z.enum(['shuffle', 'sequential']).default('shuffle'),
   weight: z.number().int().min(1).max(100).default(1),
+  everySongs: z.number().int().min(0).max(50).default(0),
   scheduleEnabled: z.boolean().default(false),
   startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Horário inicial inválido').default('00:00'),
   endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Horário final inválido').default('23:59'),
@@ -29,6 +30,7 @@ function view(p: PlaylistRow) {
     enabled: !!p.enabled,
     mode: p.mode,
     weight: p.weight,
+    everySongs: p.every_songs,
     scheduleEnabled: !!p.schedule_enabled,
     startTime: p.start_time,
     endTime: p.end_time,
@@ -68,13 +70,14 @@ export async function playlistRoutes(app: FastifyInstance) {
     const st = stationFor(req, id);
     const b = body.parse(req.body);
     const r = run(
-      `INSERT INTO playlists (station_id, name, enabled, mode, weight, schedule_enabled, start_time, end_time, days)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO playlists (station_id, name, enabled, mode, weight, every_songs, schedule_enabled, start_time, end_time, days)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       st.id,
       b.name,
       b.enabled ? 1 : 0,
       b.mode,
       b.weight,
+      b.everySongs,
       b.scheduleEnabled ? 1 : 0,
       b.startTime,
       b.endTime,
@@ -91,12 +94,13 @@ export async function playlistRoutes(app: FastifyInstance) {
     const st = stationFor(req, id);
     const b = body.parse(req.body);
     const r = run(
-      `UPDATE playlists SET name = ?, enabled = ?, mode = ?, weight = ?,
+      `UPDATE playlists SET name = ?, enabled = ?, mode = ?, weight = ?, every_songs = ?,
          schedule_enabled = ?, start_time = ?, end_time = ?, days = ? WHERE id = ? AND station_id = ?`,
       b.name,
       b.enabled ? 1 : 0,
       b.mode,
       b.weight,
+      b.everySongs,
       b.scheduleEnabled ? 1 : 0,
       b.startTime,
       b.endTime,

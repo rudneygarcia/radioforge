@@ -137,6 +137,7 @@ export interface Playlist {
   enabled: boolean;
   mode: 'shuffle' | 'sequential';
   weight: number;
+  everySongs: number;
   scheduleEnabled: boolean;
   startTime: string;
   endTime: string;

@@ -8,6 +8,8 @@ export interface LiqPlaylist {
   id: number;
   mode: 'shuffle' | 'sequential';
   weight: number;
+  /** > 0: toca 1 faixa desta playlist a cada N faixas da rotação normal (vinhetas/avisos). */
+  everySongs: number;
   m3uPath: string;
   /** Se presente, a playlist só toca na janela indicada e tem prioridade sobre a rotação geral. */
   schedule?: { days: number[]; start: string; end: string };
@@ -59,6 +61,7 @@ export function buildLiquidsoapScript(
   const names: string[] = [];
   const weights: number[] = [];
   const scheduled: string[] = [];
+  const inserts: { n: string; every: number }[] = [];
   for (const p of playlists) {
     const n = `pl_${p.id}`;
     lines.push(
@@ -66,16 +69,30 @@ export function buildLiquidsoapScript(
     );
     if (p.schedule) {
       scheduled.push(`(${schedulePredicate(p.schedule)}, ${n})`);
+    } else if (p.everySongs > 0) {
+      inserts.push({ n, every: p.everySongs });
     } else {
       names.push(n);
       weights.push(Math.max(1, p.weight));
     }
+  }
+  // Playlists "a cada N" sem nenhuma playlist normal para intercalar viram rotação comum.
+  if (names.length === 0 && inserts.length > 0) {
+    for (const i of inserts) {
+      names.push(i.n);
+      weights.push(1);
+    }
+    inserts.length = 0;
   }
 
   if (names.length === 0) {
     lines.push(`rotation = blank(id = "no_playlists")`);
   } else {
     lines.push(`rotation = random(id = "rotation", weights = [${weights.join(', ')}], [${names.join(', ')}])`);
+    // rotate com pesos [N, 1]: N faixas da rotação, depois 1 da playlist de inserção.
+    for (const i of inserts) {
+      lines.push(`rotation = rotate(id = "ins_${i.n}", weights = [${i.every}, 1], [rotation, ${i.n}])`);
+    }
   }
 
   lines.push(`requests = request.queue(id = "requests")`);

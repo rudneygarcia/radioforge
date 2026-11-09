@@ -116,6 +116,7 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
       id: p.id,
       mode: p.mode,
       weight: p.weight,
+      everySongs: p.schedule_enabled ? 0 : p.every_songs, // agendada tem prioridade: ignora "a cada N"
       m3uPath,
       schedule: p.schedule_enabled
         ? { days: p.days.split(',').filter(Boolean).map(Number), start: p.start_time, end: p.end_time }

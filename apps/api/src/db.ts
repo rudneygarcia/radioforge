@@ -93,6 +93,8 @@ function addColumn(table: string, column: string, ddl: string) {
   if (!cols.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
 }
 addColumn('playlists', 'schedule_enabled', 'INTEGER NOT NULL DEFAULT 0');
+// 0 = rotação normal; N > 0 = toca 1 faixa desta playlist a cada N faixas da rotação (vinhetas, avisos).
+addColumn('playlists', 'every_songs', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('playlists', 'start_time', "TEXT NOT NULL DEFAULT '00:00'");
 addColumn('playlists', 'end_time', "TEXT NOT NULL DEFAULT '23:59'");
 // Dias da semana separados por vírgula, 0=domingo … 6=sábado.
@@ -272,6 +274,7 @@ export interface PlaylistRow {
   enabled: number;
   mode: 'shuffle' | 'sequential';
   weight: number;
+  every_songs: number;
   schedule_enabled: number;
   start_time: string;
   end_time: string;

@@ -70,6 +70,13 @@ export default function Playlists() {
               </div>
               <div className="row">
                 <label>
+                  Intercalar: 1 faixa desta playlist a cada{' '}
+                  <input type="number" min={0} max={50} value={p.everySongs} disabled={p.scheduleEnabled} onChange={(e) => patch(p.id, { everySongs: Math.max(0, Math.min(50, Number(e.target.value) || 0)) })} style={{ width: 70 }} />{' '}
+                  músicas da rotação (0 = desligado; para vinhetas e avisos; só no modo completo)
+                </label>
+              </div>
+              <div className="row">
+                <label>
                   <input type="checkbox" checked={p.scheduleEnabled} onChange={(e) => patch(p.id, { scheduleEnabled: e.target.checked })} /> Agendar (toca só neste horário e tem prioridade sobre a rotação)
                 </label>
               </div>
