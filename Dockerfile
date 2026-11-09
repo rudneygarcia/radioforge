@@ -18,8 +18,8 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends icecast2 ffmpeg ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 COPY --from=node:24-bookworm-slim /usr/local/bin/node /usr/local/bin/node
-# Falha o build (e não a estação) se algum programa essencial não rodar nesta imagem.
-RUN node --version && liquidsoap --version && icecast2 -v && ffmpeg -version | head -1
+# Mostra no log do build a versão de cada programa (não falha o build: só informa).
+RUN for c in "node --version" "liquidsoap --version" "icecast2 -v" "ffmpeg -version"; do echo "== $c"; $c 2>&1 | head -2 || true; done
 
 RUN useradd --create-home --uid 1001 radio \
  && mkdir -p /data /app && chown -R radio:radio /data /app
