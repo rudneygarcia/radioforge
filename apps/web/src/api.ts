@@ -125,6 +125,10 @@ export interface Dj {
   displayName: string;
   enabled: boolean;
   password: string;
+  scheduleEnabled: boolean;
+  startTime: string;
+  endTime: string;
+  days: number[];
 }
 export interface Recording {
   name: string;

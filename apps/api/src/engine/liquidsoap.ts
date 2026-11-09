@@ -114,17 +114,25 @@ export function buildLiquidsoapScript(
   }
 
   if (st.live_enabled) {
-    // Credenciais aceitas: o usuário "source" (senha da estação) + cada DJ ativo.
-    const creds = [
-      ['source', st.source_password],
-      ...djs.filter((d) => d.enabled).map((d) => [d.username, d.password]),
-    ];
+    // Credenciais aceitas: o usuário "source" (senha da estação) + cada DJ ativo. DJ com horário
+    // só autentica dentro da janela (o predicado de tempo é avaliado a cada tentativa de conexão).
+    const clauses = [`(login.user == ${q('source')} and login.password == ${q(st.source_password)})`];
+    for (const d of djs.filter((x) => x.enabled)) {
+      let clause = `login.user == ${q(d.username)} and login.password == ${q(d.password)}`;
+      if (d.schedule_enabled) {
+        const win = `dj_window_${d.id}`;
+        lines.push(
+          `${win} = ${schedulePredicate({ days: d.days.split(',').filter(Boolean).map(Number), start: d.start_time, end: d.end_time })}`,
+        );
+        clause += ` and ${win}()`;
+      }
+      clauses.push(`(${clause})`);
+    }
     lines.push(
-      `dj_credentials = [${creds.map(([u, p]) => `(${q(u)}, ${q(p)})`).join(', ')}]`,
       // Guarda quem autenticou por último para avisar a API quem entrou no ar.
       `dj_user = ref("")`,
       `def dj_auth(login) =`,
-      `  ok = list.exists(fun (c) -> c == (login.user, login.password), dj_credentials)`,
+      `  ok = ${clauses.join(' or ')}`,
       `  if ok then dj_user := login.user end`,
       `  ok`,
       `end`,

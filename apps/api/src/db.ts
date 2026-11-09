@@ -132,6 +132,11 @@ CREATE TABLE IF NOT EXISTS station_djs (
   UNIQUE (station_id, username)
 );
 `);
+// Horário permitido para o DJ conectar (fora dele a conexão é recusada). Horário do servidor (UTC no Docker).
+addColumn('station_djs', 'schedule_enabled', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('station_djs', 'start_time', "TEXT NOT NULL DEFAULT '00:00'");
+addColumn('station_djs', 'end_time', "TEXT NOT NULL DEFAULT '23:59'");
+addColumn('station_djs', 'days', "TEXT NOT NULL DEFAULT '0,1,2,3,4,5,6'");
 
 // Estatísticas: amostras de ouvintes (1 por minuto) e sessões lidas do access.log do Icecast.
 db.exec(`
@@ -244,6 +249,10 @@ export interface DjRow {
   password: string;
   display_name: string;
   enabled: number;
+  schedule_enabled: number;
+  start_time: string;
+  end_time: string;
+  days: string;
   created_at: string;
 }
 export const djsFor = (stationId: number) =>

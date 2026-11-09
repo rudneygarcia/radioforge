@@ -23,6 +23,10 @@ const updateBody = z.object({
   displayName: z.string().max(80).optional(),
   enabled: z.boolean().optional(),
   resetPassword: z.boolean().optional(),
+  scheduleEnabled: z.boolean().optional(),
+  startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Horário inicial inválido').optional(),
+  endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Horário final inválido').optional(),
+  days: z.array(z.number().int().min(0).max(6)).optional(),
 });
 
 const newPassword = () => crypto.randomBytes(9).toString('base64url');
@@ -33,6 +37,10 @@ const djView = (d: DjRow) => ({
   displayName: d.display_name,
   enabled: !!d.enabled,
   password: d.password,
+  scheduleEnabled: !!d.schedule_enabled,
+  startTime: d.start_time,
+  endTime: d.end_time,
+  days: d.days.split(',').filter(Boolean).map(Number),
 });
 
 const recordingsPath = (stationId: number) => path.join(stationDir(stationId), 'recordings');
@@ -86,10 +94,15 @@ export async function djRoutes(app: FastifyInstance) {
     const dj = get<DjRow>('SELECT * FROM station_djs WHERE id = ? AND station_id = ?', djId ?? -1, st.id);
     if (!dj) throw new HttpError(404, 'DJ não encontrado');
     run(
-      'UPDATE station_djs SET display_name = ?, enabled = ?, password = ? WHERE id = ?',
+      `UPDATE station_djs SET display_name = ?, enabled = ?, password = ?,
+         schedule_enabled = ?, start_time = ?, end_time = ?, days = ? WHERE id = ?`,
       b.displayName ?? dj.display_name,
       (b.enabled ?? !!dj.enabled) ? 1 : 0,
       b.resetPassword ? newPassword() : dj.password,
+      (b.scheduleEnabled ?? !!dj.schedule_enabled) ? 1 : 0,
+      b.startTime ?? dj.start_time,
+      b.endTime ?? dj.end_time,
+      b.days ? [...new Set(b.days)].sort().join(',') : dj.days,
       dj.id,
     );
     await reload(st);
