@@ -29,7 +29,6 @@ const safeEqual = (a: string, b: string) => {
 };
 
 // Limite de pedidos: 1 por IP a cada 5 minutos por estação.
-const lastRequest = new Map<string, number>();
 
 /** Repassa o áudio do Icecast (ou do motor simples) para o ouvinte, sem cache e sem buffer. */
 function proxyStream(req: FastifyRequest, reply: FastifyReply, st: StationRow, mount: string | undefined) {
@@ -171,27 +170,38 @@ export async function publicRoutes(app: FastifyInstance) {
     // Com o AutoDJ em segundo plano durante o ao vivo, o pedido tocaria mudo: só aceita quando o DJ sair.
     if (st.live_continue && getLive(st.id)) throw new HttpError(409, 'Estamos ao vivo agora. Os pedidos voltam quando o AutoDJ retornar.');
     const { mediaId } = z.object({ mediaId: z.number().int() }).parse(req.body);
-    const key = `${st.id}:${req.ip}`;
-    const last = lastRequest.get(key) ?? 0;
-    if (Date.now() - last < 5 * 60_000) throw new HttpError(429, 'Aguarde alguns minutos para pedir outra música');
+    // Intervalo entre pedidos do mesmo ouvinte (configurado no painel; 0 = sem limite). Guardado no banco: vale após reiniciar.
+    if (st.request_interval > 0) {
+      const prev = get<{ created_at: string }>('SELECT created_at FROM song_requests WHERE station_id = ? AND ip = ? ORDER BY id DESC LIMIT 1', st.id, req.ip);
+      const left = prev ? new Date(prev.created_at.replace(' ', 'T') + 'Z').getTime() + st.request_interval * 60_000 - Date.now() : 0;
+      if (left > 0) throw new HttpError(429, `Você já fez um pedido. Aguarde ${Math.ceil(left / 60_000)} min para pedir outra música.`);
+    }
     // Só pode pedir quem está em playlist com pedidos ligados.
     const m = requestableMedia(st.id).find((x) => x.id === mediaId);
     if (!m) throw new HttpError(404, 'Música não disponível para pedido');
     if (st.no_repeat_minutes > 0 && recentMedia(st.id, st.no_repeat_minutes).ids.has(m.id)) {
       throw new HttpError(409, 'Essa música tocou há pouco. Peça outra ou tente mais tarde.');
     }
-    await pushRequest(st.id, path.join(config.dataDir, m.path), false, 0, isHiddenTrack(st, m));
-    lastRequest.set(key, Date.now());
-    run('INSERT INTO song_requests (station_id, media_id, ip) VALUES (?, ?, ?)', st.id, m.id, req.ip);
-    return reply.code(202).send({ ok: true, title: m.title, artist: m.artist });
+    // Sem atraso: entra na fila do AutoDJ agora. Com atraso: fica agendado e o servidor coloca na fila no horário (timed.ts).
+    const delay = st.request_delay;
+    if (delay === 0) await pushRequest(st.id, path.join(config.dataDir, m.path), false, 0, isHiddenTrack(st, m));
+    run(
+      "INSERT INTO song_requests (station_id, media_id, ip, due_at, pushed) VALUES (?, ?, ?, datetime('now', ?), ?)",
+      st.id,
+      m.id,
+      req.ip,
+      `+${delay} minutes`,
+      delay === 0 ? 1 : 0,
+    );
+    return reply.code(202).send({ ok: true, title: m.title, artist: m.artist, delayMinutes: delay });
   });
 
   // Pedidos recentes da estação (sem IPs); `mine` marca os feitos por este ouvinte. `played` = já tocou depois do pedido.
   app.get('/api/public/stations/:slug/requests', async (req) => {
     const st = stationBySlug(slugParam.parse(req.params).slug);
     if (!st.requests_enabled) return [];
-    const rows = all<{ id: number; title: string; artist: string; ip: string; created_at: string }>(
-      `SELECT r.id, m.title, m.artist, r.ip, r.created_at FROM song_requests r JOIN media m ON m.id = r.media_id
+    const rows = all<{ id: number; title: string; artist: string; ip: string; created_at: string; pushed: number }>(
+      `SELECT r.id, m.title, m.artist, r.ip, r.created_at, r.pushed FROM song_requests r JOIN media m ON m.id = r.media_id
        WHERE r.station_id = ? ORDER BY r.id DESC LIMIT 15`,
       st.id,
     );
@@ -201,6 +211,7 @@ export async function publicRoutes(app: FastifyInstance) {
       artist: r.artist,
       createdAt: r.created_at,
       mine: r.ip === req.ip,
+      waiting: !r.pushed,
       played: !!get('SELECT 1 AS ok FROM history WHERE station_id = ? AND title = ? AND artist = ? AND played_at >= ? LIMIT 1', st.id, r.title, r.artist, r.created_at),
     }));
   });

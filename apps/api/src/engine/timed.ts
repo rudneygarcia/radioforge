@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { config } from '../config.js';
-import { all, avoidRecent, playlistMedia, recentMedia, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
+import { all, avoidRecent, get, playlistMedia, recentMedia, run, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
 import { tickAnnouncements } from './announce.js';
 import { isRunning, pushRequest, writePlaylists } from './manager.js';
 import { getLive } from './nowplaying.js';
@@ -50,6 +50,24 @@ export function tickTimedPlaylists(now = Date.now()) {
   }
 }
 
+/** Pedidos de ouvintes agendados (atraso configurado na estação): quando chega a hora, entram na fila do AutoDJ. */
+export function tickScheduledRequests() {
+  const due = all<{ id: number; station_id: number; path: string }>(
+    `SELECT r.id, r.station_id, m.path FROM song_requests r JOIN media m ON m.id = r.media_id
+     WHERE r.pushed = 0 AND r.due_at <= datetime('now') ORDER BY r.id LIMIT 20`,
+  );
+  for (const r of due) {
+    const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', r.station_id);
+    if (!st) continue;
+    if (!isRunning(st.id) || (st.live_continue && getLive(st.id))) continue; // espera a rádio/AutoDJ voltar
+    const m = get<MediaRow>('SELECT * FROM media WHERE station_id = ? AND path = ?', st.id, r.path);
+    run('UPDATE song_requests SET pushed = 1 WHERE id = ?', r.id); // marca antes: não duplica se o envio demorar
+    pushRequest(st.id, path.join(config.dataDir, r.path), false, 0, m ? isHiddenTrack(st, m) : false).catch((e) =>
+      console.error(`[pedidos] falha ao enfileirar o pedido ${r.id}:`, (e as Error).message),
+    );
+  }
+}
+
 export function startTimedPlaylists() {
   tickTimedPlaylists();
   void tickAnnouncements();
@@ -57,6 +75,7 @@ export function startTimedPlaylists() {
     void tickAnnouncements().catch((e) => console.error('[hora certa] falhou:', e));
     try {
       tickTimedPlaylists();
+      tickScheduledRequests();
     } catch (e) {
       console.error('[timed] falhou:', e);
     }

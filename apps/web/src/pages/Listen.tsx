@@ -32,6 +32,7 @@ interface Req {
   createdAt: string;
   mine: boolean;
   played: boolean;
+  waiting: boolean;
 }
 interface Hist {
   title: string;
@@ -108,9 +109,9 @@ export default function Listen() {
     setSending(s.id);
     setMsg(null);
     try {
-      await api(`/api/public/stations/${slug}/request`, { method: 'POST', body: { mediaId: s.id } });
+      const r = await api<{ delayMinutes?: number }>(`/api/public/stations/${slug}/request`, { method: 'POST', body: { mediaId: s.id } });
       setSent((cur) => new Set(cur).add(s.id));
-      setMsg({ text: `Pedido enviado! “${s.title}” entra na fila e toca em breve.`, ok: true });
+      setMsg({ text: r.delayMinutes ? `Pedido recebido! “${s.title}” entra na programação em cerca de ${r.delayMinutes} min.` : `Pedido enviado! “${s.title}” entra na fila e toca em breve.`, ok: true });
       api<Req[]>(`/api/public/stations/${slug}/requests`).then(setReqs).catch(() => {});
     } catch (e) {
       setMsg({ text: (e as Error).message || 'Não foi possível enviar o pedido.', ok: false });
@@ -187,7 +188,7 @@ export default function Listen() {
             <div key={r.id} className="req-item">
               <span className="req-ico"><Icon name="music" size={16} /></span>
               <span className="req-txt"><strong>{r.title}</strong><small>{r.artist || '—'}{r.mine ? ' · seu pedido' : ''}</small></span>
-              <span className={`req-state ${r.played ? 'played' : 'queued'}`}>{r.played ? 'Tocou' : 'Na fila'}</span>
+              <span className={`req-state ${r.played ? 'played' : 'queued'}`}>{r.played ? 'Tocou' : r.waiting ? 'Agendado' : 'Na fila'}</span>
             </div>
           ))}
         </div>

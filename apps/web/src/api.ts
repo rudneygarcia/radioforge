@@ -100,6 +100,8 @@ export interface Station {
   autocueLevel: boolean;
   hiddenWords: string;
   jingleHideName: boolean;
+  requestInterval: number;
+  requestDelay: number;
   timeAnnounceVoice: boolean;
   timezone: string;
   liveEnabled: boolean;

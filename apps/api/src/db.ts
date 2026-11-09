@@ -208,6 +208,11 @@ addColumn('stations', 'autocue_level', 'INTEGER NOT NULL DEFAULT 1');
 // Faixas que contêm estas palavras tocam sem enviar metadados (nem o nome da estação). Vinhetas: opção de também não enviar o nome.
 addColumn('stations', 'hidden_words', "TEXT NOT NULL DEFAULT ''");
 addColumn('stations', 'jingle_hide_name', 'INTEGER NOT NULL DEFAULT 0');
+// Pedidos: minutos que cada ouvinte espera para pedir de novo (0 = sem limite) e minutos até o pedido entrar no AutoDJ (0 = na hora).
+addColumn('stations', 'request_interval', 'INTEGER NOT NULL DEFAULT 5');
+addColumn('stations', 'request_delay', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('song_requests', 'due_at', "TEXT NOT NULL DEFAULT ''");
+addColumn('song_requests', 'pushed', 'INTEGER NOT NULL DEFAULT 1');
 addColumn('stations', 'cover', 'TEXT'); // capa/logo da rádio (arquivo dentro da pasta da estação); usada quando a música não tem capa
 addColumn('stations', 'no_repeat_minutes', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('history', 'media_id', 'INTEGER'); // música tocada (para a regra de não repetir); null em vinhetas/antigos
@@ -393,6 +398,8 @@ export interface StationRow {
   autocue_level: number;
   hidden_words: string;
   jingle_hide_name: number;
+  request_interval: number;
+  request_delay: number;
   timezone: string;
   cover: string | null;
   created_at: string;

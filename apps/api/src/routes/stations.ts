@@ -72,6 +72,10 @@ const settings = z.object({
   hiddenWords: z.string().max(2000).default(''),
   /** Vinhetas também não enviam o nome da estação como título. */
   jingleHideName: z.boolean().default(false),
+  /** Minutos que cada ouvinte espera para pedir outra música (0 = sem limite). */
+  requestInterval: z.number().int().min(0).max(1440).default(5),
+  /** Minutos até o pedido entrar no AutoDJ (0 = na hora). */
+  requestDelay: z.number().int().min(0).max(240).default(0),
   /** Fuso horário (IANA) usado na hora certa e nos horários da estação. */
   timezone: z.string().max(64).refine(isValidTimezone, 'Fuso horário inválido').default('America/Sao_Paulo'),
   /** Mountpoint principal. Na criação, o padrão é /radio.mp3 (ou /radio.ogg); na edição, vazio mantém o atual. */
@@ -168,6 +172,8 @@ export async function stationView(st: StationRow) {
     autocueLevel: !!st.autocue_level,
     hiddenWords: st.hidden_words,
     jingleHideName: !!st.jingle_hide_name,
+    requestInterval: st.request_interval,
+    requestDelay: st.request_delay,
     timezone: st.timezone,
     audioWarning: audioWarningFor(st.id),
     mounts: mountsFor(st.id).map((m) => ({ mount: m.mount, format: m.format, bitrate: m.bitrate })),
@@ -214,8 +220,8 @@ export async function stationRoutes(app: FastifyInstance) {
     if (get('SELECT 1 AS ok FROM stations WHERE slug = ?', slug)) slug += '-' + crypto.randomBytes(2).toString('hex');
     const r = run(
       `INSERT INTO stations (name, slug, description, stream_port, mount, format, bitrate,
-         source_password, admin_password, live_enabled, requests_enabled, autostart, crossfade_seconds, normalize, record_live, history_limit, audio_preset, audio_gain, no_repeat_minutes, live_timeout, live_continue, time_announce, timezone, time_announce_voice, time_voice, autocue, autocue_custom, autocue_duration, autocue_fade_in, autocue_fade_out, jingle_overlap, jingle_gain, autocue_level, hidden_words, jingle_hide_name)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         source_password, admin_password, live_enabled, requests_enabled, autostart, crossfade_seconds, normalize, record_live, history_limit, audio_preset, audio_gain, no_repeat_minutes, live_timeout, live_continue, time_announce, timezone, time_announce_voice, time_voice, autocue, autocue_custom, autocue_duration, autocue_fade_in, autocue_fade_out, jingle_overlap, jingle_gain, autocue_level, hidden_words, jingle_hide_name, request_interval, request_delay)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       body.name,
       slug,
       body.description,
@@ -251,6 +257,8 @@ export async function stationRoutes(app: FastifyInstance) {
       body.autocueLevel ? 1 : 0,
       body.hiddenWords,
       body.jingleHideName ? 1 : 0,
+      body.requestInterval,
+      body.requestDelay,
     );
     const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', Number(r.lastInsertRowid))!;
     saveMounts(st.id, st.mount, body.mounts);
@@ -277,7 +285,7 @@ export async function stationRoutes(app: FastifyInstance) {
     if (b.mounts.some((m) => m.mount === newMount)) throw new HttpError(400, `O nome ${newMount} já é usado por um stream extra`);
     run(
       `UPDATE stations SET name = ?, description = ?, mount = ?, format = ?, bitrate = ?,
-         live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ?, record_live = ?, history_limit = ?, audio_preset = ?, audio_gain = ?, no_repeat_minutes = ?, live_timeout = ?, live_continue = ?, time_announce = ?, timezone = ?, time_announce_voice = ?, time_voice = ?, autocue = ?, autocue_custom = ?, autocue_duration = ?, autocue_fade_in = ?, autocue_fade_out = ?, jingle_overlap = ?, jingle_gain = ?, autocue_level = ?, hidden_words = ?, jingle_hide_name = ? WHERE id = ?`,
+         live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ?, record_live = ?, history_limit = ?, audio_preset = ?, audio_gain = ?, no_repeat_minutes = ?, live_timeout = ?, live_continue = ?, time_announce = ?, timezone = ?, time_announce_voice = ?, time_voice = ?, autocue = ?, autocue_custom = ?, autocue_duration = ?, autocue_fade_in = ?, autocue_fade_out = ?, jingle_overlap = ?, jingle_gain = ?, autocue_level = ?, hidden_words = ?, jingle_hide_name = ?, request_interval = ?, request_delay = ? WHERE id = ?`,
       b.name,
       b.description,
       newMount,
@@ -309,6 +317,8 @@ export async function stationRoutes(app: FastifyInstance) {
       b.autocueLevel ? 1 : 0,
       b.hiddenWords,
       b.jingleHideName ? 1 : 0,
+      b.requestInterval,
+      b.requestDelay,
       st.id,
     );
     saveMounts(st.id, newMount, b.mounts);

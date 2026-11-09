@@ -46,6 +46,8 @@ export default function Settings() {
     autocueLevel: station.autocueLevel,
     hiddenWords: station.hiddenWords,
     jingleHideName: station.jingleHideName,
+    requestInterval: station.requestInterval,
+    requestDelay: station.requestDelay,
     timezone: station.timezone,
     historyLimit: station.historyLimit,
     liveEnabled: station.liveEnabled,
@@ -350,6 +352,18 @@ export default function Settings() {
             <small className="hint">Quantas faixas aparecem em “Tocou recentemente” (1 a 50).</small>
           </label>
           <Toggle checked={f.requestsEnabled} onChange={(v) => setF({ ...f, requestsEnabled: v })} disabled={!isAdmin} title="Permitir pedidos de músicas" hint="Ouvintes podem pedir faixas pelo player público." />
+          <div className="field-row">
+            <label className="field">
+              <span>Intervalo entre pedidos de cada ouvinte (min)</span>
+              <input type="number" min={0} max={1440} value={f.requestInterval} onChange={(e) => setF({ ...f, requestInterval: Math.max(0, Math.min(1440, Number(e.target.value) || 0)) })} disabled={!isAdmin || !f.requestsEnabled} />
+              <small className="hint">Quanto cada ouvinte espera para pedir outra música (0 = sem limite). Padrão: 5.</small>
+            </label>
+            <label className="field">
+              <span>Tempo para o pedido entrar no AutoDJ (min)</span>
+              <input type="number" min={0} max={240} value={f.requestDelay} onChange={(e) => setF({ ...f, requestDelay: Math.max(0, Math.min(240, Number(e.target.value) || 0)) })} disabled={!isAdmin || !f.requestsEnabled} />
+              <small className="hint">0 = entra na fila na hora (toca ao fim da música atual). Com 10, o pedido só entra na fila depois de 10 minutos.</small>
+            </label>
+          </div>
         </div>
       </Modal>
 
