@@ -385,6 +385,13 @@ tr.picked td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
   .station-shell .tabs a { justify-content: flex-start; padding: 11px 12px; font-size: 14.5px; }
 }
 
-.mini-player { display: inline-flex; align-items: center; gap: 4px; }
-.mini-player input[type=range] { width: 70px; padding: 0; }
-.mini-player .big-icon { color: var(--accent); }
+
+/* Mini player do painel: pílula discreta com botão redondo */
+.mini-player { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding: 5px 12px 5px 5px; width: fit-content; max-width: 100%; background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; }
+.mp-play { width: 36px; height: 36px; padding: 0; flex: none; display: grid; place-items: center; border-radius: 50%; border: 0; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--accent-text); box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 45%, transparent); }
+.mp-play:disabled { opacity: .45; box-shadow: none; }
+.mp-play svg { margin: 0; }
+.mp-vol { width: 28px; height: 28px; padding: 0; flex: none; display: grid; place-items: center; background: transparent; border: 0; box-shadow: none; color: var(--muted); border-radius: 50%; }
+.mp-vol:hover { color: var(--text); background: var(--panel); }
+.mini-player input[type=range] { width: 84px; padding: 0; height: 4px; accent-color: var(--accent); }
+.mini-player .eq { height: 16px; }

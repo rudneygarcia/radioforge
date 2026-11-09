@@ -41,10 +41,11 @@ function MiniPlayer({ slug, online }: { slug: string; online: boolean }) {
   }
   return (
     <div className="mini-player">
-      <button type="button" className="icon-btn big-icon" onClick={toggle} disabled={!online} title={playing ? 'Parar de ouvir' : 'Ouvir a estação'} aria-label={playing ? 'Parar de ouvir' : 'Ouvir a estação'}>
-        <Icon name={playing ? 'stop' : 'play'} size={20} />
+      <button type="button" className="mp-play" onClick={toggle} disabled={!online} title={playing ? 'Parar de ouvir' : 'Ouvir a estação'} aria-label={playing ? 'Parar de ouvir' : 'Ouvir a estação'}>
+        <Icon name={playing ? 'stop' : 'play'} size={18} />
       </button>
-      <button type="button" className="icon-btn" onClick={() => setMuted((m) => !m)} title={muted || volume === 0 ? 'Ativar o som' : 'Silenciar'} aria-label="Silenciar">
+      {playing && <span className="eq" aria-hidden="true"><i /><i /><i /><i /></span>}
+      <button type="button" className="mp-vol" onClick={() => setMuted((m) => !m)} title={muted || volume === 0 ? 'Ativar o som' : 'Silenciar'} aria-label="Silenciar">
         <Icon name={muted || volume === 0 ? 'mute' : 'volume'} size={18} />
       </button>
       <input type="range" min={0} max={1} step={0.01} value={muted ? 0 : volume} aria-label="Volume" onChange={(e) => { setVolume(Number(e.target.value)); setMuted(false); }} />
@@ -148,10 +149,7 @@ export default function Dashboard() {
           <Link to="listeners" className="small-text">Ver quem está ouvindo →</Link>
         </div>
         <div className="card">
-          <div className="stat-label" style={{ justifyContent: 'space-between' }}>
-            <span><Icon name="music" /> Tocando agora</span>
-            <MiniPlayer slug={station.slug} online={station.running} />
-          </div>
+          <div className="stat-label"><Icon name="music" /> Tocando agora</div>
           {station.nowPlaying ? (
             <div className="np">
               <Cover url={station.nowPlaying.coverUrl} size={64} />
@@ -163,6 +161,7 @@ export default function Dashboard() {
           ) : (
             <p className="muted" style={{ marginTop: 10 }}>Nada tocando.</p>
           )}
+          <MiniPlayer slug={station.slug} online={station.running} />
         </div>
       </div>
 
