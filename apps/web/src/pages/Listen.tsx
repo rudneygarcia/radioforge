@@ -13,6 +13,7 @@ interface Pub {
   nowPlaying: NowPlaying | null;
   live: { name: string } | null;
   historyLimit: number;
+  coverUrl?: string | null;
   requestsEnabled: boolean;
 }
 interface Song {
@@ -59,9 +60,9 @@ export default function Listen() {
       title: np?.title || info.name,
       artist: np?.artist || info.name,
       album: info.name,
-      artwork: np?.coverUrl ? [{ src: new URL(np.coverUrl, location.origin).href }] : [],
+      artwork: (np?.coverUrl ?? info.coverUrl) ? [{ src: new URL((np?.coverUrl ?? info.coverUrl)!, location.origin).href }] : [],
     });
-  }, [info?.name, info?.nowPlaying?.title, info?.nowPlaying?.artist, info?.nowPlaying?.coverUrl]);
+  }, [info?.name, info?.nowPlaying?.title, info?.nowPlaying?.artist, info?.nowPlaying?.coverUrl, info?.coverUrl]);
 
   function toggle() {
     const a = audio.current;
@@ -90,12 +91,14 @@ export default function Listen() {
   }
 
   if (!info) return <p className="center muted">Estação não encontrada.</p>;
+  // Capa da música; sem ela, a capa da rádio; sem nenhuma, o ícone.
+  const shownCover = info.nowPlaying?.coverUrl ?? info.coverUrl ?? null;
 
   return (
     <div className="listen-wrap">
     <div className="listen">
       <div className="card player">
-        <div className="cover" style={info.nowPlaying?.coverUrl ? { background: `center/cover url(${info.nowPlaying.coverUrl})` } : undefined}>{info.nowPlaying?.coverUrl ? null : '📻'}</div>
+        <div className="cover" style={shownCover ? { background: `center/cover url(${shownCover})` } : undefined}>{shownCover ? null : '📻'}</div>
         <h1>{info.name}</h1>
         {info.description && <p className="muted">{info.description}</p>}
         <span className={`badge ${info.online ? 'on' : 'off'}`}>{info.online ? 'no ar' : 'offline'}</span>

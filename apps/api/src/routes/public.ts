@@ -8,7 +8,7 @@ import { HttpError } from '../auth.js';
 import { config } from '../config.js';
 import { all, get, mountsFor, recentMedia, requestableMedia, run, type MediaRow, type StationRow } from '../db.js';
 import { isRunning, pushRequest, writePlaylists } from '../engine/manager.js';
-import { coverFile, coverMime, historyView, nowPlayingView } from '../engine/covers.js';
+import { coverFile, coverMime, historyView, nowPlayingView, stationCoverPath, stationCoverUrl } from '../engine/covers.js';
 import { getHistory, getListeners, getLive, getNowPlaying, recordTrack, setLive } from '../engine/nowplaying.js';
 import { streamsOf, streamUrl } from './stations.js';
 
@@ -92,11 +92,12 @@ export async function publicRoutes(app: FastifyInstance) {
       format: st.format,
       online: isRunning(st.id),
       listeners: await getListeners(st),
-      nowPlaying: nowPlayingView(st.slug, getNowPlaying(st.id)),
+      nowPlaying: nowPlayingView(st, getNowPlaying(st.id)),
       // No público, só o nome de exibição (nunca o usuário de login).
       live: getLive(st.id) ? { name: getLive(st.id)!.name, since: getLive(st.id)!.since } : null,
       requestsEnabled: !!st.requests_enabled,
       historyLimit: st.history_limit,
+      coverUrl: stationCoverUrl(st),
     };
   });
 
@@ -121,6 +122,14 @@ export async function publicRoutes(app: FastifyInstance) {
     return proxyStream(req, reply, st, mount);
   });
 
+  // Capa (logo) da rádio.
+  app.get('/api/public/stations/:slug/station-cover', async (req, reply) => {
+    const st = stationBySlug(slugParam.parse(req.params).slug);
+    const file = stationCoverPath(st);
+    if (!file || !fs.existsSync(file)) throw new HttpError(404, 'Sem capa');
+    return reply.header('Content-Type', coverMime(file)).header('Cache-Control', 'public, max-age=86400').send(fs.createReadStream(file));
+  });
+
   // Capa de uma música da estação (extraída das tags). Pública: aparece no player e nos apps.
   app.get('/api/public/stations/:slug/cover/:mediaId', async (req, reply) => {
     const { slug, mediaId } = z.object({ slug: z.string(), mediaId: z.coerce.number().int() }).parse(req.params);
@@ -135,7 +144,7 @@ export async function publicRoutes(app: FastifyInstance) {
 
   app.get('/api/public/stations/:slug/history', async (req) => {
     const st = stationBySlug(slugParam.parse(req.params).slug);
-    return historyView(st.slug, getHistory(st.id, 50));
+    return historyView(st, getHistory(st.id, 50));
   });
 
   // Catálogo para a página de pedidos.

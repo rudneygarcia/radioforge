@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseFile, selectCover } from 'music-metadata';
 import { config, stationDir } from '../config.js';
-import { all, get, run, type MediaRow } from '../db.js';
+import { all, get, run, type MediaRow, type StationRow } from '../db.js';
 import type { NowPlaying } from './nowplaying.js';
 
 const MAX_COVER = 4 * 1024 * 1024; // ignora capas gigantes
@@ -56,13 +56,50 @@ export function backfillCovers() {
   setTimeout(() => run1().catch((e) => console.error('[capas] falhou:', e)), 5000);
 }
 
-/** "Tocando agora" com o link da capa (se a música tiver). */
-export function nowPlayingView(slug: string, np: NowPlaying | null) {
+/** "Tocando agora" com o link da capa; sem capa na música, entra a capa da rádio (se houver). */
+export function nowPlayingView(st: StationRow, np: NowPlaying | null) {
   if (!np) return null;
   const cover = np.mediaId ? get<{ cover: string | null }>('SELECT cover FROM media WHERE id = ?', np.mediaId)?.cover : null;
-  return { ...np, coverUrl: coverUrl(slug, np.mediaId, cover) };
+  return { ...np, coverUrl: coverUrl(st.slug, np.mediaId, cover) ?? stationCoverUrl(st) };
 }
 
-/** Histórico com o link da capa de cada faixa. */
-export const historyView = <T extends { media_id: number | null; cover: string | null }>(slug: string, rows: T[]) =>
-  rows.map((r) => ({ ...r, coverUrl: coverUrl(slug, r.media_id, r.cover) }));
+/** Histórico com o link da capa de cada faixa (a capa da rádio no lugar das que não têm). */
+export const historyView = <T extends { media_id: number | null; cover: string | null }>(st: StationRow, rows: T[]) =>
+  rows.map((r) => ({ ...r, coverUrl: coverUrl(st.slug, r.media_id, r.cover) ?? stationCoverUrl(st) }));
+
+// ---------- Capa (logo) da rádio ----------
+export const stationCoverPath = (st: Pick<StationRow, 'id' | 'cover'>) => (st.cover ? path.join(stationDir(st.id), st.cover) : null);
+
+/** Link público da capa da rádio (com versão para o navegador atualizar ao trocar). */
+export function stationCoverUrl(st: Pick<StationRow, 'id' | 'slug' | 'cover'>): string | null {
+  const file = stationCoverPath(st);
+  if (!file) return null;
+  try {
+    return `/api/public/stations/${st.slug}/station-cover?v=${Math.floor(fs.statSync(file).mtimeMs)}`;
+  } catch {
+    return null;
+  }
+}
+
+/** Descobre o tipo da imagem pelos primeiros bytes (não confia na extensão enviada). */
+export function sniffImage(b: Buffer): 'png' | 'jpg' | 'gif' | 'webp' | null {
+  if (b.length > 12 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'png';
+  if (b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpg';
+  if (b.length > 6 && b.toString('latin1', 0, 4) === 'GIF8') return 'gif';
+  if (b.length > 12 && b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 12) === 'WEBP') return 'webp';
+  return null;
+}
+
+export function removeStationCover(st: Pick<StationRow, 'id' | 'cover'>) {
+  const file = stationCoverPath(st);
+  if (file) fs.rmSync(file, { force: true });
+  run('UPDATE stations SET cover = NULL WHERE id = ?', st.id);
+}
+
+export function saveStationCover(st: Pick<StationRow, 'id' | 'cover'>, data: Buffer, ext: string) {
+  removeStationCover(st);
+  fs.mkdirSync(stationDir(st.id), { recursive: true });
+  const name = `station-cover.${ext}`;
+  fs.writeFileSync(path.join(stationDir(st.id), name), data);
+  run('UPDATE stations SET cover = ? WHERE id = ?', name, st.id);
+}

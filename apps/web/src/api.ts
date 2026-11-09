@@ -77,6 +77,8 @@ export interface Station {
   slug: string;
   description: string;
   mount: string;
+  /** Capa (logo) da rádio, quando enviada. */
+  coverUrl?: string | null;
   format: 'mp3' | 'ogg' | 'aac';
   bitrate: number;
   historyLimit: number;

@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type Station } from '../api';
 import { useAuth } from '../auth';
-import { Empty, Icon, Modal, PageHeader, useUi } from '../ui';
+import { Cover, Empty, Icon, Modal, PageHeader, useUi } from '../ui';
 
 export default function Stations() {
   const { user } = useAuth();
@@ -74,7 +74,7 @@ export default function Stations() {
           {stations.map((s) => (
             <Link key={s.id} to={`/stations/${s.id}`} className={`card station ${s.running ? 'live' : ''}`}>
               <div className="row between" style={{ marginBottom: 4 }}>
-                <span className="station-name">{s.name}</span>
+                <span className="station-name" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>{s.coverUrl && <Cover url={s.coverUrl} size={30} />}<span className="ellipsis">{s.name}</span></span>
                 <span className={`badge ${s.running ? 'on' : 'off'}`}>{s.running ? 'no ar' : 'parada'}</span>
               </div>
               <p className="muted ellipsis">

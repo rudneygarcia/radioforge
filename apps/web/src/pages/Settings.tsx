@@ -1,8 +1,8 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import { api, type MountCfg } from '../api';
+import { api, uploadForm, type MountCfg, type Station } from '../api';
 import { useAuth } from '../auth';
-import { Icon, useUi } from '../ui';
+import { Cover, Icon, useUi } from '../ui';
 import type { StationCtx } from './StationLayout';
 
 function Toggle({ checked, onChange, disabled, title, hint }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; title: string; hint?: ReactNode }) {
@@ -38,6 +38,7 @@ export default function Settings() {
     mounts: station.mounts,
   });
   const [busy, setBusy] = useState(false);
+  const [coverBusy, setCoverBusy] = useState(false);
   const isAdmin = user?.role === 'admin';
   const setMount = (i: number, change: Partial<MountCfg>) =>
     setF((cur) => ({ ...cur, mounts: cur.mounts.map((m, j) => (j === i ? { ...m, ...change } : m)) }));
@@ -53,6 +54,34 @@ export default function Settings() {
       toast((err as Error).message, 'error');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function sendCover(file?: File) {
+    if (!file) return;
+    setCoverBusy(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      await uploadForm<Station>(`/api/stations/${station.id}/cover`, form).promise;
+      await reload();
+      toast('Capa da rádio atualizada');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setCoverBusy(false);
+    }
+  }
+
+  async function removeCover() {
+    if (!(await confirm({ title: 'Remover a capa da rádio?', message: 'Músicas sem capa voltam a mostrar o ícone padrão.', confirmLabel: 'Remover', danger: true }))) return;
+    setCoverBusy(true);
+    try {
+      await api(`/api/stations/${station.id}/cover`, { method: 'DELETE' });
+      await reload();
+      toast('Capa removida');
+    } finally {
+      setCoverBusy(false);
     }
   }
 
@@ -89,6 +118,24 @@ export default function Settings() {
           </label>
           <Toggle checked={f.autostart} onChange={(v) => setF({ ...f, autostart: v })} disabled={!isAdmin} title="Iniciar automaticamente com o servidor" />
         </div>
+      </div>
+
+      <div className="card section">
+        <div className="section-title"><h3>Capa da rádio</h3></div>
+        <p className="muted" style={{ marginTop: -4 }}>Logo ou imagem da estação. Aparece no player e nos históricos <strong>no lugar da capa das músicas que não têm</strong>, e também quando nada está tocando.</p>
+        <div className="row" style={{ alignItems: 'center', gap: 16 }}>
+          <Cover url={station.coverUrl} size={96} />
+          {isAdmin ? (
+            <div className="row" style={{ margin: 0 }}>
+              <label className="button">
+                {coverBusy ? 'Enviando…' : station.coverUrl ? 'Trocar capa' : 'Enviar capa'}
+                <input type="file" hidden accept="image/png,image/jpeg,image/webp,image/gif" disabled={coverBusy} onChange={(e) => sendCover(e.target.files?.[0])} />
+              </label>
+              {station.coverUrl && <button type="button" className="ghost" onClick={removeCover} disabled={coverBusy}><Icon name="trash" /> Remover</button>}
+            </div>
+          ) : null}
+        </div>
+        <p className="muted small-text" style={{ marginBottom: 0 }}>PNG, JPG, WEBP ou GIF, até 4 MB. Quadrada (ex.: 600×600) fica melhor.</p>
       </div>
 
       <div className="card section">

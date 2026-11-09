@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { authenticate, HttpError, requireAdmin, stationFor } from '../auth.js';
 import { config, stationDir } from '../config.js';
 import { all, db, get, mountsFor, run, type StationRow } from '../db.js';
-import { historyView, nowPlayingView } from '../engine/covers.js';
+import { historyView, nowPlayingView, removeStationCover, saveStationCover, sniffImage, stationCoverUrl } from '../engine/covers.js';
 import { audioWarningFor, engineMode, ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
 import { harborPort } from '../engine/liquidsoap.js';
 import { getHistory, getListeners, getLive, getNowPlaying } from '../engine/nowplaying.js';
@@ -128,7 +128,8 @@ export async function stationView(st: StationRow) {
     streams: streamsOf(st),
     running: isRunning(st.id),
     listeners: await getListeners(st),
-    nowPlaying: nowPlayingView(st.slug, getNowPlaying(st.id)),
+    nowPlaying: nowPlayingView(st, getNowPlaying(st.id)),
+    coverUrl: stationCoverUrl(st),
     live: getLive(st.id),
     streamUrl: streamUrl(st),
     engine: engineMode(),
@@ -238,6 +239,29 @@ export async function stationRoutes(app: FastifyInstance) {
     return stationView(updated);
   });
 
+  // Capa (logo) da rádio: entra no lugar da capa das músicas que não têm.
+  app.post('/api/stations/:id/cover', async (req) => {
+    requireAdmin(req);
+    const { id } = idParam.parse(req.params);
+    const st = stationFor(req, id);
+    const file = await req.file({ limits: { fileSize: 4 * 1024 * 1024 } });
+    if (!file) throw new HttpError(400, 'Envie uma imagem');
+    const buf = await file.toBuffer(); // lança erro se passar de 4 MB
+    if (file.file.truncated) throw new HttpError(413, 'Imagem muito grande (limite de 4 MB)');
+    const ext = sniffImage(buf);
+    if (!ext) throw new HttpError(400, 'Formato não suportado: use PNG, JPG, WEBP ou GIF');
+    saveStationCover(st, buf, ext);
+    return stationView(get<StationRow>('SELECT * FROM stations WHERE id = ?', st.id)!);
+  });
+
+  app.delete('/api/stations/:id/cover', async (req) => {
+    requireAdmin(req);
+    const { id } = idParam.parse(req.params);
+    const st = stationFor(req, id);
+    removeStationCover(st);
+    return stationView(get<StationRow>('SELECT * FROM stations WHERE id = ?', st.id)!);
+  });
+
   app.delete('/api/stations/:id', async (req) => {
     requireAdmin(req);
     const { id } = idParam.parse(req.params);
@@ -263,6 +287,6 @@ export async function stationRoutes(app: FastifyInstance) {
   app.get('/api/stations/:id/history', async (req) => {
     const { id } = idParam.parse(req.params);
     const st = stationFor(req, id);
-    return historyView(st.slug, getHistory(st.id, 50));
+    return historyView(st, getHistory(st.id, 50));
   });
 }
