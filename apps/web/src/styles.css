@@ -341,3 +341,17 @@ tr.picked td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .setting-card span { color: var(--muted); font-size: 13px; line-height: 1.4; }
 .setting-card .tag { font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
 .save-bar { position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; background: var(--bg); z-index: 5; }
+
+/* Menu lateral da estação (telas largas); em telas pequenas continua como abas roláveis no topo */
+.station-shell { display: block; }
+.station-main { min-width: 0; }
+@media (min-width: 900px) {
+  .container { max-width: 1320px; }
+  .station-shell { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 22px; align-items: start; }
+  .station-shell .tabs { flex-direction: column; overflow: visible; margin: 0; position: sticky; top: 76px; gap: 2px; padding: 8px; }
+  .station-shell .tabs a { padding: 10px 14px; font-size: 14.5px; }
+}
+@media (max-width: 899px) {
+  .settings-grid { grid-template-columns: 1fr; }
+  .modal { max-width: 100%; }
+}

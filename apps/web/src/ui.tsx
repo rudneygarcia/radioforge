@@ -55,10 +55,13 @@ export function Modal({
   size?: 'sm' | 'md' | 'lg';
 }) {
   const box = useRef<HTMLDivElement>(null);
+  // onClose muda a cada render do pai; guardado em ref para o efeito não rodar de novo (e roubar o foco) a cada tecla digitada.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeRef.current();
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -69,7 +72,7 @@ export function Modal({
       document.body.style.overflow = prev;
       clearTimeout(t);
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   return createPortal(

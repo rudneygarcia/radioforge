@@ -48,6 +48,7 @@ export default function StationLayout() {
           </a>
         }
       />
+      <div className="station-shell">
       <nav className="tabs">
         <NavLink end to=".">Painel</NavLink>
         <NavLink to="media">Biblioteca</NavLink>
@@ -59,7 +60,10 @@ export default function StationLayout() {
         <NavLink to="integrations">Integrações</NavLink>
         <NavLink to="settings">Configurações</NavLink>
       </nav>
-      <Outlet context={{ station, reload } satisfies StationCtx} />
+      <div className="station-main">
+        <Outlet context={{ station, reload } satisfies StationCtx} />
+      </div>
+      </div>
     </>
   );
 }

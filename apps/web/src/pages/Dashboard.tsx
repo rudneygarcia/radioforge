@@ -103,7 +103,7 @@ export default function Dashboard() {
         <div className="card">
           <div className="stat-label"><Icon name="users" /> Ouvintes agora</div>
           <p className="big">{station.listeners}</p>
-          <Link to="../listeners" className="small-text">Ver quem está ouvindo →</Link>
+          <Link to="listeners" className="small-text">Ver quem está ouvindo →</Link>
         </div>
         <div className="card">
           <div className="stat-label"><Icon name="music" /> Tocando agora</div>
