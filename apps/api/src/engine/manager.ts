@@ -145,13 +145,14 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
   return out;
 }
 
-/** Qual versão do processador de áudio vale por estação (0 completa, 1 só padrões, 2 desligada por erro). */
-const audioVariant = new Map<number, 0 | 1 | 2>();
+/** Versão do script que vale por estação: processador (0 completo, 1 só padrões, 2 desligado) e AutoDJ em segundo plano. */
+type Variant = { audio: 0 | 1 | 2; keepAlive: boolean };
+const variantOf = new Map<number, Variant>();
 const audioWarnings = new Map<number, string>();
-/** Aviso para o painel quando o processador precisou ser reduzido/desligado por erro no script. */
+/** Aviso para o painel quando o processador ou o "AutoDJ em segundo plano" precisaram ser reduzidos/desligados por erro no script. */
 export const audioWarningFor = (stationId: number): string | null => audioWarnings.get(stationId) ?? null;
 
-function writeConfigs(st: StationRow, variant: 0 | 1 | 2 = audioVariant.get(st.id) ?? 0) {
+function writeConfigs(st: StationRow, variant: Variant = variantOf.get(st.id) ?? { audio: 0, keepAlive: !!st.live_continue && !!st.live_enabled }) {
   ensureStationDirs(st.id);
   const base = stationDir(st.id);
   const playlists = writePlaylists(st.id);
@@ -184,23 +185,33 @@ export async function startStation(st: StationRow) {
   // Se o erro for do processador de áudio, tenta uma versão mais simples e por fim sem processamento,
   // para a rádio ir ao ar mesmo assim (e o painel avisa o que aconteceu).
   const wantsChain = st.audio_preset !== 'off' || st.audio_gain > 0;
-  const variants: (0 | 1 | 2)[] = wantsChain ? [0, 1, 2] : [2];
+  const wantsKeep = !!st.live_continue && !!st.live_enabled;
+  // Tentativas, da mais completa à mais simples: com AutoDJ em segundo plano primeiro, depois sem.
+  const audios: (0 | 1 | 2)[] = wantsChain ? [0, 1, 2] : [2];
+  const attempts: Variant[] = [...(wantsKeep ? audios.map((audio) => ({ audio, keepAlive: true })) : []), ...audios.map((audio) => ({ audio, keepAlive: false }))];
   audioWarnings.delete(st.id);
   let firstError = '';
-  for (const v of variants) {
+  let lastOut = '';
+  let chosen: Variant | null = null;
+  for (const v of attempts) {
     writeConfigs(st, v);
     const check = runCheck();
     if (check.error) throw startError(`Não foi possível executar o Liquidsoap: ${check.error.message}`);
     if (check.status === 0) {
-      audioVariant.set(st.id, v);
-      if (wantsChain && v === 1) audioWarnings.set(st.id, `O processador de áudio roda só com valores padrão (os ajustes finos não foram aceitos pelo Liquidsoap):\n${firstError}`);
-      if (wantsChain && v === 2) audioWarnings.set(st.id, `O processador de áudio foi DESLIGADO porque o Liquidsoap recusou o script:\n${firstError}`);
+      chosen = v;
       break;
     }
-    if (!firstError) firstError = tail(`${check.stdout}\n${check.stderr}`);
-    // Sem processador e ainda inválido: o problema é outro, mostra o erro.
-    if (v === 2) throw startError(`Script do Liquidsoap inválido:\n${tail(`${check.stdout}\n${check.stderr}`)}`);
+    lastOut = tail(`${check.stdout}\n${check.stderr}`);
+    if (!firstError) firstError = lastOut;
   }
+  // Nem a versão mais simples passou: o problema é outro, mostra o erro dela.
+  if (!chosen) throw startError(`Script do Liquidsoap inválido:\n${lastOut}`);
+  variantOf.set(st.id, chosen);
+  const notes: string[] = [];
+  if (wantsChain && chosen.audio === 1) notes.push(`O processador de áudio roda só com valores padrão (os ajustes finos não foram aceitos pelo Liquidsoap).`);
+  if (wantsChain && chosen.audio === 2) notes.push(`O processador de áudio foi DESLIGADO porque o Liquidsoap recusou o script.`);
+  if (wantsKeep && !chosen.keepAlive) notes.push(`O AutoDJ não continua em segundo plano durante o ao vivo (o Liquidsoap recusou): ao voltar, ele pode começar uma música nova.`);
+  if (notes.length) audioWarnings.set(st.id, `${notes.join('\n')}\n${firstError}`);
   if (audioWarnings.has(st.id)) console.warn(`[engine] ${st.slug}: ${audioWarnings.get(st.id)}`);
 
   const icecast = new Supervised(

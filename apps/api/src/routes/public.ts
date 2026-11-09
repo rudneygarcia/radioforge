@@ -103,6 +103,7 @@ export async function publicRoutes(app: FastifyInstance) {
       live: getLive(st.id) ? { name: getLive(st.id)!.name, since: getLive(st.id)!.since } : null,
       requestsEnabled: !!st.requests_enabled,
       historyLimit: st.history_limit,
+      liveContinue: !!st.live_continue,
       coverUrl: stationCoverUrl(st),
     };
   });
@@ -166,6 +167,8 @@ export async function publicRoutes(app: FastifyInstance) {
     const st = stationBySlug(slugParam.parse(req.params).slug);
     if (!st.requests_enabled) throw new HttpError(403, 'Pedidos desativados');
     if (!isRunning(st.id)) throw new HttpError(503, 'A rádio está offline');
+    // Com o AutoDJ em segundo plano durante o ao vivo, o pedido tocaria mudo: só aceita quando o DJ sair.
+    if (st.live_continue && getLive(st.id)) throw new HttpError(409, 'Estamos ao vivo agora. Os pedidos voltam quando o AutoDJ retornar.');
     const { mediaId } = z.object({ mediaId: z.number().int() }).parse(req.body);
     const key = `${st.id}:${req.ip}`;
     const last = lastRequest.get(key) ?? 0;

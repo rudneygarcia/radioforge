@@ -78,7 +78,12 @@ export function buildLiquidsoapScript(
   extraMounts: MountRow[] = [],
   djs: DjRow[] = [],
   recordingsDir = '',
-  audioVariant: 0 | 1 | 2 = 0,
+  opts: {
+    /** 0 = processador de áudio completo, 1 = só valores padrão, 2 = sem processador. */
+    audio?: 0 | 1 | 2;
+    /** Mantém o AutoDJ tocando (mudo) durante o ao vivo, para continuar a mesma música quando o DJ cair. */
+    keepAlive?: boolean;
+  } = {},
 ): string {
   const lines: string[] = [];
   lines.push(
@@ -196,10 +201,14 @@ export function buildLiquidsoapScript(
         `output.file(${st.format === 'ogg' ? `%ogg(%vorbis.abr(bitrate = ${st.bitrate}))` : `%mp3(bitrate = ${st.bitrate})`}, ${q(`${recordingsDir}/%Y-%m-%d_%Hh%Mm%Ss.${ext}`)}, fallible = true, live)`,
       );
     }
+    // O AutoDJ continua sendo "puxado" por uma saída muda enquanto o DJ está no ar: quando o encoder cai, a música
+    // que estiver tocando segue de onde está (em vez de o AutoDJ recomeçar numa faixa nova).
+    if (opts.keepAlive) lines.push(`output.dummy(id = "autodj_background", fallible = true, radio)`);
     lines.push(`radio = fallback(id = "dj", track_sensitive = false, [live, radio])`);
   }
 
   // Processador de áudio: sobre tudo que vai ao ar (músicas e DJ). Sem a opção, o áudio sai como veio.
+  const audioVariant = opts.audio ?? 0;
   if (audioVariant === 0 || audioVariant === 1) lines.push(...audioChain(st.audio_preset, st.audio_gain, audioVariant));
 
   lines.push(`radio = mksafe(radio)`, `radio.on_metadata(notify)`, ``);

@@ -87,6 +87,7 @@ export interface Station {
   audioWarning: string | null;
   noRepeatMinutes: number;
   liveTimeout: number;
+  liveContinue: boolean;
   liveEnabled: boolean;
   requestsEnabled: boolean;
   autostart: boolean;

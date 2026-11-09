@@ -12,6 +12,8 @@ interface Pub {
   listeners: number;
   nowPlaying: NowPlaying | null;
   live: { name: string } | null;
+  /** AutoDJ roda mudo durante o ao vivo: pedidos ficam indisponíveis enquanto há DJ. */
+  liveContinue?: boolean;
   historyLimit: number;
   coverUrl?: string | null;
   requestsEnabled: boolean;
@@ -124,7 +126,7 @@ export default function Listen() {
         {history.slice(0, info.historyLimit).map((h, i) => <div key={i} className="hist-item"><Cover url={h.coverUrl} size={36} /><span>{h.artist ? `${h.artist} — ` : ''}{h.title}</span></div>)}
         {history.length === 0 && <p className="muted">Nada tocou ainda.</p>}
       </div>
-      {info.requestsEnabled && songs.length > 0 && (
+      {info.requestsEnabled && songs.length > 0 && !(info.live && info.liveContinue) && (
         <div className="card">
           <h3>Peça uma música</h3>
           <div className="picker">

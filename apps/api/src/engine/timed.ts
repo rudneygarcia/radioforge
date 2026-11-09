@@ -2,6 +2,7 @@ import path from 'node:path';
 import { config } from '../config.js';
 import { all, avoidRecent, playlistMedia, recentMedia, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
 import { isRunning, pushRequest, writePlaylists } from './manager.js';
+import { getLive } from './nowplaying.js';
 
 /**
  * Playlists "a cada N minutos" (ex.: 60 = uma faixa no início de cada hora).
@@ -28,6 +29,7 @@ export function tickTimedPlaylists(now = Date.now()) {
       lastBucket.set(p.id, bucket);
       // Na primeira vez só registra o intervalo atual (não dispara logo ao ligar a API).
       if (prev === undefined || prev === bucket || !isRunning(st.id)) continue;
+      if (st.live_continue && getLive(st.id)) continue; // DJ no ar: a faixa tocaria muda em segundo plano
       const media = playlistMedia(p.id);
       if (!p.is_jingle) media.splice(0, media.length, ...avoidRecent(media, recentMedia(st.id, st.no_repeat_minutes)));
       if (media.length === 0) continue;

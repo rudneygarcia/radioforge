@@ -29,6 +29,7 @@ export default function Settings() {
     audioGain: station.audioGain,
     noRepeatMinutes: station.noRepeatMinutes,
     liveTimeout: station.liveTimeout,
+    liveContinue: station.liveContinue,
     historyLimit: station.historyLimit,
     liveEnabled: station.liveEnabled,
     requestsEnabled: station.requestsEnabled,
@@ -218,6 +219,7 @@ export default function Settings() {
             <input type="number" min={3} max={60} value={f.liveTimeout} onChange={(e) => setF({ ...f, liveTimeout: Math.max(3, Math.min(60, Number(e.target.value) || 8)) })} disabled={!isAdmin || !f.liveEnabled} />
             <small className="hint">Se o encoder cair (ex.: internet cortou), o AutoDJ assume depois desse tempo. Menor = volta mais rápido, mas uma oscilação curta já derruba o ao vivo. Padrão: 8 s.</small>
           </label>
+          <Toggle checked={f.liveContinue} onChange={(v) => setF({ ...f, liveContinue: v })} disabled={!isAdmin || !f.liveEnabled} title="AutoDJ continua a música ao voltar do ao vivo" hint="Durante o DJ, o AutoDJ segue tocando mudo; quando o encoder cai, a música que estiver tocando continua (em vez de começar outra). Enquanto o DJ está no ar, pedidos de ouvintes ficam indisponíveis." />
           <Toggle checked={f.recordLive} onChange={(v) => setF({ ...f, recordLive: v })} disabled={!isAdmin || !f.liveEnabled} title="Gravar as transmissões ao vivo" hint="Salva cada transmissão de DJ para baixar depois." />
           <label className="field" style={{ maxWidth: 340 }}>
             <span>Não repetir a mesma música por (minutos)</span>
