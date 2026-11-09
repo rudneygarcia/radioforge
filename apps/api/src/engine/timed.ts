@@ -4,6 +4,7 @@ import { all, avoidRecent, playlistMedia, recentMedia, type MediaRow, type Playl
 import { tickAnnouncements } from './announce.js';
 import { isRunning, pushRequest, writePlaylists } from './manager.js';
 import { getLive } from './nowplaying.js';
+import { isHiddenTrack } from './hide.js';
 
 /**
  * Playlists "a cada N minutos" (ex.: 60 = uma faixa no início de cada hora).
@@ -42,7 +43,7 @@ export function tickTimedPlaylists(now = Date.now()) {
       } else {
         m = media[Math.floor(Math.random() * media.length)];
       }
-      pushRequest(st.id, path.join(config.dataDir, m.path), !!p.is_jingle, m.duration).catch((e) =>
+      pushRequest(st.id, path.join(config.dataDir, m.path), !!p.is_jingle, m.duration, isHiddenTrack(st, m)).catch((e) =>
         console.error(`[timed] falha ao enfileirar "${m.title}" na estação ${st.slug}:`, (e as Error).message),
       );
     }

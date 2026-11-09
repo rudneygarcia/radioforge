@@ -205,6 +205,9 @@ addColumn('stations', 'jingle_overlap', 'REAL NOT NULL DEFAULT 0');
 addColumn('stations', 'jingle_gain', 'REAL NOT NULL DEFAULT 0');
 // Nivela o volume de tudo pelo AutoCue (liq_amplify): músicas, vinhetas e hora certa no mesmo nível.
 addColumn('stations', 'autocue_level', 'INTEGER NOT NULL DEFAULT 1');
+// Faixas que contêm estas palavras tocam sem enviar metadados (nem o nome da estação). Vinhetas: opção de também não enviar o nome.
+addColumn('stations', 'hidden_words', "TEXT NOT NULL DEFAULT ''");
+addColumn('stations', 'jingle_hide_name', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('stations', 'cover', 'TEXT'); // capa/logo da rádio (arquivo dentro da pasta da estação); usada quando a música não tem capa
 addColumn('stations', 'no_repeat_minutes', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('history', 'media_id', 'INTEGER'); // música tocada (para a regra de não repetir); null em vinhetas/antigos
@@ -388,6 +391,8 @@ export interface StationRow {
   jingle_overlap: number;
   jingle_gain: number;
   autocue_level: number;
+  hidden_words: string;
+  jingle_hide_name: number;
   timezone: string;
   cover: string | null;
   created_at: string;

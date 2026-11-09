@@ -44,6 +44,8 @@ export default function Settings() {
     jingleOverlap: station.jingleOverlap,
     jingleGain: station.jingleGain,
     autocueLevel: station.autocueLevel,
+    hiddenWords: station.hiddenWords,
+    jingleHideName: station.jingleHideName,
     timezone: station.timezone,
     historyLimit: station.historyLimit,
     liveEnabled: station.liveEnabled,
@@ -187,6 +189,10 @@ export default function Settings() {
         <button type="button" className="setting-card" onClick={() => setOpen('dj')}>
           <strong>AutoDJ, ao vivo e pedidos</strong>
           <span>{`DJ ao vivo ${onOff(f.liveEnabled)} · pedidos ${onOff(f.requestsEnabled)} · sem repetir ${f.noRepeatMinutes ? f.noRepeatMinutes + ' min' : 'desligado'}`}</span>
+        </button>
+        <button type="button" className="setting-card" onClick={() => setOpen('hide')}>
+          <strong>Ocultar nomes (metadados)</strong>
+          <span>{f.hiddenWords.trim() ? `${f.hiddenWords.split(/[\n,;]+/).filter((w) => w.trim()).length} palavra(s) ocultas` : 'Nenhuma palavra'}{f.jingleHideName ? ' · vinhetas sem nome' : ''}</span>
         </button>
         <button type="button" className="setting-card" onClick={() => setOpen('extra')}>
           <strong>Streams extras</strong>
@@ -344,6 +350,18 @@ export default function Settings() {
             <small className="hint">Quantas faixas aparecem em “Tocou recentemente” (1 a 50).</small>
           </label>
           <Toggle checked={f.requestsEnabled} onChange={(v) => setF({ ...f, requestsEnabled: v })} disabled={!isAdmin} title="Permitir pedidos de músicas" hint="Ouvintes podem pedir faixas pelo player público." />
+        </div>
+      </Modal>
+
+      <Modal open={open === 'hide'} title="Ocultar nomes (metadados)" onClose={close} size="md" footer={<button type="button" onClick={close}>Concluído</button>}>
+        <p className="muted" style={{ marginTop: -4 }}>Músicas cujo título, artista, álbum ou nome do arquivo contenham alguma destas palavras <strong>tocam normalmente, mas sem enviar metadados</strong>: não aparecem em “Tocando agora”, no histórico, nos webhooks nem no stream (também não vai o nome da estação).</p>
+        <div className="fields">
+          <label className="field">
+            <span>Palavras ou trechos (uma por linha)</span>
+            <textarea rows={6} value={f.hiddenWords} onChange={(e) => setF({ ...f, hiddenWords: e.target.value })} disabled={!isAdmin} placeholder={'vinheta\npropaganda\nnome de uma música'} />
+            <small className="hint">Não diferencia maiúsculas/minúsculas nem acentos. Use pelo menos 2 letras. Vale ao salvar (a estação reinicia).</small>
+          </label>
+          <Toggle checked={f.jingleHideName} onChange={(v) => setF({ ...f, jingleHideName: v })} disabled={!isAdmin} title="Vinhetas também sem nome" hint="Hoje as vinhetas enviam o nome da estação como título. Ligado, elas não enviam nada." />
         </div>
       </Modal>
 

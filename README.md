@@ -193,3 +193,7 @@ Em Configurações → Qualidade do áudio → **AutoCue**: o Liquidsoap analisa
 - Painel: duração e fades da passagem entre músicas (opcional, senão usa o padrão do Liquidsoap). Se o Liquidsoap recusar os valores personalizados, a estação cai sozinha para o AutoCue padrão e depois para desligado (aviso no painel).
 - **Configurações** agora é uma grade de cards; cada um abre um modal. O botão *Salvar alterações* fica fixo no rodapé.
 - **Player público**: ícone de volume (silenciar) e controle deslizante; o volume fica salvo no navegador.
+
+### Ocultar nomes (metadados)
+
+Em *Configurações → Ocultar nomes*, liste palavras (uma por linha). Faixas cujo título, artista, álbum ou nome do arquivo contenham alguma delas tocam normalmente, mas **sem enviar metadados**: não entram em "Tocando agora", histórico, webhooks nem no stream, e o nome da estação também não é enviado. Há ainda a opção de as vinhetas não enviarem o nome da estação como título.

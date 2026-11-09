@@ -14,6 +14,7 @@ import { all, avoidRecent, get, mountsFor, playlistMedia, recentMedia, type Medi
 import { setNativeClientProvider } from './listeners.js';
 import { recordTrack, setNativeListenerCounter } from './nowplaying.js';
 import { recordSession } from './sessions.js';
+import { isHiddenTrack } from './hide.js';
 
 interface Client {
   res: http.ServerResponse;
@@ -229,9 +230,11 @@ class NativeStation {
     if (l.p.mode === 'sequential') {
       const i = this.seqIndex.get(l.p.id) ?? 0;
       this.seqIndex.set(l.p.id, (i + 1) % l.media.length);
-      return { m: l.media[i % l.media.length], silent: !!l.p.is_jingle };
+      const m = l.media[i % l.media.length];
+      return { m, silent: !!l.p.is_jingle || isHiddenTrack(this.st, m) };
     }
-    return { m: this.shuffle(l.media), silent: !!l.p.is_jingle };
+    const m = this.shuffle(l.media);
+    return { m, silent: !!l.p.is_jingle || isHiddenTrack(this.st, m) };
   }
 
   /** Aleatório evitando repetir as últimas faixas tocadas. */

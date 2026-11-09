@@ -10,6 +10,7 @@ import { dispatch } from './webhooks.js';
 import { clearLive } from './nowplaying.js';
 import { nativeEnqueue, nativeRunning, startNative, stopNative } from './native.js';
 import { buildLiquidsoapScript, telnetPort, type LiqPlaylist } from './liquidsoap.js';
+import { isHiddenTrack } from './hide.js';
 
 /** Mantém um processo vivo, reiniciando com backoff se cair. */
 class Supervised {
@@ -103,7 +104,7 @@ export function ensureStationDirs(id: number) {
  * trocados pelo nome da estação, para o Icecast e os players não exibirem as tags do arquivo.
  */
 function jingleUri(st: StationRow, abs: string, duration = 0) {
-  const label = st.name.replace(/["\\\r\n,]/g, ' ').trim();
+  const label = st.jingle_hide_name ? '' : st.name.replace(/["\\\r\n,]/g, ' ').trim();
   // Com AutoCue: cue exato (começa em 0 e vai até o fim real, sem a análise cortar o meio), sem pular silêncio,
   // sobreposição própria (padrão 0: vinheta→vinheta não se atropelam) e ganho opcional.
   const cue = st.autocue
@@ -111,6 +112,11 @@ function jingleUri(st: StationRow, abs: string, duration = 0) {
     : '';
   // liq_fade_in/out curtos: vinheta e aviso entram e saem sem estalo, e o AutoCue encaixa a passagem.
   return `annotate:rf_jingle="1",${cue}liq_fade_in="0.10",liq_fade_out="0.10",title="${label}",artist="",album="":${abs}`;
+}
+
+/** Faixa oculta: toca normalmente, mas sem título/artista (nada é enviado ao servidor nem ao Icecast, nem o nome da estação). */
+function hiddenUri(abs: string) {
+  return `annotate:rf_jingle="1",rf_hide="1",title="",artist="",album="":${abs}`;
 }
 
 /** Reescreve os arquivos .m3u de cada playlist; o Liquidsoap recarrega sozinho (reload_mode=watch). */
@@ -130,6 +136,7 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
     // Vinheta: o prefixo annotate marca a faixa para o Liquidsoap não avisar o servidor do nome dela.
     const uri = (m: MediaRow) => {
       const abs = path.join(config.dataDir, m.path);
+      if (st && isHiddenTrack(st, m)) return hiddenUri(abs);
       return p.is_jingle && st ? jingleUri(st, abs, m.duration) : abs;
     };
     const content = media.map(uri).join('\n') + '\n';
@@ -338,7 +345,7 @@ export function kickLive(st: StationRow): Promise<void> {
 }
 
 /** Empurra um arquivo na fila de pedidos do Liquidsoap via telnet local. */
-export function pushRequest(stationId: number, absPath: string, silent = false, duration = 0): Promise<void> {
+export function pushRequest(stationId: number, absPath: string, silent = false, duration = 0, hide = false): Promise<void> {
   const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', stationId);
   if (!st) return Promise.reject(new Error('Estação não encontrada'));
   if (engineMode() === 'native') {
@@ -355,7 +362,7 @@ export function pushRequest(stationId: number, absPath: string, silent = false, 
     });
     sock.on('error', reject);
     // Vinheta pedida pela fila: o annotate mantém o nome fora do servidor.
-    const uri = silent ? jingleUri(st, absPath, duration) : absPath;
+    const uri = hide ? hiddenUri(absPath) : silent ? jingleUri(st, absPath, duration) : absPath;
     sock.on('connect', () => sock.write(`requests.push ${uri}\nquit\n`));
     sock.on('close', () => resolve());
   });

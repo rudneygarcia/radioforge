@@ -98,6 +98,8 @@ export interface Station {
   jingleOverlap: number;
   jingleGain: number;
   autocueLevel: boolean;
+  hiddenWords: string;
+  jingleHideName: boolean;
   timeAnnounceVoice: boolean;
   timezone: string;
   liveEnabled: boolean;
