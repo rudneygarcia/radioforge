@@ -2,6 +2,7 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
+import { HttpError } from '../auth.js';
 import { config, stationDir } from '../config.js';
 import { all, djsFor, get, mountsFor, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
 import { buildIcecastConfig } from './icecast.js';
@@ -148,6 +149,17 @@ export async function startStation(st: StationRow) {
   if (procs.has(st.id)) await stopStation(st.id);
   writeConfigs(st);
   const base = stationDir(st.id);
+
+  // Valida o script antes de subir: erros de sintaxe/tipo aparecem direto no painel.
+  const check = spawnSync(config.engine.liquidsoapBin, ['--check', path.join(base, 'config', 'radio.liq')], {
+    encoding: 'utf8',
+    timeout: 60_000,
+  });
+  if (check.error) throw new HttpError(422, `Não foi possível executar o Liquidsoap: ${check.error.message}`);
+  if (check.status !== 0) {
+    throw new HttpError(422, `Script do Liquidsoap inválido:\n${tail(`${check.stdout}\n${check.stderr}`)}`);
+  }
+
   const icecast = new Supervised(
     `icecast:${st.slug}`,
     config.engine.icecastBin,
@@ -162,10 +174,27 @@ export async function startStation(st: StationRow) {
   );
   procs.set(st.id, { icecast, liquidsoap });
   icecast.start();
-  dispatch(st.id, 'station_start', {});
   // Dá um instante para o Icecast abrir a porta antes do Liquidsoap conectar.
   setTimeout(() => procs.get(st.id)?.liquidsoap.start(), 1500);
+
+  // Se algum dos dois cair logo na partida, devolve o motivo (fim do log) em vez de "subir" e voltar a "parada".
+  await new Promise((r) => setTimeout(r, 4500));
+  const p = procs.get(st.id);
+  const dead = !p?.icecast.running ? 'icecast' : !p.liquidsoap.running ? 'liquidsoap' : null;
+  if (dead) {
+    await stopStation(st.id);
+    let log = '';
+    try {
+      log = fs.readFileSync(path.join(base, 'logs', `${dead}.out.log`), 'utf8');
+    } catch {
+      /* sem log */
+    }
+    throw new HttpError(422, `${dead === 'icecast' ? 'Icecast' : 'Liquidsoap'} não ficou no ar:\n${tail(log) || '(sem saída no log)'}`);
+  }
+  dispatch(st.id, 'station_start', {});
 }
+
+const tail = (s: string, n = 15) => s.trim().split('\n').slice(-n).join('\n');
 
 export async function stopStation(stationId: number) {
   if (engineMode() === 'native') {
