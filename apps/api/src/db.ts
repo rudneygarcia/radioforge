@@ -193,6 +193,8 @@ if (!(db.prepare('PRAGMA table_info(time_clips)').all() as { name: string }[]).s
       SELECT station_id, 'padrao', hour, minute, file, original_name, duration, size FROM time_clips_old;
     DROP TABLE time_clips_old;`);
 }
+// AutoCue: o Liquidsoap analisa cada música (início/fim reais, silêncio, volume) e faz as passagens (música, vinheta, hora certa) sem cortes.
+addColumn('stations', 'autocue', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('stations', 'cover', 'TEXT'); // capa/logo da rádio (arquivo dentro da pasta da estação); usada quando a música não tem capa
 addColumn('stations', 'no_repeat_minutes', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('history', 'media_id', 'INTEGER'); // música tocada (para a regra de não repetir); null em vinhetas/antigos
@@ -368,6 +370,7 @@ export interface StationRow {
   time_announce: number;
   time_announce_voice: number;
   time_voice: string;
+  autocue: number;
   timezone: string;
   cover: string | null;
   created_at: string;

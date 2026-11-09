@@ -36,6 +36,7 @@ export default function Settings() {
     timeAnnounce: station.timeAnnounce,
     timeAnnounceVoice: station.timeAnnounceVoice,
     timeVoice: station.timeVoice,
+    autocue: station.autocue,
     timezone: station.timezone,
     historyLimit: station.historyLimit,
     liveEnabled: station.liveEnabled,
@@ -187,9 +188,10 @@ export default function Settings() {
               </select>
             </label>
           </div>
-          <label className="field">
-            <span>Crossfade entre músicas: {f.crossfadeSeconds === 0 ? 'desligado' : `${f.crossfadeSeconds}s`}</span>
-            <input type="range" min={0} max={10} step={0.5} value={f.crossfadeSeconds} onChange={(e) => setF({ ...f, crossfadeSeconds: Number(e.target.value) })} disabled={!isAdmin} style={{ padding: 0 }} />
+          <Toggle checked={f.autocue} onChange={(v) => setF({ ...f, autocue: v })} disabled={!isAdmin} title="AutoCue: passagens profissionais" hint="O servidor analisa cada música (começo e fim reais, silêncio, volume) e faz a passagem para a próxima música, vinheta ou aviso de hora sem cortar o final nem deixar silêncio. Substitui o crossfade fixo abaixo. Só no modo completo; a primeira vez que cada música toca ela é analisada (usa um pouco de CPU)." />
+          <label className="field" style={{ opacity: f.autocue ? 0.5 : 1 }}>
+            <span>Crossfade entre músicas: {f.crossfadeSeconds === 0 ? 'desligado' : `${f.crossfadeSeconds}s`}{f.autocue ? ' (não usado com o AutoCue ligado)' : ''}</span>
+            <input type="range" min={0} max={10} step={0.5} value={f.crossfadeSeconds} onChange={(e) => setF({ ...f, crossfadeSeconds: Number(e.target.value) })} disabled={!isAdmin || f.autocue} style={{ padding: 0 }} />
           </label>
           <Toggle checked={f.normalize} onChange={(v) => setF({ ...f, normalize: v })} disabled={!isAdmin} title="Normalizar volume" hint="ReplayGain: usa as tags dos arquivos." />
         </div>

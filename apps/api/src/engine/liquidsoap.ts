@@ -83,6 +83,8 @@ export function buildLiquidsoapScript(
     audio?: 0 | 1 | 2;
     /** Mantém o AutoDJ tocando (mudo) durante o ao vivo, para continuar a mesma música quando o DJ cair. */
     keepAlive?: boolean;
+    /** AutoCue: análise de cada faixa (cue in/out, fades) e crossfade inteligente nas passagens. */
+    autocue?: boolean;
   } = {},
 ): string {
   const lines: string[] = [];
@@ -104,6 +106,9 @@ export function buildLiquidsoapScript(
     `end`,
     ``,
   );
+
+  // AutoCue: ao preparar cada faixa o Liquidsoap mede o início/fim reais (sem silêncio), a sobreposição e os fades.
+  if (opts.autocue) lines.push(`enable_autocue_metadata()`, ``);
 
   const names: string[] = [];
   const weights: number[] = [];
@@ -161,7 +166,10 @@ export function buildLiquidsoapScript(
   if (st.normalize) {
     lines.push(`enable_replaygain_metadata()`, `radio = amplify(1., override = "replaygain_track_gain", radio)`);
   }
-  if (st.crossfade_seconds > 0) {
+  if (opts.autocue) {
+    // Crossfade guiado pelos pontos do AutoCue (vale para músicas, vinhetas e avisos de hora: tudo passa por aqui).
+    lines.push(`radio = crossfade(radio)`);
+  } else if (st.crossfade_seconds > 0) {
     lines.push(`radio = crossfade(duration = ${st.crossfade_seconds.toFixed(1)}, radio)`);
   }
 

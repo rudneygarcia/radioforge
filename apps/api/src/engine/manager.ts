@@ -104,7 +104,8 @@ export function ensureStationDirs(id: number) {
  */
 function jingleUri(stationName: string, abs: string) {
   const label = stationName.replace(/["\\\r\n,]/g, ' ').trim();
-  return `annotate:rf_jingle="1",title="${label}",artist="",album="":${abs}`;
+  // liq_fade_in/out curtos: vinheta e aviso entram e saem sem estalo, e o AutoCue encaixa a passagem.
+  return `annotate:rf_jingle="1",liq_fade_in="0.10",liq_fade_out="0.10",title="${label}",artist="",album="":${abs}`;
 }
 
 /** Reescreve os arquivos .m3u de cada playlist; o Liquidsoap recarrega sozinho (reload_mode=watch). */
@@ -146,13 +147,13 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
 }
 
 /** Versão do script que vale por estação: processador (0 completo, 1 só padrões, 2 desligado) e AutoDJ em segundo plano. */
-type Variant = { audio: 0 | 1 | 2; keepAlive: boolean };
+type Variant = { audio: 0 | 1 | 2; keepAlive: boolean; autocue: boolean };
 const variantOf = new Map<number, Variant>();
 const audioWarnings = new Map<number, string>();
 /** Aviso para o painel quando o processador ou o "AutoDJ em segundo plano" precisaram ser reduzidos/desligados por erro no script. */
 export const audioWarningFor = (stationId: number): string | null => audioWarnings.get(stationId) ?? null;
 
-function writeConfigs(st: StationRow, variant: Variant = variantOf.get(st.id) ?? { audio: 0, keepAlive: !!st.live_continue && !!st.live_enabled }) {
+function writeConfigs(st: StationRow, variant: Variant = variantOf.get(st.id) ?? { audio: 0, keepAlive: !!st.live_continue && !!st.live_enabled, autocue: !!st.autocue }) {
   ensureStationDirs(st.id);
   const base = stationDir(st.id);
   const playlists = writePlaylists(st.id);
@@ -188,7 +189,14 @@ export async function startStation(st: StationRow) {
   const wantsKeep = !!st.live_continue && !!st.live_enabled;
   // Tentativas, da mais completa à mais simples: com AutoDJ em segundo plano primeiro, depois sem.
   const audios: (0 | 1 | 2)[] = wantsChain ? [0, 1, 2] : [2];
-  const attempts: Variant[] = [...(wantsKeep ? audios.map((audio) => ({ audio, keepAlive: true })) : []), ...audios.map((audio) => ({ audio, keepAlive: false }))];
+  const wantsAutocue = !!st.autocue;
+  // Todas as combinações, da mais completa à mais simples (cada recurso que o Liquidsoap recusar é desligado sozinho).
+  const attempts: Variant[] = [];
+  for (const autocue of wantsAutocue ? [true, false] : [false])
+    for (const keepAlive of wantsKeep ? [true, false] : [false])
+      for (const audio of audios) attempts.push({ audio, keepAlive, autocue });
+  const reductions = (v: Variant) => audios.indexOf(v.audio) + (wantsKeep && !v.keepAlive ? 1 : 0) + (wantsAutocue && !v.autocue ? 1 : 0);
+  attempts.sort((a, b) => reductions(a) - reductions(b));
   audioWarnings.delete(st.id);
   let firstError = '';
   let lastOut = '';
@@ -210,6 +218,7 @@ export async function startStation(st: StationRow) {
   const notes: string[] = [];
   if (wantsChain && chosen.audio === 1) notes.push(`O processador de áudio roda só com valores padrão (os ajustes finos não foram aceitos pelo Liquidsoap).`);
   if (wantsChain && chosen.audio === 2) notes.push(`O processador de áudio foi DESLIGADO porque o Liquidsoap recusou o script.`);
+  if (wantsAutocue && !chosen.autocue) notes.push(`O AutoCue foi DESLIGADO porque o Liquidsoap recusou o script (as passagens ficam sem o ajuste automático).`);
   if (wantsKeep && !chosen.keepAlive) notes.push(`O AutoDJ não continua em segundo plano durante o ao vivo (o Liquidsoap recusou): ao voltar, ele pode começar uma música nova.`);
   if (notes.length) audioWarnings.set(st.id, `${notes.join('\n')}\n${firstError}`);
   if (audioWarnings.has(st.id)) console.warn(`[engine] ${st.slug}: ${audioWarnings.get(st.id)}`);

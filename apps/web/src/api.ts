@@ -90,6 +90,7 @@ export interface Station {
   liveContinue: boolean;
   timeAnnounce: 0 | 5 | 10 | 15 | 20 | 30 | 60;
   timeVoice: string;
+  autocue: boolean;
   timeAnnounceVoice: boolean;
   timezone: string;
   liveEnabled: boolean;
