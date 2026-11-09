@@ -155,9 +155,9 @@ export async function startStation(st: StationRow) {
     encoding: 'utf8',
     timeout: 60_000,
   });
-  if (check.error) throw new HttpError(422, `Não foi possível executar o Liquidsoap: ${check.error.message}`);
+  if (check.error) throw startError(`Não foi possível executar o Liquidsoap: ${check.error.message}`);
   if (check.status !== 0) {
-    throw new HttpError(422, `Script do Liquidsoap inválido:\n${tail(`${check.stdout}\n${check.stderr}`)}`);
+    throw startError(`Script do Liquidsoap inválido:\n${tail(`${check.stdout}\n${check.stderr}`)}`);
   }
 
   const icecast = new Supervised(
@@ -189,10 +189,16 @@ export async function startStation(st: StationRow) {
     } catch {
       /* sem log */
     }
-    throw new HttpError(422, `${dead === 'icecast' ? 'Icecast' : 'Liquidsoap'} não ficou no ar:\n${tail(log) || '(sem saída no log)'}`);
+    throw startError(`${dead === 'icecast' ? 'Icecast' : 'Liquidsoap'} não ficou no ar:\n${tail(log) || '(sem saída no log)'}`);
   }
   dispatch(st.id, 'station_start', {});
 }
+
+/** Registra o motivo no log do contêiner (para diagnóstico remoto) e devolve o erro 422 ao painel. */
+const startError = (msg: string) => {
+  console.error(`[engine] falha ao iniciar estação: ${msg}`);
+  return new HttpError(422, msg);
+};
 
 const tail = (s: string, n = 15) => s.trim().split('\n').slice(-n).join('\n');
 
