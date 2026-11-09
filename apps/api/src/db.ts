@@ -153,6 +153,9 @@ addColumn('stations', 'audio_preset', "TEXT NOT NULL DEFAULT 'off'"); // off | b
 addColumn('stations', 'live_timeout', 'INTEGER NOT NULL DEFAULT 8');
 // 1 = ao voltar do ao vivo, o AutoDJ continua a música que está tocando (roda em segundo plano durante o DJ); 0 = começa uma nova.
 addColumn('stations', 'live_continue', 'INTEGER NOT NULL DEFAULT 1');
+// Hora certa: 0 = desligada; 15, 30 ou 60 = avisa a hora a cada N minutos (fuso da estação).
+addColumn('stations', 'time_announce', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('stations', 'timezone', "TEXT NOT NULL DEFAULT 'America/Sao_Paulo'");
 addColumn('stations', 'cover', 'TEXT'); // capa/logo da rádio (arquivo dentro da pasta da estação); usada quando a música não tem capa
 addColumn('stations', 'no_repeat_minutes', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('history', 'media_id', 'INTEGER'); // música tocada (para a regra de não repetir); null em vinhetas/antigos
@@ -325,6 +328,8 @@ export interface StationRow {
   no_repeat_minutes: number;
   live_timeout: number;
   live_continue: number;
+  time_announce: number;
+  timezone: string;
   cover: string | null;
   created_at: string;
 }

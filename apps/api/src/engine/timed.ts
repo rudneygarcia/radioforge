@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { config } from '../config.js';
 import { all, avoidRecent, playlistMedia, recentMedia, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
+import { tickAnnouncements } from './announce.js';
 import { isRunning, pushRequest, writePlaylists } from './manager.js';
 import { getLive } from './nowplaying.js';
 
@@ -50,7 +51,9 @@ export function tickTimedPlaylists(now = Date.now()) {
 
 export function startTimedPlaylists() {
   tickTimedPlaylists();
+  void tickAnnouncements();
   setInterval(() => {
+    void tickAnnouncements().catch((e) => console.error('[hora certa] falhou:', e));
     try {
       tickTimedPlaylists();
     } catch (e) {

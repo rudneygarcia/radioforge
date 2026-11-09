@@ -19,6 +19,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
  && apt-get install -y --no-install-recommends icecast2 ca-certificates \
  && rm -rf /var/lib/apt/lists/*
+# Voz da "hora certa" (espeak-ng, português do Brasil). Instalação à parte e protegida: se falhar, ou se quebrar o
+# Liquidsoap (teste abaixo), o espeak-ng é removido e a imagem continua sem a voz, em vez de derrubar o build/rádio.
+RUN (apt-get update && apt-get install -y --no-install-recommends espeak-ng \
+      && (liquidsoap --list-functions > /dev/null 2>&1 || (echo "espeak-ng quebrou o Liquidsoap: removendo" && apt-get purge -y espeak-ng))) \
+    || echo "espeak-ng não instalado: hora certa indisponível"; \
+    rm -rf /var/lib/apt/lists/*
 COPY --from=node:24-bookworm-slim /usr/local/bin/node /usr/local/bin/node
 # Mostra no log do build a versão de cada programa (não falha o build: só informa).
 RUN for c in "node --version" "liquidsoap --version" "icecast2 -v" "liquidsoap --list-functions"; do echo "== $c"; $c 2>&1 | head -2 || true; done

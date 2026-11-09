@@ -6,6 +6,7 @@ import { authenticate, HttpError, requireAdmin, stationFor } from '../auth.js';
 import { config, stationDir } from '../config.js';
 import { all, db, get, mountsFor, run, type StationRow } from '../db.js';
 import { historyView, nowPlayingView, removeStationCover, saveStationCover, sniffImage, stationCoverUrl } from '../engine/covers.js';
+import { announceNow, ensureClip, isValidTimezone, localTime } from '../engine/announce.js';
 import { audioWarningFor, kickLive, engineMode, ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
 import { harborPort } from '../engine/liquidsoap.js';
 import { icecastError, liveListeners } from '../engine/listeners.js';
@@ -49,6 +50,10 @@ const settings = z.object({
   liveTimeout: z.number().int().min(3).max(60).default(8),
   /** Ao voltar do ao vivo, o AutoDJ continua a música em andamento (em vez de começar outra). */
   liveContinue: z.boolean().default(true),
+  /** Hora certa: 0 desligada, ou avisa a hora a cada 15, 30 ou 60 minutos. */
+  timeAnnounce: z.union([z.literal(0), z.literal(15), z.literal(30), z.literal(60)]).default(0),
+  /** Fuso horário (IANA) usado na hora certa e nos horários da estação. */
+  timezone: z.string().max(64).refine(isValidTimezone, 'Fuso horário inválido').default('America/Sao_Paulo'),
   /** Mountpoint principal. Na criação, o padrão é /radio.mp3 (ou /radio.ogg); na edição, vazio mantém o atual. */
   mount: mountName.optional(),
   mounts: z
@@ -130,6 +135,8 @@ export async function stationView(st: StationRow) {
     noRepeatMinutes: st.no_repeat_minutes,
     liveTimeout: st.live_timeout,
     liveContinue: !!st.live_continue,
+    timeAnnounce: st.time_announce,
+    timezone: st.timezone,
     audioWarning: audioWarningFor(st.id),
     mounts: mountsFor(st.id).map((m) => ({ mount: m.mount, format: m.format, bitrate: m.bitrate })),
     streams: streamsOf(st),
@@ -175,8 +182,8 @@ export async function stationRoutes(app: FastifyInstance) {
     if (get('SELECT 1 AS ok FROM stations WHERE slug = ?', slug)) slug += '-' + crypto.randomBytes(2).toString('hex');
     const r = run(
       `INSERT INTO stations (name, slug, description, stream_port, mount, format, bitrate,
-         source_password, admin_password, live_enabled, requests_enabled, autostart, crossfade_seconds, normalize, record_live, history_limit, audio_preset, audio_gain, no_repeat_minutes, live_timeout, live_continue)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         source_password, admin_password, live_enabled, requests_enabled, autostart, crossfade_seconds, normalize, record_live, history_limit, audio_preset, audio_gain, no_repeat_minutes, live_timeout, live_continue, time_announce, timezone)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       body.name,
       slug,
       body.description,
@@ -198,6 +205,8 @@ export async function stationRoutes(app: FastifyInstance) {
       body.noRepeatMinutes,
       body.liveTimeout,
       body.liveContinue ? 1 : 0,
+      body.timeAnnounce,
+      body.timezone,
     );
     const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', Number(r.lastInsertRowid))!;
     saveMounts(st.id, st.mount, body.mounts);
@@ -224,7 +233,7 @@ export async function stationRoutes(app: FastifyInstance) {
     if (b.mounts.some((m) => m.mount === newMount)) throw new HttpError(400, `O nome ${newMount} já é usado por um stream extra`);
     run(
       `UPDATE stations SET name = ?, description = ?, mount = ?, format = ?, bitrate = ?,
-         live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ?, record_live = ?, history_limit = ?, audio_preset = ?, audio_gain = ?, no_repeat_minutes = ?, live_timeout = ?, live_continue = ? WHERE id = ?`,
+         live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ?, record_live = ?, history_limit = ?, audio_preset = ?, audio_gain = ?, no_repeat_minutes = ?, live_timeout = ?, live_continue = ?, time_announce = ?, timezone = ? WHERE id = ?`,
       b.name,
       b.description,
       newMount,
@@ -242,12 +251,40 @@ export async function stationRoutes(app: FastifyInstance) {
       b.noRepeatMinutes,
       b.liveTimeout,
       b.liveContinue ? 1 : 0,
+      b.timeAnnounce,
+      b.timezone,
       st.id,
     );
     saveMounts(st.id, newMount, b.mounts);
     const updated = get<StationRow>('SELECT * FROM stations WHERE id = ?', st.id)!;
     if (config.engine.enabled && isRunning(st.id)) await restartStation(updated);
     return stationView(updated);
+  });
+
+  // Hora certa: ouvir um exemplo no painel (gera e devolve o áudio) e tocar o aviso agora na rádio.
+  app.get('/api/stations/:id/time-announce/preview', async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const st = stationFor(req, id);
+    const q = z.object({ hour: z.coerce.number().int().min(0).max(23).optional(), minute: z.coerce.number().int().min(0).max(59).optional() }).parse(req.query);
+    const now = localTime(st.timezone);
+    try {
+      const file = await ensureClip(st.id, q.hour ?? now.hour, q.minute ?? now.minute);
+      return reply.header('Content-Type', 'audio/wav').header('Cache-Control', 'no-store').send(fs.createReadStream(file));
+    } catch (e) {
+      throw new HttpError(424, (e as Error).message);
+    }
+  });
+
+  app.post('/api/stations/:id/time-announce/now', async (req) => {
+    const { id } = idParam.parse(req.params);
+    const st = stationFor(req, id);
+    if (engineMode() !== 'liquidsoap') throw new HttpError(400, 'A hora certa só funciona no modo completo (Icecast + Liquidsoap)');
+    if (!isRunning(st.id)) throw new HttpError(409, 'A estação está parada');
+    try {
+      return { ok: true, ...(await announceNow(st)) };
+    } catch (e) {
+      throw new HttpError(424, (e as Error).message);
+    }
   });
 
   // Derruba o encoder/DJ que está no ar: o AutoDJ assume na hora. Só admin e operadores da estação.

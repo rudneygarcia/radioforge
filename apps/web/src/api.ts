@@ -88,6 +88,8 @@ export interface Station {
   noRepeatMinutes: number;
   liveTimeout: number;
   liveContinue: boolean;
+  timeAnnounce: 0 | 15 | 30 | 60;
+  timezone: string;
   liveEnabled: boolean;
   requestsEnabled: boolean;
   autostart: boolean;

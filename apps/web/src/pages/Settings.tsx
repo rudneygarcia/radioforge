@@ -1,9 +1,11 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import { api, uploadForm, type MountCfg, type Station } from '../api';
+import { api, getToken, uploadForm, type MountCfg, type Station } from '../api';
 import { useAuth } from '../auth';
 import { Cover, Icon, useUi } from '../ui';
 import type { StationCtx } from './StationLayout';
+
+const TIMEZONES = ['America/Sao_Paulo', 'America/Manaus', 'America/Cuiaba', 'America/Belem', 'America/Fortaleza', 'America/Recife', 'America/Bahia', 'America/Rio_Branco', 'America/Noronha', 'Europe/Lisbon', 'America/New_York', 'UTC'];
 
 function Toggle({ checked, onChange, disabled, title, hint }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; title: string; hint?: ReactNode }) {
   return (
@@ -30,6 +32,8 @@ export default function Settings() {
     noRepeatMinutes: station.noRepeatMinutes,
     liveTimeout: station.liveTimeout,
     liveContinue: station.liveContinue,
+    timeAnnounce: station.timeAnnounce,
+    timezone: station.timezone,
     historyLimit: station.historyLimit,
     liveEnabled: station.liveEnabled,
     requestsEnabled: station.requestsEnabled,
@@ -72,6 +76,29 @@ export default function Settings() {
       toast((err as Error).message, 'error');
     } finally {
       setCoverBusy(false);
+    }
+  }
+
+  async function previewTime() {
+    try {
+      const token = getToken();
+      const res = await fetch(`/api/stations/${station.id}/time-announce/preview`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `Erro ${res.status}`);
+      const url = URL.createObjectURL(await res.blob());
+      const a = new Audio(url);
+      a.onended = () => URL.revokeObjectURL(url);
+      await a.play();
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    }
+  }
+
+  async function announceNowClick() {
+    try {
+      const r = await api<{ text: string }>(`/api/stations/${station.id}/time-announce/now`, { method: 'POST' });
+      toast(`Na fila: “${r.text}” (toca ao fim da música atual)`);
+    } catch (err) {
+      toast((err as Error).message, 'error');
     }
   }
 
@@ -162,6 +189,36 @@ export default function Settings() {
             <input type="range" min={0} max={10} step={0.5} value={f.crossfadeSeconds} onChange={(e) => setF({ ...f, crossfadeSeconds: Number(e.target.value) })} disabled={!isAdmin} style={{ padding: 0 }} />
           </label>
           <Toggle checked={f.normalize} onChange={(v) => setF({ ...f, normalize: v })} disabled={!isAdmin} title="Normalizar volume" hint="ReplayGain: usa as tags dos arquivos." />
+        </div>
+      </div>
+
+      <div className="card section">
+        <div className="section-title"><h3>Hora certa</h3></div>
+        <p className="muted" style={{ marginTop: -4 }}>O AutoDJ avisa a hora com voz (ex.: “Hora certa. São catorze horas e meia.”). O aviso entra na fila e toca <strong>ao fim da música atual</strong>; não aparece em “Tocando agora” nem no histórico, e não toca enquanto há DJ ao vivo.</p>
+        <div className="fields">
+          <div className="field-row">
+            <label className="field">
+              <span>Avisar a hora</span>
+              <select value={f.timeAnnounce} onChange={(e) => setF({ ...f, timeAnnounce: Number(e.target.value) as typeof f.timeAnnounce })} disabled={!isAdmin}>
+                <option value={0}>Desligada</option>
+                <option value={60}>A cada hora (:00)</option>
+                <option value={30}>A cada 30 minutos</option>
+                <option value={15}>A cada 15 minutos</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Fuso horário</span>
+              <select value={f.timezone} onChange={(e) => setF({ ...f, timezone: e.target.value })} disabled={!isAdmin}>
+                {TIMEZONES.includes(f.timezone) ? null : <option value={f.timezone}>{f.timezone}</option>}
+                {TIMEZONES.map((z) => <option key={z} value={z}>{z}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="row" style={{ margin: 0 }}>
+            <button type="button" className="ghost small" onClick={previewTime} disabled={coverBusy}><Icon name="play" size={13} /> Ouvir exemplo (hora atual)</button>
+            {isAdmin && station.running && <button type="button" className="ghost small" onClick={announceNowClick}><Icon name="mic" size={13} /> Tocar agora na rádio</button>}
+          </div>
+          <small className="hint">Salve as configurações para valer a mudança. A voz é sintética (espeak-ng) e só funciona no modo completo. A hora usa o fuso escolhido acima (o servidor costuma estar em UTC).</small>
         </div>
       </div>
 
