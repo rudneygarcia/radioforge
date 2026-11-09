@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { NavLink, Outlet, useParams } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useParams } from 'react-router-dom';
 import { api, type Station } from '../api';
 import { Icon, PageHeader } from '../ui';
 
@@ -25,6 +25,10 @@ export default function StationLayout() {
   const { id } = useParams();
   const [station, setStation] = useState<Station | null>(null);
   const [error, setError] = useState('');
+  // Em telas pequenas o menu fica escondido e abre ao tocar no botão.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { pathname } = useLocation();
+  useEffect(() => setMenuOpen(false), [pathname]);
   // Menu lateral recolhido (só ícones); lembrado neste navegador.
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('rf_nav_collapsed') === '1'; } catch { return false; }
@@ -69,7 +73,12 @@ export default function StationLayout() {
           </a>
         }
       />
-      <div className={`station-shell${collapsed ? ' collapsed' : ''}`}>
+      <div className={`station-shell${collapsed ? ' collapsed' : ''}${menuOpen ? ' menu-open' : ''}`}>
+      <button type="button" className="menu-btn" onClick={() => setMenuOpen((o) => !o)} aria-expanded={menuOpen}>
+        <Icon name="menu" size={18} />
+        <span>{NAV.find((n) => (n.to === '.' ? pathname.replace(/\/$/, '').split('/').length <= 3 : pathname.split('/')[3] === n.to))?.label ?? 'Menu'}</span>
+        <Icon name="chevron" size={16} />
+      </button>
       <nav className="tabs">
         {NAV.map((n) => (
           <NavLink key={n.to} end={n.to === '.'} to={n.to} title={n.label}>

@@ -372,3 +372,15 @@ tr.picked td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
   .station-shell .tabs a { justify-content: center; padding: 9px 8px; font-size: 13.5px; }
   .station-shell .tabs a .icon { flex: none; }
 }
+
+/* Menu escondido em telas pequenas: botão abre a lista */
+.menu-btn { display: none; }
+@media (max-width: 899px) {
+  .station-shell .menu-btn { display: flex; align-items: center; gap: 10px; width: 100%; margin: 4px 0 14px; padding: 11px 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; color: var(--text); font: inherit; font-weight: 600; box-shadow: none; }
+  .station-shell .menu-btn span { flex: 1; text-align: left; }
+  .station-shell .menu-btn svg:last-child { transition: transform .15s; }
+  .station-shell.menu-open .menu-btn svg:last-child { transform: rotate(180deg); }
+  .station-shell .tabs { display: none; margin-top: -6px; margin-bottom: 14px; }
+  .station-shell.menu-open .tabs { display: grid; grid-template-columns: 1fr; }
+  .station-shell .tabs a { justify-content: flex-start; padding: 11px 12px; font-size: 14.5px; }
+}

@@ -29,6 +29,8 @@ const PATHS: Record<string, string> = {
   folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
   back: 'M15 18l-6-6 6-6',
   home: 'M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10',
+  menu: 'M4 6h16M4 12h16M4 18h16',
+  chevron: 'M6 9l6 6 6-6',
   list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
   chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
   podcast: 'M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM8 16a6 6 0 1 1 8 0M5 19a10 10 0 1 1 14 0',
