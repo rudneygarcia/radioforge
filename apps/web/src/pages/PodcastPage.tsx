@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { api, type Recording } from '../api';
+import { api, uploadForm, type Recording } from '../api';
 import { CopyButton, Empty, Icon, Modal, useUi } from '../ui';
 import type { StationCtx } from './StationLayout';
 
@@ -32,6 +32,7 @@ export default function PodcastPage() {
   const [file, setFile] = useState<File | null>(null);
   const [rec, setRec] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pct, setPct] = useState<number | null>(null); // andamento do envio do arquivo (0-100)
   const [error, setError] = useState('');
 
   const load = async () => {
@@ -60,7 +61,8 @@ export default function PodcastPage() {
         form.append('title', title);
         form.append('description', description);
         form.append('file', file);
-        await api(`${base}/podcast/episodes`, { method: 'POST', form });
+        setPct(0);
+        await uploadForm(`${base}/podcast/episodes`, form, (loaded, total) => setPct(Math.round((loaded / total) * 100))).promise;
       } else if (rec) {
         await api(`${base}/podcast/from-recording`, { method: 'POST', body: { file: rec, title, description } });
       } else {
@@ -74,6 +76,7 @@ export default function PodcastPage() {
       setError((err as Error).message);
     } finally {
       setBusy(false);
+      setPct(null);
     }
   }
 
@@ -155,6 +158,12 @@ export default function PodcastPage() {
                 {recs.map((r) => <option key={r.name} value={r.name}>{r.name} ({mb(r.size)})</option>)}
               </select>
             </label>
+          )}
+          {pct !== null && (
+            <div>
+              <div className={`progress ${pct >= 100 ? 'indeterminate' : ''}`}><i style={{ width: `${pct}%` }} /></div>
+              <p className="muted small-text" style={{ margin: '6px 0 0' }}>{pct >= 100 ? 'Arquivo enviado; o servidor está processando…' : `Enviando… ${pct}%`}</p>
+            </div>
           )}
           {error && <p className="error">{error}</p>}
         </form>

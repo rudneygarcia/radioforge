@@ -135,3 +135,7 @@ Em cada estação, aba **Integrações**. Eventos: troca de música, estação i
 
 - **Vinheta** (opção da playlist): toca normalmente, mas o nome do arquivo **não é enviado ao servidor**: não aparece em "Tocando agora", no histórico nem nos webhooks. No Liquidsoap, as faixas vão no `.m3u` com `annotate:rf_jingle="1":` e o `notify` ignora essas faixas (**script ainda não executado num Liquidsoap real**); no motor simples, a faixa é tocada sem anunciar. Vale também para playlists por tempo e "a cada N músicas". Vinheta não pode ser pedida.
 - **Pedidos por playlist:** o ouvinte só vê (e só pode pedir) músicas de playlists ativas com **"Permitir pedidos desta playlist"** ligado, além de a estação ter "Permitir pedidos" nas Configurações. Playlists antigas começam com pedidos desligados.
+
+## Progresso de envio
+
+Ao enviar músicas (Biblioteca) ou episódios (Podcast), o painel mostra o andamento: barra total com porcentagem, MB enviados, velocidade e tempo restante, e uma lista por arquivo (na fila, enviando %, processando, enviado ou erro). Dá para cancelar o envio; arquivos com erro ficam listados até você fechar o painel.

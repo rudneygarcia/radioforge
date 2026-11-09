@@ -163,3 +163,37 @@ export interface Playlist {
   folderIds: number[];
   trackCount: number;
 }
+
+/**
+ * Envia um formulário com arquivos acompanhando o progresso (o fetch não informa o andamento do envio).
+ * `abort()` cancela. A promessa rejeita com ApiError (mensagem do servidor) ou Error('cancelado').
+ */
+export function uploadForm<T = unknown>(path: string, form: FormData, onProgress?: (loaded: number, total: number) => void) {
+  const xhr = new XMLHttpRequest();
+  const promise = new Promise<T>((resolve, reject) => {
+    xhr.open('POST', path);
+    const token = getToken();
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress?.(e.loaded, e.total);
+    };
+    xhr.onload = () => {
+      let data: unknown = {};
+      try {
+        data = JSON.parse(xhr.responseText);
+      } catch {
+        /* resposta sem JSON */
+      }
+      if (xhr.status >= 200 && xhr.status < 300) return resolve(data as T);
+      if (xhr.status === 401 && token) {
+        setToken(null);
+        location.href = '/login';
+      }
+      reject(new ApiError(xhr.status, (data as { error?: string }).error ?? `Erro ${xhr.status}`));
+    };
+    xhr.onerror = () => reject(new Error('Falha de conexão durante o envio'));
+    xhr.onabort = () => reject(new Error('Envio cancelado'));
+    xhr.send(form);
+  });
+  return { promise, abort: () => xhr.abort() };
+}
