@@ -347,7 +347,12 @@ tr.picked td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .station-main { min-width: 0; }
 @media (min-width: 900px) {
   .container { max-width: 1320px; }
-  .station-shell { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 22px; align-items: start; }
+  .station-shell { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 22px; align-items: start; transition: grid-template-columns .2s; }
+  .station-shell.collapsed { grid-template-columns: 60px minmax(0, 1fr); }
+  .station-shell.collapsed .nav-label { display: none; }
+  .station-shell.collapsed .tabs a, .station-shell.collapsed .nav-toggle { justify-content: center; padding-left: 0; padding-right: 0; }
+  .station-shell.collapsed .nav-toggle svg { transform: scaleX(-1); }
+  .station-shell .nav-toggle { display: flex; }
   .station-shell .tabs { flex-direction: column; overflow: visible; margin: 0; position: sticky; top: 76px; gap: 2px; padding: 8px; }
   .station-shell .tabs a { padding: 10px 14px; font-size: 14.5px; }
 }
@@ -355,3 +360,8 @@ tr.picked td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
   .settings-grid { grid-template-columns: 1fr; }
   .modal { max-width: 100%; }
 }
+
+.tabs a { display: flex; align-items: center; gap: 12px; }
+.nav-toggle { display: none; align-items: center; gap: 12px; margin-top: 8px; padding: 10px 14px; background: transparent; border: 0; border-top: 1px solid var(--border); border-radius: 0 0 9px 9px; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; box-shadow: none; }
+.nav-toggle:hover { color: var(--text); background: var(--panel-2); }
+@media (max-width: 899px) { .tabs a { gap: 8px; } }
