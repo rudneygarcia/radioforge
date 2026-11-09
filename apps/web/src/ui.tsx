@@ -10,6 +10,8 @@ const PATHS: Record<string, string> = {
   download: 'M12 4v11m0 0l-4-4m4 4l4-4M5 20h14',
   upload: 'M12 16V5m0 0L8 9m4-4l4 4M5 20h14',
   play: 'M7 5l12 7-12 7z',
+  volume: 'M11 5L6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13',
+  mute: 'M11 5L6 9H3v6h3l5 4zM22 9l-6 6M16 9l6 6',
   mic: 'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3',
   clock: 'M12 7v5l3 2M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18z',
   music: 'M9 18V6l11-2v12M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zm11-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',

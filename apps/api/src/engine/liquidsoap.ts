@@ -85,6 +85,8 @@ export function buildLiquidsoapScript(
     keepAlive?: boolean;
     /** AutoCue: análise de cada faixa (cue in/out, fades) e crossfade inteligente nas passagens. */
     autocue?: boolean;
+    /** Crossfade com os valores personalizados da estação (duração e fades); senão, o padrão do Liquidsoap. */
+    tuned?: boolean;
   } = {},
 ): string {
   const lines: string[] = [];
@@ -167,8 +169,14 @@ export function buildLiquidsoapScript(
     lines.push(`enable_replaygain_metadata()`, `radio = amplify(1., override = "replaygain_track_gain", radio)`);
   }
   if (opts.autocue) {
+    // Volume nivelado pelo AutoCue (liq_amplify) em tudo que entra aqui: músicas, vinhetas e hora certa.
+    if (st.autocue_level) lines.push(`radio = amplify(1., override = "liq_amplify", radio)`);
     // Crossfade guiado pelos pontos do AutoCue (vale para músicas, vinhetas e avisos de hora: tudo passa por aqui).
-    lines.push(`radio = crossfade(radio)`);
+    lines.push(
+      opts.tuned
+        ? `radio = crossfade(duration = ${st.autocue_duration.toFixed(2)}, fade_in = ${st.autocue_fade_in.toFixed(2)}, fade_out = ${st.autocue_fade_out.toFixed(2)}, radio)`
+        : `radio = crossfade(radio)`,
+    );
   } else if (st.crossfade_seconds > 0) {
     lines.push(`radio = crossfade(duration = ${st.crossfade_seconds.toFixed(1)}, radio)`);
   }

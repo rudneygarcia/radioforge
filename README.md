@@ -185,3 +185,11 @@ Em Configurações → **Hora certa**: a cada hora, 30 ou 15 min o AutoDJ avisa 
 ## AutoCue (passagens profissionais)
 
 Em Configurações → Qualidade do áudio → **AutoCue**: o Liquidsoap analisa cada música ao prepará-la (início e fim reais, ignorando silêncio, volume e ponto de sobreposição, via `enable_autocue_metadata()`) e o `crossfade` passa a seguir esses pontos: a música seguinte (ou a **vinheta**, ou o **aviso de hora**) entra no momento certo, sem cortar o final da anterior e sem silêncio entre elas. Como músicas, vinhetas, pedidos e a hora certa passam pela mesma fonte, a regra vale em **todas as passagens** (música→vinheta, música→hora, hora→música…). Vinhetas e avisos levam fades curtos (`liq_fade_in/out = 0.10`) para não estalar. Substitui o crossfade fixo (que fica desativado com o AutoCue ligado). Só no modo Liquidsoap (o motor simples não faz crossfade); em estações novas vem ligado, nas existentes é preciso ligar. A análise usa um pouco de CPU na primeira vez que cada faixa toca. **Não validado num Liquidsoap real**: se ele recusar o script, a estação sobe sem o AutoCue e o painel avisa (cada recurso opcional — AutoCue, AutoDJ em segundo plano e processador de áudio — é desligado sozinho se for recusado). Para ainda mais controle dá para usar o projeto externo `autocue` (cue_file) no futuro.
+
+### AutoCue personalizável, vinhetas sem cortes e Configurações em cards
+
+- **Vinhetas e hora certa** entram com cue exato (começam em 0 e vão até o fim real do arquivo), sem pular silêncio e **sem sobreposição por padrão**: vinheta→vinheta não corta no meio. A sobreposição pode ser ajustada em *Configurações → AutoCue e passagens*.
+- O AutoCue também processa vinhetas e avisos de hora (análise + nivelamento `liq_amplify`), com **ganho extra (dB)** só para elas.
+- Painel: duração e fades da passagem entre músicas (opcional, senão usa o padrão do Liquidsoap). Se o Liquidsoap recusar os valores personalizados, a estação cai sozinha para o AutoCue padrão e depois para desligado (aviso no painel).
+- **Configurações** agora é uma grade de cards; cada um abre um modal. O botão *Salvar alterações* fica fixo no rodapé.
+- **Player público**: ícone de volume (silenciar) e controle deslizante; o volume fica salvo no navegador.

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api, type NowPlaying, type StreamInfo } from '../api';
-import { Cover } from '../ui';
+import { Cover, Icon } from '../ui';
 
 interface Pub {
   name: string;
@@ -41,6 +41,15 @@ export default function Listen() {
   const [msg, setMsg] = useState('');
   const [quality, setQuality] = useState(0);
   const audio = useRef<HTMLAudioElement>(null);
+  // Volume do ouvinte (0–1), lembrado neste navegador.
+  const [volume, setVolume] = useState(() => {
+    try { const v = Number(localStorage.getItem('rf_volume')); return Number.isFinite(v) && localStorage.getItem('rf_volume') !== null ? Math.min(1, Math.max(0, v)) : 1; } catch { return 1; }
+  });
+  const [muted, setMuted] = useState(false);
+  useEffect(() => {
+    if (audio.current) { audio.current.volume = volume; audio.current.muted = muted; }
+    try { localStorage.setItem('rf_volume', String(volume)); } catch { /* sem armazenamento */ }
+  }, [volume, muted]);
 
   useEffect(() => {
     const load = () => {
@@ -117,6 +126,12 @@ export default function Listen() {
             ))}
           </select>
         )}
+        <div className="volume">
+          <button type="button" className="icon-btn" onClick={() => setMuted((m) => !m)} aria-label={muted || volume === 0 ? 'Ativar o som' : 'Silenciar'} title={muted || volume === 0 ? 'Ativar o som' : 'Silenciar'}>
+            <Icon name={muted || volume === 0 ? 'mute' : 'volume'} />
+          </button>
+          <input type="range" min={0} max={1} step={0.01} value={muted ? 0 : volume} aria-label="Volume" onChange={(e) => { const v = Number(e.target.value); setVolume(v); setMuted(false); }} />
+        </div>
         <p className="muted">👥 {info.listeners} ouvintes</p>
         <audio ref={audio} />
       </div>

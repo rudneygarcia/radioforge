@@ -195,6 +195,16 @@ if (!(db.prepare('PRAGMA table_info(time_clips)').all() as { name: string }[]).s
 }
 // AutoCue: o Liquidsoap analisa cada música (início/fim reais, silêncio, volume) e faz as passagens (música, vinheta, hora certa) sem cortes.
 addColumn('stations', 'autocue', 'INTEGER NOT NULL DEFAULT 0');
+// Personalização do AutoCue: 1 = usa os valores abaixo no crossfade; 0 = padrão do Liquidsoap.
+addColumn('stations', 'autocue_custom', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('stations', 'autocue_duration', 'REAL NOT NULL DEFAULT 5');
+addColumn('stations', 'autocue_fade_in', 'REAL NOT NULL DEFAULT 3');
+addColumn('stations', 'autocue_fade_out', 'REAL NOT NULL DEFAULT 3');
+// Passagem entre vinhetas/avisos (s de sobreposição; 0 = uma termina inteira e a outra começa) e ganho extra (dB) delas.
+addColumn('stations', 'jingle_overlap', 'REAL NOT NULL DEFAULT 0');
+addColumn('stations', 'jingle_gain', 'REAL NOT NULL DEFAULT 0');
+// Nivela o volume de tudo pelo AutoCue (liq_amplify): músicas, vinhetas e hora certa no mesmo nível.
+addColumn('stations', 'autocue_level', 'INTEGER NOT NULL DEFAULT 1');
 addColumn('stations', 'cover', 'TEXT'); // capa/logo da rádio (arquivo dentro da pasta da estação); usada quando a música não tem capa
 addColumn('stations', 'no_repeat_minutes', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('history', 'media_id', 'INTEGER'); // música tocada (para a regra de não repetir); null em vinhetas/antigos
@@ -371,6 +381,13 @@ export interface StationRow {
   time_announce_voice: number;
   time_voice: string;
   autocue: number;
+  autocue_custom: number;
+  autocue_duration: number;
+  autocue_fade_in: number;
+  autocue_fade_out: number;
+  jingle_overlap: number;
+  jingle_gain: number;
+  autocue_level: number;
   timezone: string;
   cover: string | null;
   created_at: string;

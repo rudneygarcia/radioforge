@@ -102,10 +102,15 @@ export function ensureStationDirs(id: number) {
  * URI de uma vinheta para o Liquidsoap: rf_jingle faz o aviso ao servidor ser ignorado e título/artista são
  * trocados pelo nome da estação, para o Icecast e os players não exibirem as tags do arquivo.
  */
-function jingleUri(stationName: string, abs: string) {
-  const label = stationName.replace(/["\\\r\n,]/g, ' ').trim();
+function jingleUri(st: StationRow, abs: string, duration = 0) {
+  const label = st.name.replace(/["\\\r\n,]/g, ' ').trim();
+  // Com AutoCue: cue exato (começa em 0 e vai até o fim real, sem a análise cortar o meio), sem pular silêncio,
+  // sobreposição própria (padrão 0: vinheta→vinheta não se atropelam) e ganho opcional.
+  const cue = st.autocue
+    ? `liq_blankskip="0.0",liq_cue_in="0.0",${duration > 0 ? `liq_cue_out="${(duration + 0.2).toFixed(2)}",` : ''}liq_cross_duration="${st.jingle_overlap.toFixed(2)}",${st.jingle_gain ? `liq_amplify="${Math.pow(10, st.jingle_gain / 20).toFixed(3)}",` : ''}`
+    : '';
   // liq_fade_in/out curtos: vinheta e aviso entram e saem sem estalo, e o AutoCue encaixa a passagem.
-  return `annotate:rf_jingle="1",liq_fade_in="0.10",liq_fade_out="0.10",title="${label}",artist="",album="":${abs}`;
+  return `annotate:rf_jingle="1",${cue}liq_fade_in="0.10",liq_fade_out="0.10",title="${label}",artist="",album="":${abs}`;
 }
 
 /** Reescreve os arquivos .m3u de cada playlist; o Liquidsoap recarrega sozinho (reload_mode=watch). */
@@ -125,7 +130,7 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
     // Vinheta: o prefixo annotate marca a faixa para o Liquidsoap não avisar o servidor do nome dela.
     const uri = (m: MediaRow) => {
       const abs = path.join(config.dataDir, m.path);
-      return p.is_jingle ? jingleUri(st?.name ?? '', abs) : abs;
+      return p.is_jingle && st ? jingleUri(st, abs, m.duration) : abs;
     };
     const content = media.map(uri).join('\n') + '\n';
     // Só regrava se mudou: cada gravação faz o Liquidsoap recarregar a playlist.
@@ -147,13 +152,13 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
 }
 
 /** Versão do script que vale por estação: processador (0 completo, 1 só padrões, 2 desligado) e AutoDJ em segundo plano. */
-type Variant = { audio: 0 | 1 | 2; keepAlive: boolean; autocue: boolean };
+type Variant = { audio: 0 | 1 | 2; keepAlive: boolean; autocue: boolean; tuned: boolean };
 const variantOf = new Map<number, Variant>();
 const audioWarnings = new Map<number, string>();
 /** Aviso para o painel quando o processador ou o "AutoDJ em segundo plano" precisaram ser reduzidos/desligados por erro no script. */
 export const audioWarningFor = (stationId: number): string | null => audioWarnings.get(stationId) ?? null;
 
-function writeConfigs(st: StationRow, variant: Variant = variantOf.get(st.id) ?? { audio: 0, keepAlive: !!st.live_continue && !!st.live_enabled, autocue: !!st.autocue }) {
+function writeConfigs(st: StationRow, variant: Variant = variantOf.get(st.id) ?? { audio: 0, keepAlive: !!st.live_continue && !!st.live_enabled, autocue: !!st.autocue, tuned: !!st.autocue && !!st.autocue_custom }) {
   ensureStationDirs(st.id);
   const base = stationDir(st.id);
   const playlists = writePlaylists(st.id);
@@ -192,10 +197,12 @@ export async function startStation(st: StationRow) {
   const wantsAutocue = !!st.autocue;
   // Todas as combinações, da mais completa à mais simples (cada recurso que o Liquidsoap recusar é desligado sozinho).
   const attempts: Variant[] = [];
-  for (const autocue of wantsAutocue ? [true, false] : [false])
+  // AutoCue em três níveis: personalizado (se a estação personalizou), padrão do Liquidsoap, desligado.
+  const cueLevels = wantsAutocue ? [...(st.autocue_custom ? [{ autocue: true, tuned: true }] : []), { autocue: true, tuned: false }, { autocue: false, tuned: false }] : [{ autocue: false, tuned: false }];
+  for (const cue of cueLevels)
     for (const keepAlive of wantsKeep ? [true, false] : [false])
-      for (const audio of audios) attempts.push({ audio, keepAlive, autocue });
-  const reductions = (v: Variant) => audios.indexOf(v.audio) + (wantsKeep && !v.keepAlive ? 1 : 0) + (wantsAutocue && !v.autocue ? 1 : 0);
+      for (const audio of audios) attempts.push({ audio, keepAlive, autocue: cue.autocue, tuned: cue.tuned });
+  const reductions = (v: Variant) => audios.indexOf(v.audio) + (wantsKeep && !v.keepAlive ? 1 : 0) + cueLevels.findIndex((c) => c.autocue === v.autocue && c.tuned === v.tuned);
   attempts.sort((a, b) => reductions(a) - reductions(b));
   audioWarnings.delete(st.id);
   let firstError = '';
@@ -218,6 +225,7 @@ export async function startStation(st: StationRow) {
   const notes: string[] = [];
   if (wantsChain && chosen.audio === 1) notes.push(`O processador de áudio roda só com valores padrão (os ajustes finos não foram aceitos pelo Liquidsoap).`);
   if (wantsChain && chosen.audio === 2) notes.push(`O processador de áudio foi DESLIGADO porque o Liquidsoap recusou o script.`);
+  if (wantsAutocue && chosen.autocue && !chosen.tuned && st.autocue_custom) notes.push(`O AutoCue roda com a configuração padrão (os valores personalizados de duração/fade não foram aceitos pelo Liquidsoap).`);
   if (wantsAutocue && !chosen.autocue) notes.push(`O AutoCue foi DESLIGADO porque o Liquidsoap recusou o script (as passagens ficam sem o ajuste automático).`);
   if (wantsKeep && !chosen.keepAlive) notes.push(`O AutoDJ não continua em segundo plano durante o ao vivo (o Liquidsoap recusou): ao voltar, ele pode começar uma música nova.`);
   if (notes.length) audioWarnings.set(st.id, `${notes.join('\n')}\n${firstError}`);
@@ -330,7 +338,7 @@ export function kickLive(st: StationRow): Promise<void> {
 }
 
 /** Empurra um arquivo na fila de pedidos do Liquidsoap via telnet local. */
-export function pushRequest(stationId: number, absPath: string, silent = false): Promise<void> {
+export function pushRequest(stationId: number, absPath: string, silent = false, duration = 0): Promise<void> {
   const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', stationId);
   if (!st) return Promise.reject(new Error('Estação não encontrada'));
   if (engineMode() === 'native') {
@@ -347,7 +355,7 @@ export function pushRequest(stationId: number, absPath: string, silent = false):
     });
     sock.on('error', reject);
     // Vinheta pedida pela fila: o annotate mantém o nome fora do servidor.
-    const uri = silent ? jingleUri(st.name, absPath) : absPath;
+    const uri = silent ? jingleUri(st, absPath, duration) : absPath;
     sock.on('connect', () => sock.write(`requests.push ${uri}\nquit\n`));
     sock.on('close', () => resolve());
   });

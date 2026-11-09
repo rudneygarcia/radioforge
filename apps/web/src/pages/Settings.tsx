@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { api, getToken, uploadForm, type MountCfg, type Station } from '../api';
 import { useAuth } from '../auth';
-import { Cover, Icon, useUi } from '../ui';
+import { Cover, Icon, Modal, useUi } from '../ui';
 import TimeClips from './TimeClips';
 import type { StationCtx } from './StationLayout';
 
@@ -37,6 +37,13 @@ export default function Settings() {
     timeAnnounceVoice: station.timeAnnounceVoice,
     timeVoice: station.timeVoice,
     autocue: station.autocue,
+    autocueCustom: station.autocueCustom,
+    autocueDuration: station.autocueDuration,
+    autocueFadeIn: station.autocueFadeIn,
+    autocueFadeOut: station.autocueFadeOut,
+    jingleOverlap: station.jingleOverlap,
+    jingleGain: station.jingleGain,
+    autocueLevel: station.autocueLevel,
     timezone: station.timezone,
     historyLimit: station.historyLimit,
     liveEnabled: station.liveEnabled,
@@ -48,6 +55,8 @@ export default function Settings() {
     mounts: station.mounts,
   });
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState<string | null>(null);
+  const close = () => setOpen(null);
   const [coverBusy, setCoverBusy] = useState(false);
   const isAdmin = user?.role === 'admin';
   const setMount = (i: number, change: Partial<MountCfg>) =>
@@ -125,6 +134,7 @@ export default function Settings() {
     nav('/');
   }
 
+  const onOff = (v: boolean) => (v ? 'ligado' : 'desligado');
   return (
     <form onSubmit={save}>
       {!isAdmin && <div className="card notice">Só administradores podem alterar as configurações.</div>}
@@ -153,8 +163,38 @@ export default function Settings() {
         </div>
       </div>
 
-      <div className="card section">
-        <div className="section-title"><h3>Capa da rádio</h3></div>
+      <div className="settings-grid">
+        <button type="button" className="setting-card" onClick={() => setOpen('capa')}>
+          <strong>Capa da rádio</strong>
+          <span>{station.coverUrl ? 'Imagem enviada' : 'Sem capa — usa o ícone padrão'}</span>
+        </button>
+        <button type="button" className="setting-card" onClick={() => setOpen('qual')}>
+          <strong>Qualidade do áudio</strong>
+          <span>{`${f.format.toUpperCase()} ${f.bitrate} kbps · normalizar ${onOff(f.normalize)}`}</span>
+        </button>
+        <button type="button" className="setting-card" onClick={() => setOpen('autocue')}>
+          <strong>AutoCue e passagens</strong>
+          <span>{f.autocue ? `Ligado${f.autocueCustom ? ' · personalizado' : ''} · vinhetas ${f.jingleOverlap === 0 ? 'inteiras' : `${f.jingleOverlap.toFixed(1)}s de sobreposição`}` : 'Desligado'}</span>
+        </button>
+        <button type="button" className="setting-card" onClick={() => setOpen('proc')}>
+          <strong>Processador de áudio</strong>
+          <span>{f.audioPreset === 'off' ? 'Desligado' : `${f.audioPreset === 'loud' ? 'Forte (FM)' : 'Equilibrado'}${f.audioGain ? ` · +${f.audioGain} dB` : ''}`}</span>
+        </button>
+        <button type="button" className="setting-card" onClick={() => setOpen('hora')}>
+          <strong>Hora certa</strong>
+          <span>{f.timeAnnounce === 0 ? 'Desligada' : `A cada ${f.timeAnnounce === 60 ? 'hora' : `${f.timeAnnounce} min`} · ${f.timezone}`}</span>
+        </button>
+        <button type="button" className="setting-card" onClick={() => setOpen('dj')}>
+          <strong>AutoDJ, ao vivo e pedidos</strong>
+          <span>{`DJ ao vivo ${onOff(f.liveEnabled)} · pedidos ${onOff(f.requestsEnabled)} · sem repetir ${f.noRepeatMinutes ? f.noRepeatMinutes + ' min' : 'desligado'}`}</span>
+        </button>
+        <button type="button" className="setting-card" onClick={() => setOpen('extra')}>
+          <strong>Streams extras</strong>
+          <span>{f.mounts.length ? `${f.mounts.length} extra(s)` : 'Nenhum'}</span>
+        </button>
+      </div>
+
+      <Modal open={open === 'capa'} title="Capa da rádio" onClose={close} size="md" footer={<button type="button" onClick={close}>Concluído</button>}>
         <p className="muted" style={{ marginTop: -4 }}>Logo ou imagem da estação. Aparece no player e nos históricos <strong>no lugar da capa das músicas que não têm</strong>, e também quando nada está tocando.</p>
         <div className="row" style={{ alignItems: 'center', gap: 16 }}>
           <Cover url={station.coverUrl} size={96} />
@@ -169,10 +209,9 @@ export default function Settings() {
           ) : null}
         </div>
         <p className="muted small-text" style={{ marginBottom: 0 }}>PNG, JPG, WEBP ou GIF, até 4 MB. Quadrada (ex.: 600×600) fica melhor.</p>
-      </div>
+      </Modal>
 
-      <div className="card section">
-        <div className="section-title"><h3>Qualidade do áudio</h3></div>
+      <Modal open={open === 'qual'} title="Qualidade do áudio" onClose={close} size="md" footer={<button type="button" onClick={close}>Concluído</button>}>
         <div className="fields">
           <div className="field-row">
             <label className="field">
@@ -188,17 +227,69 @@ export default function Settings() {
               </select>
             </label>
           </div>
-          <Toggle checked={f.autocue} onChange={(v) => setF({ ...f, autocue: v })} disabled={!isAdmin} title="AutoCue: passagens profissionais" hint="O servidor analisa cada música (começo e fim reais, silêncio, volume) e faz a passagem para a próxima música, vinheta ou aviso de hora sem cortar o final nem deixar silêncio. Substitui o crossfade fixo abaixo. Só no modo completo; a primeira vez que cada música toca ela é analisada (usa um pouco de CPU)." />
-          <label className="field" style={{ opacity: f.autocue ? 0.5 : 1 }}>
-            <span>Crossfade entre músicas: {f.crossfadeSeconds === 0 ? 'desligado' : `${f.crossfadeSeconds}s`}{f.autocue ? ' (não usado com o AutoCue ligado)' : ''}</span>
-            <input type="range" min={0} max={10} step={0.5} value={f.crossfadeSeconds} onChange={(e) => setF({ ...f, crossfadeSeconds: Number(e.target.value) })} disabled={!isAdmin || f.autocue} style={{ padding: 0 }} />
-          </label>
           <Toggle checked={f.normalize} onChange={(v) => setF({ ...f, normalize: v })} disabled={!isAdmin} title="Normalizar volume" hint="ReplayGain: usa as tags dos arquivos." />
         </div>
-      </div>
+      </Modal>
 
-      <div className="card section">
-        <div className="section-title"><h3>Hora certa</h3></div>
+      <Modal open={open === 'autocue'} title="AutoCue e passagens" onClose={close} size="lg" footer={<button type="button" onClick={close}>Concluído</button>}>
+        <p className="muted" style={{ marginTop: -4 }}>O AutoCue analisa cada faixa (começo e fim reais, silêncio, volume) e faz as passagens entre músicas, vinhetas e hora certa. Vale para <strong>tudo</strong> que vai ao ar. Só no modo completo.</p>
+          <div className="fields">
+            <Toggle checked={f.autocue} onChange={(v) => setF({ ...f, autocue: v })} disabled={!isAdmin} title="Ligar o AutoCue" hint="Substitui o crossfade fixo. Na primeira vez que cada arquivo toca ele é analisado (usa um pouco de CPU)." />
+            <Toggle checked={f.autocueLevel} onChange={(v) => setF({ ...f, autocueLevel: v })} disabled={!isAdmin || !f.autocue} title="Nivelar o volume de músicas, vinhetas e hora certa" hint="Usa o volume medido de cada arquivo para tudo ficar no mesmo nível, além do processador de áudio." />
+            <Toggle checked={f.autocueCustom} onChange={(v) => setF({ ...f, autocueCustom: v })} disabled={!isAdmin || !f.autocue} title="Personalizar a passagem entre músicas" hint="Desligado = padrão do Liquidsoap. Ligado = usa os valores abaixo." />
+            <div style={{ opacity: f.autocue && f.autocueCustom ? 1 : 0.5, display: 'grid', gap: 12 }}>
+              <label className="field">
+                <span>Duração da passagem entre músicas: {f.autocueDuration}s</span>
+                <input type="range" min={0.5} max={15} step={0.5} value={f.autocueDuration} onChange={(e) => setF({ ...f, autocueDuration: Number(e.target.value) })} disabled={!isAdmin || !f.autocue || !f.autocueCustom} style={{ padding: 0 }} />
+              </label>
+              <label className="field">
+                <span>Fade de entrada: {f.autocueFadeIn}s</span>
+                <input type="range" min={0} max={10} step={0.5} value={f.autocueFadeIn} onChange={(e) => setF({ ...f, autocueFadeIn: Number(e.target.value) })} disabled={!isAdmin || !f.autocue || !f.autocueCustom} style={{ padding: 0 }} />
+              </label>
+              <label className="field">
+                <span>Fade de saída: {f.autocueFadeOut}s</span>
+                <input type="range" min={0} max={10} step={0.5} value={f.autocueFadeOut} onChange={(e) => setF({ ...f, autocueFadeOut: Number(e.target.value) })} disabled={!isAdmin || !f.autocue || !f.autocueCustom} style={{ padding: 0 }} />
+              </label>
+            </div>
+            <label className="field" style={{ opacity: f.autocue ? 1 : 0.5 }}>
+              <span>Sobreposição entre vinhetas e avisos: {f.jingleOverlap === 0 ? 'nenhuma (cada uma toca inteira)' : `${f.jingleOverlap.toFixed(1)}s`}</span>
+              <input type="range" min={0} max={3} step={0.1} value={f.jingleOverlap} onChange={(e) => setF({ ...f, jingleOverlap: Number(e.target.value) })} disabled={!isAdmin || !f.autocue} style={{ padding: 0 }} />
+              <small className="hint">Com 0, uma vinheta termina inteira antes da próxima começar (sem cortar no meio). Suba um pouco para emendar mais rápido.</small>
+            </label>
+            <label className="field" style={{ opacity: f.autocue ? 1 : 0.5 }}>
+              <span>Volume extra das vinhetas e da hora certa: {f.jingleGain > 0 ? `+${f.jingleGain}` : f.jingleGain} dB</span>
+              <input type="range" min={-12} max={12} step={1} value={f.jingleGain} onChange={(e) => setF({ ...f, jingleGain: Number(e.target.value) })} disabled={!isAdmin || !f.autocue} style={{ padding: 0 }} />
+              <small className="hint">Ajuste fino só para vinhetas e avisos de hora, em relação às músicas.</small>
+            </label>
+            <label className="field" style={{ opacity: f.autocue ? 0.5 : 1 }}>
+              <span>Crossfade fixo (usado só com o AutoCue desligado): {f.crossfadeSeconds === 0 ? 'desligado' : `${f.crossfadeSeconds}s`}</span>
+              <input type="range" min={0} max={10} step={0.5} value={f.crossfadeSeconds} onChange={(e) => setF({ ...f, crossfadeSeconds: Number(e.target.value) })} disabled={!isAdmin || f.autocue} style={{ padding: 0 }} />
+            </label>
+          </div>
+      </Modal>
+
+      <Modal open={open === 'proc'} title="Processador de áudio" onClose={close} size="md" footer={<button type="button" onClick={close}>Concluído</button>}>
+        <p className="muted" style={{ marginTop: -4 }}>Nivela o volume entre músicas e DJ, deixa o som mais alto e cheio e evita estouros (distorção), no estilo de rádio FM.</p>
+        {station.audioWarning && <div className="card notice" style={{ whiteSpace: 'pre-wrap' }}><strong>Atenção:</strong> {station.audioWarning}</div>}
+        <div className="fields">
+          <label className="field">
+            <span>Predefinição</span>
+            <select value={f.audioPreset} onChange={(e) => setF({ ...f, audioPreset: e.target.value as typeof f.audioPreset })} disabled={!isAdmin}>
+              <option value="off">Desligado (áudio original, sem nivelar)</option>
+              <option value="balanced">Equilibrado (normaliza + compressão + limitador) — recomendado</option>
+              <option value="loud">Forte, estilo FM (normaliza + compressão firme + limitador)</option>
+            </select>
+            <small className="hint">Só no modo completo (Icecast + Liquidsoap). O limitador no final impede a distorção mesmo com o volume alto.</small>
+          </label>
+          <label className="field">
+            <span>Volume extra: {f.audioGain === 0 ? 'sem ganho' : `+${f.audioGain} dB`}</span>
+            <input type="range" min={0} max={12} step={1} value={f.audioGain} onChange={(e) => setF({ ...f, audioGain: Number(e.target.value) })} disabled={!isAdmin} style={{ padding: 0 }} />
+            <small className="hint">Se ainda estiver baixo, suba de 2 em 2 dB. Acima de uns +8 dB o som pode ficar “espremido”; o limitador evita o estouro, mas escute antes de deixar fixo.</small>
+          </label>
+        </div>
+      </Modal>
+
+      <Modal open={open === 'hora'} title="Hora certa" onClose={close} size="lg" footer={<button type="button" onClick={close}>Concluído</button>}>
         <p className="muted" style={{ marginTop: -4 }}>O AutoDJ avisa a hora usando os <strong>seus áudios</strong> (um por minuto, enviados num ZIP abaixo) ou, se faltar, a voz sintética (ex.: “Hora certa. São catorze horas e meia.”). O aviso entra na fila e toca <strong>ao fim da música atual</strong> (o servidor estima esse instante e fala o minuto certo); não aparece em “Tocando agora” nem no histórico, e não toca enquanto há DJ ao vivo.</p>
         <div className="fields">
           <div className="field-row">
@@ -230,55 +321,9 @@ export default function Settings() {
           <small className="hint">Salve as configurações para valer a mudança. Só funciona no modo completo. A hora usa o fuso escolhido acima (o servidor costuma estar em UTC).</small>
         </div>
         <TimeClips station={station} isAdmin={isAdmin} voiceFallback={f.timeAnnounceVoice} voice={f.timeVoice} onVoice={(v) => setF({ ...f, timeVoice: v })} />
-      </div>
+      </Modal>
 
-      <div className="card section">
-        <div className="section-title"><h3>Processador de áudio</h3></div>
-        <p className="muted" style={{ marginTop: -4 }}>Nivela o volume entre músicas e DJ, deixa o som mais alto e cheio e evita estouros (distorção), no estilo de rádio FM.</p>
-        {station.audioWarning && <div className="card notice" style={{ whiteSpace: 'pre-wrap' }}><strong>Atenção:</strong> {station.audioWarning}</div>}
-        <div className="fields">
-          <label className="field">
-            <span>Predefinição</span>
-            <select value={f.audioPreset} onChange={(e) => setF({ ...f, audioPreset: e.target.value as typeof f.audioPreset })} disabled={!isAdmin}>
-              <option value="off">Desligado (áudio original, sem nivelar)</option>
-              <option value="balanced">Equilibrado (normaliza + compressão + limitador) — recomendado</option>
-              <option value="loud">Forte, estilo FM (normaliza + compressão firme + limitador)</option>
-            </select>
-            <small className="hint">Só no modo completo (Icecast + Liquidsoap). O limitador no final impede a distorção mesmo com o volume alto.</small>
-          </label>
-          <label className="field">
-            <span>Volume extra: {f.audioGain === 0 ? 'sem ganho' : `+${f.audioGain} dB`}</span>
-            <input type="range" min={0} max={12} step={1} value={f.audioGain} onChange={(e) => setF({ ...f, audioGain: Number(e.target.value) })} disabled={!isAdmin} style={{ padding: 0 }} />
-            <small className="hint">Se ainda estiver baixo, suba de 2 em 2 dB. Acima de uns +8 dB o som pode ficar “espremido”; o limitador evita o estouro, mas escute antes de deixar fixo.</small>
-          </label>
-        </div>
-      </div>
-
-      <div className="card section">
-        <div className="section-title">
-          <h3>Streams extras</h3>
-          {isAdmin && f.mounts.length < 4 && (
-            <button type="button" className="ghost small" onClick={() => setF({ ...f, mounts: [...f.mounts, { mount: '/radio-extra', format: 'mp3', bitrate: 64 }] })}><Icon name="plus" size={13} /> Adicionar</button>
-          )}
-        </div>
-        <p className="muted" style={{ marginTop: -4 }}>Além de <code>/radio</code>, publique outros mountpoints com qualidade diferente (máx. 4).</p>
-        {f.mounts.length === 0 && <p className="muted small-text">Nenhum stream extra.</p>}
-        {f.mounts.map((m, i) => (
-          <div className="row" key={i}>
-            <input value={m.mount} placeholder="/radio-hd" onChange={(e) => setMount(i, { mount: e.target.value })} disabled={!isAdmin} style={{ flex: 1, minWidth: 140 }} />
-            <select value={m.format} onChange={(e) => setMount(i, { format: e.target.value as 'mp3' | 'ogg' | 'aac' })} disabled={!isAdmin}>
-              <option value="mp3">MP3</option><option value="aac">AAC</option><option value="ogg">OGG Vorbis</option>
-            </select>
-            <select value={m.bitrate} onChange={(e) => setMount(i, { bitrate: Number(e.target.value) })} disabled={!isAdmin}>
-              {[32, 48, 64, 96, 128, 192, 256, 320].map((b) => <option key={b}>{b}</option>)}
-            </select>
-            {isAdmin && <button type="button" className="icon-btn" title="Remover" onClick={() => setF({ ...f, mounts: f.mounts.filter((_, j) => j !== i) })}><Icon name="trash" /></button>}
-          </div>
-        ))}
-      </div>
-
-      <div className="card section">
-        <div className="section-title"><h3>Recursos</h3></div>
+      <Modal open={open === 'dj'} title="AutoDJ, ao vivo e pedidos" onClose={close} size="md" footer={<button type="button" onClick={close}>Concluído</button>}>
         <div className="fields">
           <Toggle checked={f.liveEnabled} onChange={(v) => setF({ ...f, liveEnabled: v })} disabled={!isAdmin} title="Permitir DJ ao vivo" />
           <label className="field" style={{ maxWidth: 340 }}>
@@ -300,10 +345,30 @@ export default function Settings() {
           </label>
           <Toggle checked={f.requestsEnabled} onChange={(v) => setF({ ...f, requestsEnabled: v })} disabled={!isAdmin} title="Permitir pedidos de músicas" hint="Ouvintes podem pedir faixas pelo player público." />
         </div>
-      </div>
+      </Modal>
+
+      <Modal open={open === 'extra'} title="Streams extras" onClose={close} size="md" footer={<button type="button" onClick={close}>Concluído</button>}>
+        <p className="muted" style={{ marginTop: -4 }}>Além de <code>/radio</code>, publique outros mountpoints com qualidade diferente (máx. 4).</p>
+        {f.mounts.length === 0 && <p className="muted small-text">Nenhum stream extra.</p>}
+        {f.mounts.map((m, i) => (
+          <div className="row" key={i}>
+            <input value={m.mount} placeholder="/radio-hd" onChange={(e) => setMount(i, { mount: e.target.value })} disabled={!isAdmin} style={{ flex: 1, minWidth: 140 }} />
+            <select value={m.format} onChange={(e) => setMount(i, { format: e.target.value as 'mp3' | 'ogg' | 'aac' })} disabled={!isAdmin}>
+              <option value="mp3">MP3</option><option value="aac">AAC</option><option value="ogg">OGG Vorbis</option>
+            </select>
+            <select value={m.bitrate} onChange={(e) => setMount(i, { bitrate: Number(e.target.value) })} disabled={!isAdmin}>
+              {[32, 48, 64, 96, 128, 192, 256, 320].map((b) => <option key={b}>{b}</option>)}
+            </select>
+            {isAdmin && <button type="button" className="icon-btn" title="Remover" onClick={() => setF({ ...f, mounts: f.mounts.filter((_, j) => j !== i) })}><Icon name="trash" /></button>}
+          </div>
+        ))}
+        {isAdmin && f.mounts.length < 4 && (
+          <button type="button" className="ghost small" onClick={() => setF({ ...f, mounts: [...f.mounts, { mount: '/radio-extra', format: 'mp3', bitrate: 64 }] })}><Icon name="plus" size={13} /> Adicionar stream</button>
+        )}
+      </Modal>
 
       {isAdmin && (
-        <div className="row" style={{ justifyContent: 'space-between', margin: '0 0 22px' }}>
+        <div className="save-bar">
           <button disabled={busy}>{busy ? 'Salvando…' : 'Salvar alterações'}</button>
           <span className="muted small-text">Reinicia a estação se estiver no ar.</span>
         </div>

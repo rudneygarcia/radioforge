@@ -84,12 +84,12 @@ export async function ensureClip(stationId: number, hour: number, minute: number
  * Escolhe o áudio certo para o horário: 1) o arquivo enviado pelo usuário para exatamente esse horário;
  * 2) se não houver e a voz sintética estiver ligada, a voz; 3) senão, nada (não avisa).
  */
-export async function resolveClip(st: StationRow, hour: number, minute: number): Promise<{ file: string; source: 'arquivo' | 'voz' } | null> {
+export async function resolveClip(st: StationRow, hour: number, minute: number): Promise<{ file: string; source: 'arquivo' | 'voz'; duration: number } | null> {
   // 1) a voz escolhida; 2) o mesmo horário em outra voz enviada (melhor que ficar sem); 3) voz sintética; 4) nada.
   const voice = activeVoice(st.id, st.time_voice);
   const clip = (voice ? clipFor(st.id, voice, hour, minute) : undefined) ?? anyClipFor(st.id, hour, minute);
-  if (clip && fs.existsSync(clipPath(clip))) return { file: clipPath(clip), source: 'arquivo' };
-  if (st.time_announce_voice) return { file: await ensureClip(st.id, hour, minute), source: 'voz' };
+  if (clip && fs.existsSync(clipPath(clip))) return { file: clipPath(clip), source: 'arquivo', duration: clip.duration };
+  if (st.time_announce_voice) return { file: await ensureClip(st.id, hour, minute), source: 'voz', duration: 0 };
   return null;
 }
 
@@ -112,7 +112,7 @@ export async function announceNow(st: StationRow, at = new Date()): Promise<{ te
   const { hour, minute } = localTime(st.timezone, estimatedPlayTime(st, at));
   const clip = await resolveClip(st, hour, minute);
   if (!clip) throw new Error(`Não há arquivo de áudio para ${slotLabel(hour, minute)} e a voz sintética está desligada`);
-  await pushRequest(st.id, clip.file, true);
+  await pushRequest(st.id, clip.file, true, clip.duration);
   return { text: clip.source === 'voz' ? timeText(hour, minute) : `arquivo das ${slotLabel(hour, minute)}`, source: clip.source };
 }
 

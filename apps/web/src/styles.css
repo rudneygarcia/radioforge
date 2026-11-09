@@ -328,3 +328,16 @@ tr.picked td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .np { display: flex; align-items: center; gap: 12px; margin-top: 8px; } .np .big { margin: 0; } .np img, .np .cover-thumb { border-radius: 12px; }
 .hist-item { align-items: center; }
 .cover { background-size: cover !important; }
+
+/* Volume do player público */
+.volume { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 12px auto 4px; max-width: 240px; }
+.volume input[type=range] { flex: 1; padding: 0; }
+
+/* Configurações em cards com modal */
+.settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.setting-card { display: flex; flex-direction: column; gap: 6px; text-align: left; cursor: pointer; padding: 16px; border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 12px; font: inherit; }
+.setting-card:hover { border-color: var(--accent, #6366f1); }
+.setting-card strong { font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.setting-card span { color: var(--muted); font-size: 13px; line-height: 1.4; }
+.setting-card .tag { font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+.save-bar { position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; background: var(--bg); z-index: 5; }
