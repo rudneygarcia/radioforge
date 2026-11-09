@@ -13,6 +13,7 @@ import IntegrationsPage from './pages/IntegrationsPage';
 import AccountPage from './pages/AccountPage';
 import Settings from './pages/Settings';
 import Users from './pages/Users';
+import BackupsPage from './pages/BackupsPage';
 
 function Protected() {
   const { user, loading, logout } = useAuth();
@@ -27,6 +28,7 @@ function Protected() {
         <nav>
           <Link to="/">Estações</Link>
           {user.role === 'admin' && <Link to="/users">Usuários</Link>}
+          {user.role === 'admin' && <Link to="/backups">Backups</Link>}
           <Link to="/account">Chaves de API</Link>
         </nav>
         <span className="spacer" />
@@ -50,6 +52,7 @@ export default function App() {
       <Route element={<Protected />}>
         <Route path="/" element={<Stations />} />
         <Route path="/users" element={<Users />} />
+        <Route path="/backups" element={<BackupsPage />} />
         <Route path="/account" element={<AccountPage />} />
         <Route path="/stations/:id" element={<StationLayout />}>
           <Route index element={<Dashboard />} />
