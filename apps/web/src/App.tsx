@@ -15,6 +15,7 @@ import Settings from './pages/Settings';
 import Users from './pages/Users';
 import BackupsPage from './pages/BackupsPage';
 import SystemPage from './pages/SystemPage';
+import PodcastPage from './pages/PodcastPage';
 
 function Protected() {
   const { user, loading, logout } = useAuth();
@@ -63,6 +64,7 @@ export default function App() {
           <Route path="playlists" element={<Playlists />} />
           <Route path="djs" element={<DjsPage />} />
           <Route path="reports" element={<ReportsPage />} />
+          <Route path="podcast" element={<PodcastPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="settings" element={<Settings />} />
         </Route>

@@ -88,6 +88,20 @@ CREATE TABLE IF NOT EXISTS song_requests (
   ip TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS podcast_episodes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  path TEXT NOT NULL,
+  original_name TEXT NOT NULL DEFAULT '',
+  mime TEXT NOT NULL DEFAULT 'audio/mpeg',
+  duration REAL NOT NULL DEFAULT 0,
+  size INTEGER NOT NULL DEFAULT 0,
+  published INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_episodes_station ON podcast_episodes(station_id, id DESC);
 `);
 
 /** Migrações simples: adiciona colunas novas em bancos já existentes. */
@@ -243,6 +257,19 @@ export interface StationRow {
   crossfade_seconds: number;
   normalize: number;
   record_live: number;
+  created_at: string;
+}
+export interface EpisodeRow {
+  id: number;
+  station_id: number;
+  title: string;
+  description: string;
+  path: string;
+  original_name: string;
+  mime: string;
+  duration: number;
+  size: number;
+  published: number;
   created_at: string;
 }
 export interface DjRow {
