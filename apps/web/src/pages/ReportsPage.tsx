@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { api, downloadFile } from '../api';
+import { Icon, useUi } from '../ui';
 import type { StationCtx } from './StationLayout';
 
 interface Summary {
@@ -165,6 +166,7 @@ export default function ReportsPage() {
   const [days, setDays] = useState(7);
   const [report, setReport] = useState<Report | null>(null);
   const [table, setTable] = useState(false);
+  const { toast } = useUi();
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -177,23 +179,21 @@ export default function ReportsPage() {
   const empty = useMemo(() => !report || (report.timeline.length === 0 && report.summary.sessions === 0), [report]);
 
   if (error) return <p className="error">{error}</p>;
-  if (!report) return <p className="muted">Carregando…</p>;
+  if (!report) return <div className="card skeleton" style={{ height: 200 }} />;
   const s = report.summary;
 
   return (
     <>
-      <div className="row between">
+      <div className="section-title">
         <h3>Relatórios</h3>
         <div className="row">
           <button
             className="ghost small"
             onClick={() =>
-              downloadFile(`/api/stations/${station.id}/reports?days=${days}&format=csv`, `relatorio-${days}d.csv`).catch((e) =>
-                setError((e as Error).message),
-              )
+              downloadFile(`/api/stations/${station.id}/reports?days=${days}&format=csv`, `relatorio-${days}d.csv`).catch((e) => toast((e as Error).message, 'error'))
             }
           >
-            Exportar CSV
+            <Icon name="download" size={13} /> Exportar CSV
           </button>
           <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
             <option value={1}>Últimas 24 horas</option>
@@ -204,7 +204,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <div className="grid">
+      <div className="stat-grid">
         <div className="card"><p className="muted">Ouvintes únicos</p><p className="big">{s.uniqueListeners}</p><Delta now={s.uniqueListeners} before={report.previous.uniqueListeners} /></div>
         <div className="card"><p className="muted">Sessões de escuta</p><p className="big">{s.sessions}</p><Delta now={s.sessions} before={report.previous.sessions} /></div>
         <div className="card"><p className="muted">Horas ouvidas</p><p className="big">{s.listeningHours}</p><Delta now={s.listeningHours} before={report.previous.listeningHours} /></div>

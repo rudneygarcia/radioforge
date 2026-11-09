@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { api, type Webhook } from '../api';
+import { CopyButton, Empty, Icon, Modal, useUi } from '../ui';
 import type { StationCtx } from './StationLayout';
 
 const EVENTS = [
@@ -8,11 +9,14 @@ const EVENTS = [
   { id: 'station_start', label: 'Estação iniciada' },
   { id: 'station_stop', label: 'Estação parada' },
 ];
+const blank = { name: '', type: 'discord' as 'discord' | 'generic', url: '', events: ['song_change'] as string[] };
 
 export default function IntegrationsPage() {
   const { station } = useOutletContext<StationCtx>();
-  const [hooks, setHooks] = useState<Webhook[]>([]);
-  const [f, setF] = useState({ name: '', type: 'discord' as 'discord' | 'generic', url: '', events: ['song_change'] as string[] });
+  const { confirm, toast } = useUi();
+  const [hooks, setHooks] = useState<Webhook[] | null>(null);
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState(blank);
   const [error, setError] = useState('');
   const [testing, setTesting] = useState<number | null>(null);
   const base = `/api/stations/${station.id}/webhooks`;
@@ -27,7 +31,9 @@ export default function IntegrationsPage() {
     setError('');
     try {
       await api(base, { method: 'POST', body: f });
-      setF({ ...f, name: '', url: '' });
+      setF(blank);
+      setOpen(false);
+      toast('Webhook criado');
       load();
     } catch (err) {
       setError((err as Error).message);
@@ -40,8 +46,9 @@ export default function IntegrationsPage() {
   }
 
   async function remove(h: Webhook) {
-    if (!confirm(`Excluir o webhook "${h.name}"?`)) return;
+    if (!(await confirm({ title: 'Excluir webhook?', message: `"${h.name}" deixa de receber avisos.`, confirmLabel: 'Excluir', danger: true }))) return;
     await api(`${base}/${h.id}`, { method: 'DELETE' });
+    toast('Webhook excluído');
     load();
   }
 
@@ -49,6 +56,9 @@ export default function IntegrationsPage() {
     setTesting(h.id);
     try {
       await api(`${base}/${h.id}/test`, { method: 'POST' });
+      toast('Teste enviado');
+    } catch (err) {
+      toast((err as Error).message, 'error');
     } finally {
       setTesting(null);
       load();
@@ -57,57 +67,81 @@ export default function IntegrationsPage() {
 
   return (
     <>
-      <form className="card form" onSubmit={create}>
-        <h3>Novo webhook</h3>
-        <p className="muted">Avisa um serviço externo quando algo acontece na estação. Para o Discord, cole a URL do webhook do canal (Editar canal → Integrações → Webhooks).</p>
-        <div className="row">
-          <input placeholder="Nome (ex.: Canal #rádio)" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required />
-          <select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value as 'discord' | 'generic' })}>
-            <option value="discord">Discord</option>
-            <option value="generic">Genérico (JSON assinado)</option>
-          </select>
-        </div>
-        <input placeholder="https://…" value={f.url} onChange={(e) => setF({ ...f, url: e.target.value })} required style={{ width: '100%', marginBottom: 12 }} />
-        <div className="row">
-          {EVENTS.map((ev) => (
-            <label key={ev.id} className="check">
-              <input
-                type="checkbox"
-                checked={f.events.includes(ev.id)}
-                onChange={(e) => setF({ ...f, events: e.target.checked ? [...f.events, ev.id] : f.events.filter((x) => x !== ev.id) })}
-              />{' '}
-              {ev.label}
-            </label>
-          ))}
-        </div>
-        <button disabled={f.events.length === 0}>Criar webhook</button>
-        {error && <p className="error">{error}</p>}
-      </form>
+      <div className="section-title">
+        <h3>Webhooks <span className="muted">({hooks?.length ?? 0})</span></h3>
+        <button onClick={() => setOpen(true)}><Icon name="plus" /> Novo webhook</button>
+      </div>
+      <p className="muted" style={{ marginTop: -4 }}>Avisa um serviço externo (Discord ou qualquer URL) quando algo acontece na estação.</p>
 
-      {hooks.map((h) => (
+      {hooks && hooks.length === 0 && (
+        <div className="card">
+          <Empty icon="link" title="Nenhum webhook ainda" text="Conecte um canal do Discord para anunciar cada música, ou receba eventos assinados em um sistema seu." action={<button onClick={() => setOpen(true)}><Icon name="plus" /> Criar webhook</button>} />
+        </div>
+      )}
+
+      {hooks?.map((h) => (
         <div className="card" key={h.id}>
-          <div className="row between">
-            <strong>
-              {h.name} <span className="badge off">{h.type === 'discord' ? 'Discord' : 'Genérico'}</span>{' '}
-              {!h.enabled && <span className="badge off">desativado</span>}
-            </strong>
-            <div className="row">
+          <div className="row between" style={{ marginBottom: 4 }}>
+            <div className="item-title">
+              {h.name} <span className="tag">{h.type === 'discord' ? 'Discord' : 'Genérico'}</span> {!h.enabled && <span className="badge off">desativado</span>}
+            </div>
+            <div className="table-actions">
               <button className="ghost small" disabled={testing === h.id} onClick={() => test(h)}>{testing === h.id ? 'Enviando…' : 'Testar'}</button>
               <button className="ghost small" onClick={() => toggle(h)}>{h.enabled ? 'Desativar' : 'Ativar'}</button>
-              <button className="danger small" onClick={() => remove(h)}>Excluir</button>
+              <button className="icon-btn" title="Excluir" onClick={() => remove(h)}><Icon name="trash" /></button>
             </div>
           </div>
           <p className="muted"><code>{h.url.replace(/(\/api\/webhooks\/\d+\/).+/, '$1…')}</code></p>
-          <p className="muted">Eventos: {h.events.map((e) => EVENTS.find((x) => x.id === e)?.label ?? e).join(', ')}</p>
-          {h.lastAt && <p className="muted">Último envio ({h.lastAt} UTC): {h.lastStatus}</p>}
+          <div className="chips" style={{ margin: '8px 0' }}>
+            {h.events.map((e) => <span className="tag accent" key={e}>{EVENTS.find((x) => x.id === e)?.label ?? e}</span>)}
+          </div>
+          {h.lastAt && <p className="muted small-text">Último envio ({h.lastAt} UTC): {h.lastStatus}</p>}
           {h.secret && (
-            <p className="muted">
-              Segredo da assinatura: <code>{h.secret}</code>. Cada envio traz o cabeçalho <code>X-RadioForge-Signature</code> (HMAC-SHA256 do corpo com este segredo).
-            </p>
+            <div className="copy-row">
+              <span className="muted small-text">Segredo da assinatura (HMAC-SHA256 em <code>X-RadioForge-Signature</code>):</span>
+              <code>{h.secret}</code>
+              <CopyButton text={h.secret} />
+            </div>
           )}
         </div>
       ))}
-      {hooks.length === 0 && <p className="muted">Nenhum webhook ainda.</p>}
+
+      <Modal
+        open={open}
+        title="Novo webhook"
+        onClose={() => setOpen(false)}
+        footer={<><button className="ghost" type="button" onClick={() => setOpen(false)}>Cancelar</button><button form="new-hook" disabled={f.events.length === 0}>Criar webhook</button></>}
+      >
+        <form id="new-hook" className="fields" onSubmit={create}>
+          <div className="field-row">
+            <label className="field"><span>Nome</span><input placeholder="Canal #rádio" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required /></label>
+            <label className="field">
+              <span>Tipo</span>
+              <select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value as 'discord' | 'generic' })}>
+                <option value="discord">Discord</option>
+                <option value="generic">Genérico (JSON assinado)</option>
+              </select>
+            </label>
+          </div>
+          <label className="field">
+            <span>URL</span>
+            <input placeholder="https://…" value={f.url} onChange={(e) => setF({ ...f, url: e.target.value })} required />
+            {f.type === 'discord' && <small className="hint">No Discord: Editar canal → Integrações → Webhooks → Copiar URL.</small>}
+          </label>
+          <div className="field">
+            <span className="label">Eventos</span>
+            <div className="chips">
+              {EVENTS.map((ev) => (
+                <label key={ev.id} className="chip">
+                  <input type="checkbox" checked={f.events.includes(ev.id)} onChange={(e) => setF({ ...f, events: e.target.checked ? [...f.events, ev.id] : f.events.filter((x) => x !== ev.id) })} />
+                  {ev.label}
+                </label>
+              ))}
+            </div>
+          </div>
+          {error && <p className="error">{error}</p>}
+        </form>
+      </Modal>
     </>
   );
 }

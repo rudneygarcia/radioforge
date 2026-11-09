@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { Icon, PageHeader, useUi } from '../ui';
 
 interface Info {
   version: string;
@@ -20,10 +21,10 @@ interface Check {
 const when = (s: string | null) => (s ? new Date(s).toLocaleString() : '—');
 
 export default function SystemPage() {
+  const { confirm, toast } = useUi();
   const [info, setInfo] = useState<Info | null>(null);
   const [check, setCheck] = useState<Check | null>(null);
   const [busy, setBusy] = useState('');
-  const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -33,7 +34,6 @@ export default function SystemPage() {
   async function verify() {
     setBusy('check');
     setError('');
-    setMsg('');
     try {
       setCheck(await api<Check>('/api/system/check', { method: 'POST' }));
     } catch (e) {
@@ -44,68 +44,66 @@ export default function SystemPage() {
   }
 
   async function update() {
-    if (!confirm('Atualizar agora? O painel e as estações ficam fora do ar por alguns instantes durante o deploy.')) return;
+    if (!(await confirm({ title: 'Atualizar agora?', message: 'O painel e as estações ficam fora do ar por alguns instantes durante o deploy.', confirmLabel: 'Atualizar' }))) return;
     setBusy('update');
-    setError('');
     try {
       const r = await api<{ message: string }>('/api/system/update', { method: 'POST' });
-      setMsg(r.message);
+      toast(r.message);
     } catch (e) {
-      setError((e as Error).message);
+      toast((e as Error).message, 'error');
     } finally {
       setBusy('');
     }
   }
 
-  if (!info) return error ? <p className="error">{error}</p> : <p className="muted">Carregando…</p>;
+  if (!info) return error ? <p className="error">{error}</p> : <div className="card skeleton" style={{ height: 160 }} />;
 
   return (
     <>
-      <h1>Sistema</h1>
-      <div className="card">
-        <h3>Versão em uso</h3>
-        <table>
-          <tbody>
-            <tr><td className="muted">Versão</td><td>{info.version}</td></tr>
-            <tr><td className="muted">Commit</td><td>{info.commit ? <code>{info.commit.slice(0, 7)}</code> : '— (desconhecido)'}</td></tr>
-            <tr><td className="muted">Build em</td><td>{when(info.builtAt)}</td></tr>
-            <tr><td className="muted">API iniciada em</td><td>{when(info.startedAt)}</td></tr>
-            <tr><td className="muted">Motor de streaming</td><td>{info.engine === 'liquidsoap' ? 'Icecast + Liquidsoap' : 'Simples (Node)'}</td></tr>
-            <tr><td className="muted">Node.js</td><td>{info.node}</td></tr>
-            <tr><td className="muted">Repositório</td><td>{info.repo} ({info.branch})</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <PageHeader title="Sistema" subtitle="Versão em uso e atualizações." />
 
-      <div className="card">
-        <h3>Atualizações</h3>
-        <div className="row">
-          <button onClick={verify} disabled={!!busy}>{busy === 'check' ? 'Verificando…' : 'Verificar atualização'}</button>
-          {check && check.upToDate === false && info.canUpdate && (
-            <button onClick={update} disabled={!!busy}>{busy === 'update' ? 'Solicitando…' : 'Atualizar agora'}</button>
+      <div className="grid">
+        <div className="card">
+          <h3>Versão em uso</h3>
+          <dl className="kv">
+            <dt>Versão</dt><dd>{info.version}</dd>
+            <dt>Commit</dt><dd>{info.commit ? <code>{info.commit.slice(0, 7)}</code> : '—'}</dd>
+            <dt>Build em</dt><dd>{when(info.builtAt)}</dd>
+            <dt>API iniciada</dt><dd>{when(info.startedAt)}</dd>
+            <dt>Streaming</dt><dd>{info.engine === 'liquidsoap' ? 'Icecast + Liquidsoap' : 'Simples (Node)'}</dd>
+            <dt>Node.js</dt><dd>{info.node}</dd>
+            <dt>Repositório</dt><dd>{info.repo} <span className="muted">({info.branch})</span></dd>
+          </dl>
+        </div>
+
+        <div className="card">
+          <h3>Atualizações</h3>
+          <div className="row">
+            <button onClick={verify} disabled={!!busy}><Icon name="refresh" /> {busy === 'check' ? 'Verificando…' : 'Verificar atualização'}</button>
+            {check && check.upToDate === false && info.canUpdate && (
+              <button onClick={update} disabled={!!busy}>{busy === 'update' ? 'Solicitando…' : 'Atualizar agora'}</button>
+            )}
+          </div>
+          {error && <p className="error">{error}</p>}
+          {check && (
+            <>
+              <p>
+                {check.upToDate === true && <span className="badge on">em dia</span>}
+                {check.upToDate === false && <span className="badge off">há versão nova</span>}
+                {check.upToDate === null && <span className="badge off">não foi possível comparar</span>}
+              </p>
+              <p className="muted">
+                Último commit em <code>{info.branch}</code>: <code>{check.latest.sha.slice(0, 7)}</code> — {check.latest.message}
+                {check.latest.author ? ` (${check.latest.author}, ${when(check.latest.date)})` : ''}
+              </p>
+            </>
+          )}
+          {check?.upToDate === false && !info.canUpdate && (
+            <p className="muted small-text">
+              Faça o deploy pelo seu painel (com o deploy automático ligado, cada push no GitHub já atualiza sozinho). Para ter o botão “Atualizar agora” aqui, defina <code>UPDATE_WEBHOOK_URL</code>.
+            </p>
           )}
         </div>
-        {error && <p className="error">{error}</p>}
-        {msg && <p>{msg}</p>}
-        {check && (
-          <>
-            <p>
-              {check.upToDate === true && <span className="badge on">em dia</span>}
-              {check.upToDate === false && <span className="badge off">há versão nova</span>}
-              {check.upToDate === null && <span className="badge off">não foi possível comparar</span>}
-            </p>
-            <p className="muted">
-              Último commit em <code>{info.branch}</code>: <code>{check.latest.sha.slice(0, 7)}</code> — {check.latest.message}
-              {check.latest.author ? ` (${check.latest.author}, ${when(check.latest.date)})` : ''}
-            </p>
-          </>
-        )}
-        {check?.upToDate === false && !info.canUpdate && (
-          <p className="muted">
-            Para atualizar, faça o deploy pelo seu painel (com o deploy automático ligado, cada push no GitHub já atualiza sozinho). Para ter o botão
-            "Atualizar agora" aqui, defina a variável <code>UPDATE_WEBHOOK_URL</code> com a URL de redeploy.
-          </p>
-        )}
       </div>
     </>
   );

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { api, type Recording } from '../api';
+import { CopyButton, Empty, Icon, Modal, useUi } from '../ui';
 import type { StationCtx } from './StationLayout';
 
 interface Episode {
@@ -19,10 +20,13 @@ const mins = (s: number) => (s ? `${Math.floor(s / 60)}:${String(Math.round(s % 
 
 export default function PodcastPage() {
   const { station } = useOutletContext<StationCtx>();
+  const { confirm, toast } = useUi();
   const base = `/api/stations/${station.id}`;
   const feed = `${location.origin}/api/public/stations/${station.slug}/podcast.xml`;
-  const [eps, setEps] = useState<Episode[]>([]);
+  const [eps, setEps] = useState<Episode[] | null>(null);
   const [recs, setRecs] = useState<Recording[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<Episode | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -38,21 +42,33 @@ export default function PodcastPage() {
     load();
   }, [station.id]);
 
+  const reset = () => {
+    setTitle('');
+    setDescription('');
+    setFile(null);
+    setRec('');
+    setError('');
+  };
+
   async function upload(e: FormEvent) {
     e.preventDefault();
-    if (!file) return;
     setBusy(true);
     setError('');
     try {
-      const form = new FormData();
-      form.append('title', title);
-      form.append('description', description);
-      form.append('file', file);
-      await api(`${base}/podcast/episodes`, { method: 'POST', form });
-      setTitle('');
-      setDescription('');
-      setFile(null);
-      (e.target as HTMLFormElement).reset();
+      if (file) {
+        const form = new FormData();
+        form.append('title', title);
+        form.append('description', description);
+        form.append('file', file);
+        await api(`${base}/podcast/episodes`, { method: 'POST', form });
+      } else if (rec) {
+        await api(`${base}/podcast/from-recording`, { method: 'POST', body: { file: rec, title, description } });
+      } else {
+        throw new Error('Escolha um arquivo de áudio ou uma gravação.');
+      }
+      setCreating(false);
+      reset();
+      toast('Episódio publicado');
       await load();
     } catch (err) {
       setError((err as Error).message);
@@ -61,88 +77,111 @@ export default function PodcastPage() {
     }
   }
 
-  async function fromRecording() {
-    if (!rec) return;
-    setBusy(true);
-    setError('');
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    if (!editing) return;
     try {
-      await api(`${base}/podcast/from-recording`, { method: 'POST', body: { file: rec, title } });
-      setRec('');
-      setTitle('');
-      await load();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function save(ep: Episode) {
-    setError('');
-    try {
-      await api(`${base}/podcast/episodes/${ep.id}`, { method: 'PUT', body: { title: ep.title, description: ep.description, published: ep.published } });
+      await api(`${base}/podcast/episodes/${editing.id}`, { method: 'PUT', body: { title: editing.title, description: editing.description, published: editing.published } });
+      setEditing(null);
+      toast('Episódio salvo');
       load();
     } catch (err) {
-      setError((err as Error).message);
+      toast((err as Error).message, 'error');
     }
   }
 
   async function remove(ep: Episode) {
-    if (!confirm(`Excluir o episódio "${ep.title}"? O arquivo também é apagado.`)) return;
+    if (!(await confirm({ title: 'Excluir episódio?', message: `"${ep.title}" e o arquivo de áudio serão apagados.`, confirmLabel: 'Excluir', danger: true }))) return;
     await api(`${base}/podcast/episodes/${ep.id}`, { method: 'DELETE' });
+    toast('Episódio excluído');
+    setEditing(null);
     load();
   }
-
-  const patch = (id: number, change: Partial<Episode>) => setEps((l) => l.map((x) => (x.id === id ? { ...x, ...change } : x)));
 
   return (
     <>
       <div className="card">
         <h3>Feed do podcast</h3>
         <p className="muted">Cole este endereço no Spotify, Apple Podcasts, Pocket Casts ou em qualquer app de podcast. Só os episódios publicados aparecem.</p>
-        <p><code>{feed}</code></p>
-        <button className="ghost small" onClick={() => navigator.clipboard.writeText(feed)}>Copiar</button>
+        <div className="copy-row"><code>{feed}</code><CopyButton text={feed} /></div>
       </div>
 
-      <form className="card" onSubmit={upload}>
-        <h3>Novo episódio</h3>
-        <div className="row">
-          <input placeholder="Título (opcional: usa o das tags ou o nome do arquivo)" value={title} onChange={(e) => setTitle(e.target.value)} style={{ minWidth: 280 }} />
-          <input type="file" accept=".mp3,.m4a,.aac,.ogg,.opus,.wav,audio/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required />
-        </div>
-        <textarea placeholder="Descrição" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} style={{ width: '100%', marginTop: 8 }} />
-        <button disabled={busy || !file}>{busy ? 'Enviando…' : 'Publicar episódio'}</button>
-        {recs.length > 0 && (
-          <div className="row" style={{ marginTop: 12 }}>
-            <span className="muted">ou a partir de uma gravação ao vivo:</span>
-            <select value={rec} onChange={(e) => setRec(e.target.value)}>
-              <option value="">— escolha —</option>
-              {recs.map((r) => (
-                <option key={r.name} value={r.name}>{r.name} ({mb(r.size)})</option>
-              ))}
-            </select>
-            <button type="button" className="ghost" disabled={busy || !rec} onClick={fromRecording}>Publicar gravação</button>
-          </div>
-        )}
-        {error && <p className="error">{error}</p>}
-      </form>
+      <div className="section-title" style={{ marginTop: 24 }}>
+        <h3>Episódios <span className="muted">({eps?.length ?? 0})</span></h3>
+        <button onClick={() => { reset(); setCreating(true); }}><Icon name="plus" /> Novo episódio</button>
+      </div>
 
-      {eps.map((ep) => (
-        <div className="card" key={ep.id}>
-          <div className="row between">
-            <strong>{ep.title} {!ep.published && <span className="badge off">rascunho</span>}</strong>
-            <span className="muted">{mins(ep.duration)} · {mb(ep.size)} · {new Date(ep.createdAt + 'Z').toLocaleDateString()}</span>
+      {eps && eps.length === 0 && (
+        <div className="card">
+          <Empty icon="mic" title="Nenhum episódio ainda" text="Envie um áudio ou publique uma gravação de transmissão ao vivo." action={<button onClick={() => { reset(); setCreating(true); }}><Icon name="plus" /> Publicar episódio</button>} />
+        </div>
+      )}
+      {eps?.map((ep) => (
+        <div className="card item-card" key={ep.id}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div className="item-title">{ep.title} {!ep.published && <span className="badge off">rascunho</span>}</div>
+            {ep.description && <p className="muted ellipsis" style={{ maxWidth: 560 }}>{ep.description}</p>}
+            <div className="meta">
+              <span className="tag"><Icon name="clock" size={12} /> {mins(ep.duration)}</span>
+              <span className="tag">{mb(ep.size)}</span>
+              <span className="tag">{new Date(ep.createdAt + 'Z').toLocaleDateString()}</span>
+            </div>
           </div>
-          <input value={ep.title} onChange={(e) => patch(ep.id, { title: e.target.value })} style={{ width: '100%', marginTop: 8 }} />
-          <textarea value={ep.description} onChange={(e) => patch(ep.id, { description: e.target.value })} rows={2} style={{ width: '100%', marginTop: 8 }} />
-          <div className="row">
-            <label><input type="checkbox" checked={ep.published} onChange={(e) => patch(ep.id, { published: e.target.checked })} /> Publicado no feed</label>
-            <button className="small" onClick={() => save(ep)}>Salvar</button>
-            <button className="danger small" onClick={() => remove(ep)}>Excluir</button>
+          <div className="row" style={{ margin: 0 }}>
+            <button className="ghost" onClick={() => setEditing(ep)}><Icon name="edit" /> Editar</button>
+            <button className="icon-btn" title="Excluir" onClick={() => remove(ep)}><Icon name="trash" /></button>
           </div>
         </div>
       ))}
-      {eps.length === 0 && <p className="muted">Nenhum episódio ainda.</p>}
+
+      <Modal
+        open={creating}
+        title="Novo episódio"
+        onClose={() => setCreating(false)}
+        footer={<><button className="ghost" type="button" onClick={() => setCreating(false)}>Cancelar</button><button form="new-ep" disabled={busy}>{busy ? 'Enviando…' : 'Publicar'}</button></>}
+      >
+        <form id="new-ep" className="fields" onSubmit={upload}>
+          <label className="field"><span>Título <em className="hint">(opcional: usa o das tags ou o nome do arquivo)</em></span><input value={title} onChange={(e) => setTitle(e.target.value)} /></label>
+          <label className="field"><span>Descrição</span><textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} /></label>
+          <label className="field">
+            <span>Arquivo de áudio</span>
+            <input type="file" accept=".mp3,.m4a,.aac,.ogg,.opus,.wav,audio/*" onChange={(e) => { setFile(e.target.files?.[0] ?? null); if (e.target.files?.[0]) setRec(''); }} />
+          </label>
+          {recs.length > 0 && (
+            <label className="field">
+              <span>…ou uma gravação de transmissão ao vivo</span>
+              <select value={rec} onChange={(e) => { setRec(e.target.value); if (e.target.value) setFile(null); }}>
+                <option value="">— escolha —</option>
+                {recs.map((r) => <option key={r.name} value={r.name}>{r.name} ({mb(r.size)})</option>)}
+              </select>
+            </label>
+          )}
+          {error && <p className="error">{error}</p>}
+        </form>
+      </Modal>
+
+      <Modal
+        open={!!editing}
+        title="Editar episódio"
+        onClose={() => setEditing(null)}
+        footer={
+          editing && (
+            <>
+              <button type="button" className="danger" style={{ marginRight: 'auto' }} onClick={() => remove(editing)}><Icon name="trash" /> Excluir</button>
+              <button className="ghost" type="button" onClick={() => setEditing(null)}>Cancelar</button>
+              <button form="edit-ep">Salvar</button>
+            </>
+          )
+        }
+      >
+        {editing && (
+          <form id="edit-ep" className="fields" onSubmit={save}>
+            <label className="field"><span>Título</span><input value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} required /></label>
+            <label className="field"><span>Descrição</span><textarea rows={4} value={editing.description} onChange={(e) => setEditing({ ...editing, description: e.target.value })} /></label>
+            <label className="check-line"><input type="checkbox" checked={editing.published} onChange={(e) => setEditing({ ...editing, published: e.target.checked })} /> <span>Publicado no feed <small>Desmarque para deixar como rascunho.</small></span></label>
+          </form>
+        )}
+      </Modal>
     </>
   );
 }
