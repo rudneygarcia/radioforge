@@ -31,7 +31,10 @@ const app = Fastify({ logger: true, trustProxy: true });
 // Guarda o host da requisição para montar os links de stream quando PUBLIC_HOST não está definido.
 app.addHook('onRequest', (req, _reply, done) => {
   const host = req.hostname.replace(/:\d+$/, '').replace(/^\[(.*)\]$/, '$1');
-  /^[A-Za-z0-9.-]+$|^[0-9a-fA-F:]+$/.test(host) ? hostContext.run(host.includes(':') ? `[${host}]` : host, done) : done();
+  if (!/^[A-Za-z0-9.-]+$|^[0-9a-fA-F:]+$/.test(host)) return done();
+  const shown = host.includes(':') ? `[${host}]` : host;
+  // req.host mantém a porta (ex.: localhost:3000); req.hostname não.
+  hostContext.run({ host: shown, origin: `${req.protocol}://${req.host || req.hostname}` }, done);
 });
 
 await app.register(cors, { origin: true });

@@ -15,6 +15,22 @@ export default function Dashboard() {
   const { toast, confirm } = useUi();
   const [history, setHistory] = useState<Hist[]>([]);
   const [busy, setBusy] = useState(false);
+  // Quantas músicas mostrar no histórico (lembra a escolha neste navegador).
+  const [shown, setShown] = useState(() => {
+    try {
+      return Number(localStorage.getItem('rf_hist_n')) || 10;
+    } catch {
+      return 10;
+    }
+  });
+  const changeShown = (n: number) => {
+    setShown(n);
+    try {
+      localStorage.setItem('rf_hist_n', String(n));
+    } catch {
+      /* sem armazenamento */
+    }
+  };
 
   useEffect(() => {
     api<Hist[]>(`/api/stations/${station.id}/history`).then(setHistory);
@@ -80,17 +96,24 @@ export default function Dashboard() {
       <div className="card section">
         <div className="section-title"><h3>Links de transmissão</h3></div>
         {station.streams.map((s) => (
-          <div className="copy-row" key={s.mount}>
-            <span className="lbl">{s.format.toUpperCase()} {s.bitrate}k</span>
-            <code>{s.url}</code>
-            <CopyButton text={s.url} />
+          <div key={s.mount} style={{ marginBottom: 10 }}>
+            <div className="copy-row" style={{ marginBottom: 2 }}>
+              <span className="lbl">{s.format.toUpperCase()} {s.bitrate}k</span>
+              <code>{s.proxyUrl}</code>
+              <CopyButton text={s.proxyUrl} />
+            </div>
+            <div className="copy-row" style={{ margin: 0 }}>
+              <span className="lbl small-text">link direto</span>
+              <code className="muted" style={{ fontSize: 12 }}>{s.url}</code>
+              <CopyButton text={s.url} label="" />
+            </div>
           </div>
         ))}
-        <p className="muted small-text">Use estes endereços em players externos (VLC, apps). No navegador, use o player público.</p>
+        <p className="muted small-text">O primeiro link de cada stream passa pelo painel (HTTPS, mesma porta do site): funciona com domínio atrás do Cloudflare ou outro proxy, sem abrir portas. O link direto usa a porta do stream e só funciona se ela estiver aberta e o endereço não passar pelo proxy (no Cloudflare, use um subdomínio “somente DNS”, nuvem cinza).</p>
         {station.dj && (
           <>
             <div className="copy-row">
-              <span className="lbl">DJ ao vivo</span>
+              <span className="lbl">DJ ao vivo (direto)</span>
               <code>{station.dj.host}:{station.dj.port}{station.dj.mount}</code>
               <CopyButton text={`${station.dj.host}:${station.dj.port}${station.dj.mount}`} />
             </div>
@@ -100,18 +123,27 @@ export default function Dashboard() {
               <code>{station.dj.password}</code>
               <CopyButton text={station.dj.password} label="Copiar senha" />
             </div>
+            <p className="muted small-text">A conexão do DJ vai direto na porta do Liquidsoap (não passa pelo proxy). Com Cloudflare, o DJ deve usar o IP do servidor ou um subdomínio “somente DNS”; ou defina <code>PUBLIC_HOST</code> no servidor para mostrar esse endereço aqui.</p>
           </>
         )}
       </div>
 
       <div className="card tight">
-        <div className="section-title" style={{ padding: '18px 20px 6px', margin: 0 }}><h3>Últimas músicas</h3></div>
+        <div className="section-title" style={{ padding: '18px 20px 6px', margin: 0 }}>
+          <h3>Últimas músicas</h3>
+          <label className="row" style={{ margin: 0, gap: 8 }}>
+            <span className="muted small-text">Mostrar</span>
+            <select value={shown} onChange={(e) => changeShown(Number(e.target.value))}>
+              {[5, 10, 20, 50].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+        </div>
         {history.length === 0 ? (
           <Empty icon="music" title="Nada tocou ainda" text="Quando a estação entrar no ar, o histórico aparece aqui." />
         ) : (
           <table>
             <tbody>
-              {history.map((h, i) => (
+              {history.slice(0, shown).map((h, i) => (
                 <tr key={i}>
                   <td>{h.artist ? <span className="muted">{h.artist} — </span> : null}{h.title}</td>
                   <td className="muted" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{new Date(h.played_at + 'Z').toLocaleString()}</td>

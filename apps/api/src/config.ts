@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 /** Host da requisição em andamento (preenchido em index.ts). */
-export const hostContext = new AsyncLocalStorage<string>();
+export const hostContext = new AsyncLocalStorage<{ host: string; origin: string }>();
 
 const dataDir = path.resolve(process.env.DATA_DIR ?? './data');
 fs.mkdirSync(path.join(dataDir, '.secrets'), { recursive: true });
@@ -32,7 +32,11 @@ export const config = {
    * usa o endereço (IP ou domínio) pelo qual o painel foi acessado nesta requisição.
    */
   get publicHost(): string {
-    return process.env.PUBLIC_HOST || hostContext.getStore() || 'localhost';
+    return process.env.PUBLIC_HOST || hostContext.getStore()?.host || 'localhost';
+  },
+  /** Origem (https://dominio) pela qual o painel foi aberto; usada nos links de stream que passam pelo painel (funcionam atrás de proxy/Cloudflare). */
+  get publicOrigin(): string {
+    return hostContext.getStore()?.origin || `http://localhost:${process.env.PORT ?? 3000}`;
   },
   apiInternalUrl: process.env.API_INTERNAL_URL ?? `http://127.0.0.1:${process.env.PORT ?? 3000}`,
   engine: {

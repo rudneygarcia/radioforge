@@ -29,6 +29,27 @@ export function schedulePredicate(s: NonNullable<LiqPlaylist['schedule']>): stri
   return `{ ${parts.join(' and ')} }`;
 }
 
+/**
+ * Cadeia de processamento de áudio (estilo "rádio"): compressão para nivelar o volume e limitador
+ * para não estourar. Os presets são pontos de partida; "loud" soa mais forte (estilo FM).
+ */
+export function audioChain(preset: 'off' | 'balanced' | 'loud'): string[] {
+  if (preset === 'balanced') {
+    return [
+      `radio = compress(threshold = -18., ratio = 2.5, attack = 40., release = 400., gain = 2., radio)`,
+      `radio = limit(radio)`,
+    ];
+  }
+  if (preset === 'loud') {
+    return [
+      `radio = normalize(radio)`,
+      `radio = compress(threshold = -22., ratio = 4., attack = 25., release = 300., gain = 4., radio)`,
+      `radio = limit(radio)`,
+    ];
+  }
+  return [];
+}
+
 export const harborPort = (st: StationRow) => st.stream_port + 5;
 export const telnetPort = (st: StationRow) => st.stream_port + 6;
 
@@ -144,7 +165,7 @@ export function buildLiquidsoapScript(
     );
     if (st.record_live && recordingsDir) {
       // Grava só enquanto houver DJ conectado (fonte "fallible").
-      const ext = st.format === 'ogg' ? 'ogg' : 'mp3';
+      const ext = st.format === 'ogg' ? 'ogg' : 'mp3'; // AAC é gravado em MP3 (arquivo mais universal)
       lines.push(
         `output.file(${st.format === 'ogg' ? `%ogg(%vorbis.abr(bitrate = ${st.bitrate}))` : `%mp3(bitrate = ${st.bitrate})`}, ${q(`${recordingsDir}/%Y-%m-%d_%Hh%Mm%Ss.${ext}`)}, fallible = true, live)`,
       );
@@ -152,16 +173,24 @@ export function buildLiquidsoapScript(
     lines.push(`radio = fallback(id = "dj", track_sensitive = false, [live, radio])`);
   }
 
+  // Processador de áudio: sobre tudo que vai ao ar (músicas e DJ). Sem a opção, o áudio sai como veio.
+  lines.push(...audioChain(st.audio_preset));
+
   lines.push(`radio = mksafe(radio)`, `radio.on_metadata(notify)`, ``);
 
   const encoder = (format: string, bitrate: number) =>
-    format === 'ogg' ? `%ogg(%vorbis.abr(bitrate = ${bitrate}))` : `%mp3(bitrate = ${bitrate})`;
+    format === 'ogg'
+      ? `%ogg(%vorbis.abr(bitrate = ${bitrate}))`
+      : format === 'aac'
+        ? `%ffmpeg(format = "adts", %audio(codec = "aac", b = "${bitrate}k"))` // AAC-LC pelo FFmpeg embutido do Liquidsoap
+        : `%mp3(bitrate = ${bitrate})`;
 
   // Um output por mountpoint, todos alimentados pela mesma fonte.
   const outputs = [{ mount: st.mount, format: st.format, bitrate: st.bitrate }, ...extraMounts];
   for (const o of outputs) {
     lines.push(
       `output.icecast(${encoder(o.format, o.bitrate)},`,
+      ...(o.format === 'aac' ? ['  format = "audio/aac",'] : []),
       `  host = "127.0.0.1", port = ${st.stream_port}, password = ${q(st.source_password)},`,
       `  mount = ${q(o.mount)}, name = ${q(st.name)}, description = ${q(st.description)},`,
       `  radio)`,

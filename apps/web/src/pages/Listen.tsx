@@ -11,6 +11,7 @@ interface Pub {
   listeners: number;
   nowPlaying: NowPlaying | null;
   live: { name: string } | null;
+  historyLimit: number;
   requestsEnabled: boolean;
 }
 interface Song {
@@ -31,6 +32,7 @@ export default function Listen() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [playing, setPlaying] = useState(false);
   const [msg, setMsg] = useState('');
+  const [more, setMore] = useState(false);
   const [quality, setQuality] = useState(0);
   const audio = useRef<HTMLAudioElement>(null);
 
@@ -101,8 +103,11 @@ export default function Listen() {
       {msg && <p className="muted center">{msg}</p>}
       <div className="card">
         <h3>Tocou recentemente</h3>
-        {history.slice(0, 8).map((h, i) => <div key={i} className="hist-item"><span>♪</span><span>{h.artist ? `${h.artist} — ` : ''}{h.title}</span></div>)}
+        {history.slice(0, more ? 50 : info.historyLimit).map((h, i) => <div key={i} className="hist-item"><span>♪</span><span>{h.artist ? `${h.artist} — ` : ''}{h.title}</span></div>)}
         {history.length === 0 && <p className="muted">Nada tocou ainda.</p>}
+        {history.length > info.historyLimit && (
+          <button className="ghost small" style={{ marginTop: 10 }} onClick={() => setMore(!more)}>{more ? 'Mostrar menos' : 'Ver mais'}</button>
+        )}
       </div>
       {info.requestsEnabled && songs.length > 0 && (
         <div className="card">

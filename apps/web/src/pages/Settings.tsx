@@ -25,6 +25,8 @@ export default function Settings() {
     mount: station.mount,
     format: station.format,
     bitrate: station.bitrate,
+    audioPreset: station.audioPreset,
+    historyLimit: station.historyLimit,
     liveEnabled: station.liveEnabled,
     requestsEnabled: station.requestsEnabled,
     autostart: station.autostart,
@@ -93,8 +95,8 @@ export default function Settings() {
           <div className="field-row">
             <label className="field">
               <span>Formato</span>
-              <select value={f.format} onChange={(e) => setF({ ...f, format: e.target.value as 'mp3' | 'ogg' })} disabled={!isAdmin}>
-                <option value="mp3">MP3</option><option value="ogg">OGG Vorbis</option>
+              <select value={f.format} onChange={(e) => setF({ ...f, format: e.target.value as 'mp3' | 'ogg' | 'aac' })} disabled={!isAdmin}>
+                <option value="mp3">MP3</option><option value="aac">AAC</option><option value="ogg">OGG Vorbis</option>
               </select>
             </label>
             <label className="field">
@@ -113,6 +115,22 @@ export default function Settings() {
       </div>
 
       <div className="card section">
+        <div className="section-title"><h3>Processador de áudio</h3></div>
+        <p className="muted" style={{ marginTop: -4 }}>Nivela o volume entre músicas e DJ e evita estouros, para um som mais cheio e constante, no estilo de rádio FM.</p>
+        <div className="fields">
+          <label className="field">
+            <span>Predefinição</span>
+            <select value={f.audioPreset} onChange={(e) => setF({ ...f, audioPreset: e.target.value as typeof f.audioPreset })} disabled={!isAdmin}>
+              <option value="off">Desligado (áudio original)</option>
+              <option value="balanced">Equilibrado (compressão leve + limitador)</option>
+              <option value="loud">Forte, estilo FM (normaliza + compressão firme + limitador)</option>
+            </select>
+            <small className="hint">Só no modo completo (Icecast + Liquidsoap). Comece pelo Equilibrado; o Forte deixa o som mais alto e “colado”.</small>
+          </label>
+        </div>
+      </div>
+
+      <div className="card section">
         <div className="section-title">
           <h3>Streams extras</h3>
           {isAdmin && f.mounts.length < 4 && (
@@ -124,8 +142,8 @@ export default function Settings() {
         {f.mounts.map((m, i) => (
           <div className="row" key={i}>
             <input value={m.mount} placeholder="/radio-hd" onChange={(e) => setMount(i, { mount: e.target.value })} disabled={!isAdmin} style={{ flex: 1, minWidth: 140 }} />
-            <select value={m.format} onChange={(e) => setMount(i, { format: e.target.value as 'mp3' | 'ogg' })} disabled={!isAdmin}>
-              <option value="mp3">MP3</option><option value="ogg">OGG Vorbis</option>
+            <select value={m.format} onChange={(e) => setMount(i, { format: e.target.value as 'mp3' | 'ogg' | 'aac' })} disabled={!isAdmin}>
+              <option value="mp3">MP3</option><option value="aac">AAC</option><option value="ogg">OGG Vorbis</option>
             </select>
             <select value={m.bitrate} onChange={(e) => setMount(i, { bitrate: Number(e.target.value) })} disabled={!isAdmin}>
               {[32, 48, 64, 96, 128, 192, 256, 320].map((b) => <option key={b}>{b}</option>)}
@@ -140,6 +158,11 @@ export default function Settings() {
         <div className="fields">
           <Toggle checked={f.liveEnabled} onChange={(v) => setF({ ...f, liveEnabled: v })} disabled={!isAdmin} title="Permitir DJ ao vivo" />
           <Toggle checked={f.recordLive} onChange={(v) => setF({ ...f, recordLive: v })} disabled={!isAdmin || !f.liveEnabled} title="Gravar as transmissões ao vivo" hint="Salva cada transmissão de DJ para baixar depois." />
+          <label className="field" style={{ maxWidth: 260 }}>
+            <span>Músicas recentes no player público</span>
+            <input type="number" min={1} max={50} value={f.historyLimit} onChange={(e) => setF({ ...f, historyLimit: Math.max(1, Math.min(50, Number(e.target.value) || 1)) })} disabled={!isAdmin} />
+            <small className="hint">Quantas faixas aparecem em “Tocou recentemente” (1 a 50).</small>
+          </label>
           <Toggle checked={f.requestsEnabled} onChange={(v) => setF({ ...f, requestsEnabled: v })} disabled={!isAdmin} title="Permitir pedidos de músicas" hint="Ouvintes podem pedir faixas pelo player público." />
         </div>
       </div>

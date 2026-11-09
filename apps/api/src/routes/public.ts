@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
 import path from 'node:path';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { HttpError } from '../auth.js';
 import { config } from '../config.js';
@@ -27,6 +27,44 @@ const safeEqual = (a: string, b: string) => {
 // Limite de pedidos: 1 por IP a cada 5 minutos por estação.
 const lastRequest = new Map<string, number>();
 
+/** Repassa o áudio do Icecast (ou do motor simples) para o ouvinte, sem cache e sem buffer. */
+function proxyStream(req: FastifyRequest, reply: FastifyReply, st: StationRow, mount: string | undefined) {
+  if (!mount) throw new HttpError(404, 'Stream não encontrado');
+  // 503 direto (o tratador de erros esconde a mensagem de erros 5xx).
+  if (!isRunning(st.id)) return reply.code(503).send({ error: 'A rádio está offline' });
+  reply.hijack();
+  const res = reply.raw;
+  const fail = (code: number) => {
+    if (!res.headersSent) res.writeHead(code, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Stream indisponível' }));
+  };
+  const upstream = http.get(
+    {
+      host: '127.0.0.1',
+      port: st.stream_port,
+      path: mount,
+      // O Icecast (e o motor simples) confiam neste cabeçalho, vindo de 127.0.0.1, para registrar o IP real do ouvinte.
+      headers: { 'X-Forwarded-For': req.ip, 'User-Agent': String(req.headers['user-agent'] ?? 'RadioForge'), 'Icy-MetaData': '0' },
+    },
+    (up) => {
+      if (up.statusCode !== 200) {
+        up.resume();
+        return fail(502);
+      }
+      res.writeHead(200, {
+        'Content-Type': String(up.headers['content-type'] ?? 'audio/mpeg'),
+        // no-store: impede o Cloudflare de guardar o stream (ele cacheia .mp3/.aac/.ogg por padrão).
+        'Cache-Control': 'no-cache, no-store, private',
+        'Access-Control-Allow-Origin': '*',
+        'X-Accel-Buffering': 'no',
+      });
+      up.pipe(res);
+    },
+  );
+  upstream.on('error', () => fail(502));
+  req.raw.on('close', () => upstream.destroy());
+}
+
 export async function publicRoutes(app: FastifyInstance) {
   app.get('/api/public/stations/:slug', async (req) => {
     const st = stationBySlug(slugParam.parse(req.params).slug);
@@ -43,56 +81,34 @@ export async function publicRoutes(app: FastifyInstance) {
       // No público, só o nome de exibição (nunca o usuário de login).
       live: getLive(st.id) ? { name: getLive(st.id)!.name, since: getLive(st.id)!.since } : null,
       requestsEnabled: !!st.requests_enabled,
+      historyLimit: st.history_limit,
     };
   });
 
   /**
-   * Áudio pela mesma origem do painel (porta 3000/HTTPS): o navegador bloqueia áudio http:// dentro de
-   * página https:// (conteúdo misto) e nem sempre as portas 8000+ ficam abertas para a internet.
+   * Áudio pela mesma origem do painel (HTTPS, porta do painel): o navegador bloqueia áudio http:// dentro de
+   * página https:// (conteúdo misto), e atrás de proxy/Cloudflare as portas 8000+ não chegam ao servidor.
    * `index` 0 = stream principal, 1+ = streams extras.
    */
   app.get('/api/public/stations/:slug/stream/:index', async (req, reply) => {
     const { slug, index } = z.object({ slug: z.string(), index: z.coerce.number().int().min(0).max(10) }).parse(req.params);
     const st = stationBySlug(slug);
-    if (!isRunning(st.id)) throw new HttpError(503, 'A rádio está offline');
     const mount = [st.mount, ...mountsFor(st.id).map((m) => m.mount)][index];
-    if (!mount) throw new HttpError(404, 'Stream não encontrado');
+    return proxyStream(req, reply, st, mount);
+  });
 
-    reply.hijack();
-    const res = reply.raw;
-    const fail = (code: number) => {
-      if (!res.headersSent) res.writeHead(code, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Stream indisponível' }));
-    };
-    const upstream = http.get(
-      {
-        host: '127.0.0.1',
-        port: st.stream_port,
-        path: mount,
-        // O Icecast confia neste cabeçalho (vindo de 127.0.0.1) para registrar o IP real do ouvinte.
-        headers: { 'X-Forwarded-For': req.ip, 'User-Agent': String(req.headers['user-agent'] ?? 'RadioForge'), 'Icy-MetaData': '0' },
-      },
-      (up) => {
-        if (up.statusCode !== 200) {
-          up.resume();
-          return fail(502);
-        }
-        res.writeHead(200, {
-          'Content-Type': String(up.headers['content-type'] ?? 'audio/mpeg'),
-          'Cache-Control': 'no-cache, no-store',
-          'Access-Control-Allow-Origin': '*',
-          'X-Accel-Buffering': 'no',
-        });
-        up.pipe(res);
-      },
-    );
-    upstream.on('error', () => fail(502));
-    req.raw.on('close', () => upstream.destroy());
+  // Link amigável para players externos (VLC, apps): https://dominio/stream/<estação>/radio.mp3
+  app.get('/stream/:slug/:name', async (req, reply) => {
+    const { slug, name } = z.object({ slug: z.string(), name: z.string() }).parse(req.params);
+    const st = stationBySlug(slug);
+    const wanted = '/' + name;
+    const mount = [st.mount, ...mountsFor(st.id).map((m) => m.mount)].find((m) => m === wanted);
+    return proxyStream(req, reply, st, mount);
   });
 
   app.get('/api/public/stations/:slug/history', async (req) => {
     const st = stationBySlug(slugParam.parse(req.params).slug);
-    return getHistory(st.id, 20);
+    return getHistory(st.id, 50);
   });
 
   // Catálogo para a página de pedidos.

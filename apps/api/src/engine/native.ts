@@ -50,6 +50,12 @@ function inWindow(p: PlaylistRow, now: Date): boolean {
   return a <= b ? cur >= a && cur <= b : cur >= a || cur <= b;
 }
 
+function realIp(req: http.IncomingMessage): string {
+  const remote = req.socket.remoteAddress ?? '';
+  const xff = String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim();
+  return xff && (remote === '127.0.0.1' || remote === '::1' || remote === '::ffff:127.0.0.1') ? xff : remote;
+}
+
 class NativeStation {
   private server: http.Server | null = null;
   private clients = new Set<Client>();
@@ -116,7 +122,8 @@ class NativeStation {
     const client: Client = {
       res,
       startedAt: new Date(),
-      ip: req.socket.remoteAddress ?? '',
+      // Vindo do proxy do painel (loopback), o IP real do ouvinte está em X-Forwarded-For.
+      ip: realIp(req),
       ua: String(req.headers['user-agent'] ?? ''),
       mount: url,
     };

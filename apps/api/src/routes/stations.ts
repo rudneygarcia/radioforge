@@ -27,7 +27,7 @@ const mountName = z
 const settings = z.object({
   name: z.string().min(1).max(80),
   description: z.string().max(300).default(''),
-  format: z.enum(['mp3', 'ogg']).default('mp3'),
+  format: z.enum(['mp3', 'ogg', 'aac']).default('mp3'),
   bitrate: z.number().int().min(32).max(320).default(128),
   liveEnabled: z.boolean().default(true),
   requestsEnabled: z.boolean().default(true),
@@ -35,13 +35,17 @@ const settings = z.object({
   crossfadeSeconds: z.number().min(0).max(10).default(0),
   normalize: z.boolean().default(false),
   recordLive: z.boolean().default(false),
+  /** Quantas músicas recentes o player público mostra. */
+  historyLimit: z.number().int().min(1).max(50).default(5),
+  /** Processador de áudio (Liquidsoap): off | balanced | loud. */
+  audioPreset: z.enum(['off', 'balanced', 'loud']).default('off'),
   /** Mountpoint principal. Na criação, o padrão é /radio.mp3 (ou /radio.ogg); na edição, vazio mantém o atual. */
   mount: mountName.optional(),
   mounts: z
     .array(
       z.object({
         mount: z.string().regex(/^\/[a-zA-Z0-9._-]{1,40}$/, 'Mountpoint inválido (ex.: /radio-hd)'),
-        format: z.enum(['mp3', 'ogg']),
+        format: z.enum(['mp3', 'ogg', 'aac']),
         bitrate: z.number().int().min(32).max(320),
       }),
     )
@@ -82,11 +86,16 @@ export function streamUrl(st: StationRow, mount = st.mount) {
   return `http://${config.publicHost}:${st.stream_port}${mount}`;
 }
 
+/** Link que passa pelo painel (mesma origem/HTTPS): funciona atrás de proxy/Cloudflare, sem abrir portas. */
+export function proxyUrl(st: StationRow, mount = st.mount) {
+  return `${config.publicOrigin}/stream/${st.slug}${mount}`;
+}
+
 /** Todos os streams da estação (principal primeiro). */
 export function streamsOf(st: StationRow) {
   return [
-    { mount: st.mount, url: streamUrl(st), format: st.format, bitrate: st.bitrate },
-    ...mountsFor(st.id).map((m) => ({ mount: m.mount, url: streamUrl(st, m.mount), format: m.format, bitrate: m.bitrate })),
+    { mount: st.mount, url: streamUrl(st), proxyUrl: proxyUrl(st), format: st.format, bitrate: st.bitrate },
+    ...mountsFor(st.id).map((m) => ({ mount: m.mount, url: streamUrl(st, m.mount), proxyUrl: proxyUrl(st, m.mount), format: m.format, bitrate: m.bitrate })),
   ];
 }
 
@@ -105,6 +114,8 @@ export async function stationView(st: StationRow) {
     crossfadeSeconds: st.crossfade_seconds,
     normalize: !!st.normalize,
     recordLive: !!st.record_live,
+    historyLimit: st.history_limit,
+    audioPreset: st.audio_preset,
     mounts: mountsFor(st.id).map((m) => ({ mount: m.mount, format: m.format, bitrate: m.bitrate })),
     streams: streamsOf(st),
     running: isRunning(st.id),
@@ -148,8 +159,8 @@ export async function stationRoutes(app: FastifyInstance) {
     if (get('SELECT 1 AS ok FROM stations WHERE slug = ?', slug)) slug += '-' + crypto.randomBytes(2).toString('hex');
     const r = run(
       `INSERT INTO stations (name, slug, description, stream_port, mount, format, bitrate,
-         source_password, admin_password, live_enabled, requests_enabled, autostart, crossfade_seconds, normalize, record_live)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         source_password, admin_password, live_enabled, requests_enabled, autostart, crossfade_seconds, normalize, record_live, history_limit, audio_preset)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       body.name,
       slug,
       body.description,
@@ -165,6 +176,8 @@ export async function stationRoutes(app: FastifyInstance) {
       body.crossfadeSeconds,
       body.normalize ? 1 : 0,
       body.recordLive ? 1 : 0,
+      body.historyLimit,
+      body.audioPreset,
     );
     const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', Number(r.lastInsertRowid))!;
     saveMounts(st.id, st.mount, body.mounts);
@@ -191,7 +204,7 @@ export async function stationRoutes(app: FastifyInstance) {
     if (b.mounts.some((m) => m.mount === newMount)) throw new HttpError(400, `O nome ${newMount} já é usado por um stream extra`);
     run(
       `UPDATE stations SET name = ?, description = ?, mount = ?, format = ?, bitrate = ?,
-         live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ?, record_live = ? WHERE id = ?`,
+         live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ?, record_live = ?, history_limit = ?, audio_preset = ? WHERE id = ?`,
       b.name,
       b.description,
       newMount,
@@ -203,6 +216,8 @@ export async function stationRoutes(app: FastifyInstance) {
       b.crossfadeSeconds,
       b.normalize ? 1 : 0,
       b.recordLive ? 1 : 0,
+      b.historyLimit,
+      b.audioPreset,
       st.id,
     );
     saveMounts(st.id, newMount, b.mounts);

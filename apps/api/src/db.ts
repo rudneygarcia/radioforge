@@ -123,6 +123,31 @@ function addColumn(table: string, column: string, ddl: string) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!cols.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
 }
+// Formato AAC: os CHECK antigos só aceitavam mp3/ogg. Troca o texto do esquema (sem recriar tabelas) e avisa o SQLite.
+function allowAacFormat() {
+  const rows = db.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name IN ('stations', 'station_mounts')").all() as { name: string; sql: string }[];
+  const old = "CHECK (format IN ('mp3','ogg'))";
+  const stale = rows.filter((r) => r.sql.includes(old));
+  if (stale.length === 0) return;
+  try {
+    const version = (db.prepare('PRAGMA schema_version').get() as { schema_version: number }).schema_version;
+    db.enableDefensive(false); // o Node liga o modo defensivo, que bloqueia editar o esquema
+    db.exec('PRAGMA writable_schema = ON');
+    for (const r of stale) {
+      db.prepare('UPDATE sqlite_master SET sql = ? WHERE type = ? AND name = ?').run(r.sql.replace(old, "CHECK (format IN ('mp3','ogg','aac'))"), 'table', r.name);
+    }
+    db.exec(`PRAGMA schema_version = ${version + 1}`);
+    db.exec('PRAGMA writable_schema = OFF');
+  } catch (e) {
+    // Nunca impede a API de subir: sem a migração só o formato AAC fica indisponível.
+    console.error('[db] não foi possível liberar o formato AAC no banco:', (e as Error).message);
+  } finally {
+    db.enableDefensive(true);
+  }
+}
+allowAacFormat();
+addColumn('stations', 'history_limit', 'INTEGER NOT NULL DEFAULT 5'); // quantas músicas recentes o player público mostra
+addColumn('stations', 'audio_preset', "TEXT NOT NULL DEFAULT 'off'"); // off | balanced | loud (Liquidsoap)
 addColumn('media', 'folder_id', 'INTEGER REFERENCES media_folders(id) ON DELETE SET NULL');
 addColumn('playlists', 'schedule_enabled', 'INTEGER NOT NULL DEFAULT 0');
 // 0 = rotação normal; N > 0 = toca 1 faixa desta playlist a cada N faixas da rotação (vinhetas, avisos).
@@ -262,7 +287,7 @@ export interface StationRow {
   description: string;
   stream_port: number;
   mount: string;
-  format: 'mp3' | 'ogg';
+  format: 'mp3' | 'ogg' | 'aac';
   bitrate: number;
   source_password: string;
   admin_password: string;
@@ -272,6 +297,8 @@ export interface StationRow {
   crossfade_seconds: number;
   normalize: number;
   record_live: number;
+  history_limit: number;
+  audio_preset: 'off' | 'balanced' | 'loud';
   created_at: string;
 }
 export interface EpisodeRow {
@@ -306,7 +333,7 @@ export interface MountRow {
   id: number;
   station_id: number;
   mount: string;
-  format: 'mp3' | 'ogg';
+  format: 'mp3' | 'ogg' | 'aac';
   bitrate: number;
 }
 export const mountsFor = (stationId: number) =>

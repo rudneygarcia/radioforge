@@ -62,11 +62,12 @@ export interface NowPlaying {
 }
 export interface MountCfg {
   mount: string;
-  format: 'mp3' | 'ogg';
+  format: 'mp3' | 'ogg' | 'aac';
   bitrate: number;
 }
 export interface StreamInfo extends MountCfg {
   url: string;
+  proxyUrl: string;
 }
 export interface Station {
   id: number;
@@ -74,8 +75,10 @@ export interface Station {
   slug: string;
   description: string;
   mount: string;
-  format: 'mp3' | 'ogg';
+  format: 'mp3' | 'ogg' | 'aac';
   bitrate: number;
+  historyLimit: number;
+  audioPreset: 'off' | 'balanced' | 'loud';
   liveEnabled: boolean;
   requestsEnabled: boolean;
   autostart: boolean;
