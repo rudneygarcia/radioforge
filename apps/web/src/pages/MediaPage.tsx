@@ -130,6 +130,20 @@ export default function MediaPage() {
     load();
   }
 
+  /** Exclui todas as músicas selecionadas de uma vez (com confirmação mostrando a quantidade). */
+  async function removeSelected() {
+    const ids = [...picked];
+    if (!(await confirm({ title: `Excluir ${ids.length} música(s)?`, message: `As ${ids.length} músicas selecionadas serão removidas da biblioteca e de todas as playlists, e os arquivos serão apagados. Isso não pode ser desfeito.`, confirmLabel: `Excluir ${ids.length}`, danger: true }))) return;
+    try {
+      const r = await api<{ removed: number }>(`${base}/media/delete`, { method: 'POST', body: { mediaIds: ids } });
+      toast(`${r.removed} música(s) excluída(s)`);
+      setPicked(new Set());
+      load();
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    }
+  }
+
   async function saveFolder(e: FormEvent) {
     e.preventDefault();
     if (!folderModal) return;
@@ -208,6 +222,7 @@ export default function MediaPage() {
         <div className="bulkbar">
           <strong>{picked.size} selecionada(s)</strong>
           <button className="small" onClick={() => { setMoveTo(typeof view === 'number' ? 'none' : (folders[0] ? String(folders[0].id) : 'none')); setMoveOpen(true); }}><Icon name="folder" size={13} /> Mover para pasta…</button>
+          <button className="danger small" onClick={removeSelected}><Icon name="trash" size={13} /> Excluir selecionadas</button>
           <button className="ghost small" onClick={() => setPicked(new Set())}>Limpar seleção</button>
         </div>
       )}

@@ -176,6 +176,24 @@ export async function mediaRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  // Exclui várias músicas de uma vez (arquivos e capas também); as playlists são atualizadas uma única vez.
+  app.post('/api/stations/:id/media/delete', async (req) => {
+    const { id } = params.parse(req.params);
+    const st = stationFor(req, id);
+    const { mediaIds } = z.object({ mediaIds: z.array(z.number().int()).min(1).max(5000) }).parse(req.body);
+    let removed = 0;
+    for (const mid of new Set(mediaIds)) {
+      const m = get<MediaRow>('SELECT * FROM media WHERE id = ? AND station_id = ?', mid, st.id);
+      if (!m) continue;
+      run('DELETE FROM media WHERE id = ?', m.id);
+      if (m.cover) fs.rmSync(path.join(coversDir(st.id), m.cover), { force: true });
+      fs.rmSync(path.join(config.dataDir, m.path), { force: true });
+      removed++;
+    }
+    writePlaylists(st.id);
+    return { ok: true, removed };
+  });
+
   app.delete('/api/stations/:id/media/:mediaId', async (req) => {
     const { id, mediaId } = params.parse(req.params);
     const st = stationFor(req, id);
