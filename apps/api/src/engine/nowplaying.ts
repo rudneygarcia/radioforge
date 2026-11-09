@@ -31,6 +31,29 @@ export function getNowPlaying(stationId: number): NowPlaying | null {
   return np;
 }
 
+export interface LiveInfo {
+  /** Nome do DJ (ou "Transmissão ao vivo" para o usuário "source"). */
+  name: string;
+  username: string;
+  since: string;
+}
+
+// Quem está transmitindo ao vivo agora, por estação (só em memória: some ao reiniciar a estação).
+const live = new Map<number, LiveInfo>();
+
+/** Chamado pelo Liquidsoap quando um DJ conecta/desconecta no harbor. */
+export function setLive(stationId: number, connected: boolean, username: string) {
+  if (!connected) {
+    live.delete(stationId);
+    return;
+  }
+  const dj = get<{ display_name: string }>('SELECT display_name FROM station_djs WHERE station_id = ? AND username = ?', stationId, username);
+  live.set(stationId, { name: dj?.display_name || (username === 'source' ? 'Transmissão ao vivo' : username), username, since: new Date().toISOString() });
+}
+
+export const getLive = (stationId: number): LiveInfo | null => live.get(stationId) ?? null;
+export const clearLive = (stationId: number) => void live.delete(stationId);
+
 export function getHistory(stationId: number, limit = 20) {
   return all<{ title: string; artist: string; played_at: string }>(
     'SELECT title, artist, played_at FROM history WHERE station_id = ? ORDER BY id DESC LIMIT ?',

@@ -87,6 +87,7 @@ export interface Station {
   running: boolean;
   listeners: number;
   nowPlaying: NowPlaying | null;
+  live: { name: string; username: string; since: string } | null;
   streamUrl: string;
   dj: { host: string; port: number; mount: string; username: string; password: string } | null;
 }

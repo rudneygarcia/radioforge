@@ -104,7 +104,18 @@ export function buildLiquidsoapScript(
     ];
     lines.push(
       `dj_credentials = [${creds.map(([u, p]) => `(${q(u)}, ${q(p)})`).join(', ')}]`,
-      `live = input.harbor("live", port = ${harborPort(st)}, auth = fun (login) -> list.exists(fun (c) -> c == (login.user, login.password), dj_credentials))`,
+      // Guarda quem autenticou por último para avisar a API quem entrou no ar.
+      `dj_user = ref("")`,
+      `def dj_auth(login) =`,
+      `  ok = list.exists(fun (c) -> c == (login.user, login.password), dj_credentials)`,
+      `  if ok then dj_user := login.user end`,
+      `  ok`,
+      `end`,
+      `def notify_live(event) =`,
+      `  payload = json.stringify({event = event, user = dj_user()})`,
+      `  thread.run({ignore(http.post(headers = [("Content-Type", "application/json"), ("X-Internal-Token", ${q(config.internalToken)})], data = payload, ${q(`${config.apiInternalUrl}/internal/stations/${st.id}/live`)}))})`,
+      `end`,
+      `live = input.harbor("live", port = ${harborPort(st)}, auth = dj_auth, on_connect = fun (_) -> notify_live("connect"), on_disconnect = fun () -> notify_live("disconnect"))`,
     );
     if (st.record_live && recordingsDir) {
       // Grava só enquanto houver DJ conectado (fonte "fallible").

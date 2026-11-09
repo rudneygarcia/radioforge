@@ -44,6 +44,12 @@ export default function Dashboard() {
         <div className="card">
           <h3>Status</h3>
           <span className={`badge ${station.running ? 'on' : 'off'}`}>{station.running ? 'no ar' : 'parada'}</span>
+          {station.running && station.live && (
+            <p style={{ marginTop: 8 }}>
+              🎙 <strong>{station.live.name}</strong> está ao vivo
+              <span className="muted"> desde {new Date(station.live.since).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            </p>
+          )}
           <div className="row" style={{ marginTop: 12 }}>
             <button disabled={busy || station.running} onClick={() => action('start')}>Iniciar</button>
             <button disabled={busy || !station.running} onClick={() => action('restart')} className="ghost">Reiniciar</button>

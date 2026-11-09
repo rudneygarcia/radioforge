@@ -10,6 +10,7 @@ interface Pub {
   online: boolean;
   listeners: number;
   nowPlaying: NowPlaying | null;
+  live: { name: string } | null;
   requestsEnabled: boolean;
 }
 interface Song {
@@ -78,6 +79,7 @@ export default function Listen() {
         <h1>{info.name}</h1>
         <p className="muted">{info.description}</p>
         <span className={`badge ${info.online ? 'on' : 'off'}`}>{info.online ? 'no ar' : 'offline'}</span>
+        {info.online && info.live && <p>🎙 <strong>Ao vivo com {info.live.name}</strong></p>}
         <p className="big small">{info.nowPlaying?.title ?? '—'}</p>
         <p className="muted">{info.nowPlaying?.artist}</p>
         <button className="play" onClick={toggle} disabled={!info.online}>{playing ? '⏸ Pausar' : '▶ Ouvir'}</button>

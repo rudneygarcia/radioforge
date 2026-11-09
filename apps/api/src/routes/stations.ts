@@ -7,7 +7,7 @@ import { config, stationDir } from '../config.js';
 import { all, db, get, mountsFor, run, type StationRow } from '../db.js';
 import { engineMode, ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
 import { harborPort } from '../engine/liquidsoap.js';
-import { getHistory, getListeners, getNowPlaying } from '../engine/nowplaying.js';
+import { getHistory, getListeners, getLive, getNowPlaying } from '../engine/nowplaying.js';
 
 const idParam = z.object({ id: z.coerce.number().int() });
 
@@ -94,6 +94,7 @@ export async function stationView(st: StationRow) {
     running: isRunning(st.id),
     listeners: await getListeners(st),
     nowPlaying: getNowPlaying(st.id),
+    live: getLive(st.id),
     streamUrl: streamUrl(st),
     engine: engineMode(),
     dj: st.live_enabled && engineMode() === 'liquidsoap'

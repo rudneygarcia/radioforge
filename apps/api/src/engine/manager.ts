@@ -7,6 +7,7 @@ import { config, stationDir } from '../config.js';
 import { all, djsFor, get, mountsFor, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
 import { buildIcecastConfig } from './icecast.js';
 import { dispatch } from './webhooks.js';
+import { clearLive } from './nowplaying.js';
 import { nativeEnqueue, nativeRunning, startNative, stopNative } from './native.js';
 import { buildLiquidsoapScript, telnetPort, type LiqPlaylist } from './liquidsoap.js';
 
@@ -209,6 +210,7 @@ export async function stopStation(stationId: number) {
     dispatch(stationId, 'station_stop', {});
     return;
   }
+  clearLive(stationId);
   const p = procs.get(stationId);
   if (!p) return;
   procs.delete(stationId);
@@ -230,6 +232,7 @@ export async function reloadLiquidsoap(st: StationRow) {
   const p = procs.get(st.id);
   if (!p) return;
   writeConfigs(st);
+  clearLive(st.id); // reiniciar o Liquidsoap derruba o DJ conectado
   await p.liquidsoap.stop();
   p.liquidsoap.start();
 }

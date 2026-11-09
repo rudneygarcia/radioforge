@@ -115,7 +115,7 @@ Em cada estação, aba **Integrações**. Eventos: troca de música, estação i
 1. **Validar o motor de streaming** no Linux (item acima).
 2. ~~Playlists agendadas por dia/hora~~ (feito). Falta o tipo "uma vez por hora / a cada X músicas".
 3. ~~Crossfade, normalização de volume (ReplayGain), vários mountpoints/bitrates por estação~~ (feito).
-4. ~~DJs com conta própria, gravação de transmissões ao vivo~~ (feito). Falta mostrar quem é o DJ no ar e agendar horários de DJ.
+4. ~~DJs com conta própria, gravação de transmissões ao vivo~~ (feito). O painel e o player público mostram quem está ao vivo (o Liquidsoap avisa a API ao conectar/desconectar; **não validado com um DJ real ainda**). Falta agendar horários de DJ.
 5. ~~Relatórios de ouvintes (por país, player, tempo) e gráficos~~ (feito, com exportação CSV: botão no painel ou `GET /api/stations/:id/reports?days=7&format=csv`). Os cartões comparam com o período anterior de mesma duração (▲/▼ %), também no CSV e em `previous` no JSON.
 6. ~~Webhooks e integrações (Discord), API com chaves de acesso~~ (feito, chaves podem ser **somente leitura**: só GET/HEAD). Falta integração com redes sociais e documentação OpenAPI.
 7. ~~Backups agendados~~ (feito: menu **Backups**, só admin; cópia diária do banco, guarda as 7 últimas, download pelo painel; **não inclui músicas/gravações**, copie o volume `/data` para elas). Falta: podcasts, restaurar pelo painel, atualização pelo painel.

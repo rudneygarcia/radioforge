@@ -7,7 +7,7 @@ import { HttpError } from '../auth.js';
 import { config } from '../config.js';
 import { all, get, mountsFor, run, type MediaRow, type StationRow } from '../db.js';
 import { isRunning, pushRequest } from '../engine/manager.js';
-import { getHistory, getListeners, getNowPlaying, recordTrack } from '../engine/nowplaying.js';
+import { getHistory, getListeners, getLive, getNowPlaying, recordTrack, setLive } from '../engine/nowplaying.js';
 import { streamsOf, streamUrl } from './stations.js';
 
 const slugParam = z.object({ slug: z.string() });
@@ -40,6 +40,8 @@ export async function publicRoutes(app: FastifyInstance) {
       online: isRunning(st.id),
       listeners: await getListeners(st),
       nowPlaying: getNowPlaying(st.id),
+      // No público, só o nome de exibição (nunca o usuário de login).
+      live: getLive(st.id) ? { name: getLive(st.id)!.name, since: getLive(st.id)!.since } : null,
       requestsEnabled: !!st.requests_enabled,
     };
   });
@@ -116,6 +118,17 @@ export async function publicRoutes(app: FastifyInstance) {
     lastRequest.set(key, Date.now());
     run('INSERT INTO song_requests (station_id, media_id, ip) VALUES (?, ?, ?)', st.id, m.id, req.ip);
     return reply.code(202).send({ ok: true });
+  });
+
+  // Chamado pelo Liquidsoap quando um DJ conecta/desconecta; mesmo token compartilhado.
+  app.post('/internal/stations/:id/live', async (req) => {
+    const token = String(req.headers['x-internal-token'] ?? '');
+    if (!safeEqual(token, config.internalToken)) throw new HttpError(401, 'Token inválido');
+    const { id } = z.object({ id: z.coerce.number().int() }).parse(req.params);
+    const b = z.object({ event: z.enum(['connect', 'disconnect']), user: z.string().default('') }).parse(req.body);
+    if (!get('SELECT 1 AS ok FROM stations WHERE id = ?', id)) throw new HttpError(404, 'Estação não encontrada');
+    setLive(id, b.event === 'connect', b.user);
+    return { ok: true };
   });
 
   // Chamado pelo Liquidsoap a cada faixa; protegido por token compartilhado.
