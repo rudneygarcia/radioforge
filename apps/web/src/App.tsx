@@ -1,4 +1,4 @@
-import { Link, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { Link, NavLink, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth';
 import Login from './pages/Login';
 import Listen from './pages/Listen';
@@ -25,18 +25,22 @@ function Protected() {
     <>
       <header className="topbar">
         <Link to="/" className="brand">
-          📻 RadioForge
+          <span className="brand-mark">📻</span>
+          RadioForge
         </Link>
         <nav>
-          <Link to="/">Estações</Link>
-          {user.role === 'admin' && <Link to="/users">Usuários</Link>}
-          {user.role === 'admin' && <Link to="/backups">Backups</Link>}
-          {user.role === 'admin' && <Link to="/system">Sistema</Link>}
-          <Link to="/account">Chaves de API</Link>
+          <NavLink end to="/">Estações</NavLink>
+          {user.role === 'admin' && <NavLink to="/users">Usuários</NavLink>}
+          {user.role === 'admin' && <NavLink to="/backups">Backups</NavLink>}
+          {user.role === 'admin' && <NavLink to="/system">Sistema</NavLink>}
+          <NavLink to="/account">Chaves de API</NavLink>
         </nav>
         <span className="spacer" />
-        <span className="muted">{user.name}</span>
-        <button className="ghost" onClick={logout}>
+        <span className="user-chip">
+          <span className="avatar">{(user.name || user.email || '?').trim().charAt(0).toUpperCase()}</span>
+          <span className="name">{user.name}</span>
+        </span>
+        <button className="ghost small" onClick={logout}>
           Sair
         </button>
       </header>

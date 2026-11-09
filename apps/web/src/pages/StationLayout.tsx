@@ -31,9 +31,11 @@ export default function StationLayout() {
 
   return (
     <>
-      <div className="row between">
-        <h1>{station.name}</h1>
-        <a href={`/listen/${station.slug}`} target="_blank" rel="noreferrer">
+      <div className="page-head">
+        <h1>
+          {station.name} <span className={`badge ${station.running ? 'on' : 'off'}`} style={{ verticalAlign: 'middle', marginLeft: 6 }}>{station.running ? 'no ar' : 'parada'}</span>
+        </h1>
+        <a className="button ghost" style={{ background: 'transparent', color: 'var(--text)', border: '1px solid var(--border-strong)' }} href={`/listen/${station.slug}`} target="_blank" rel="noreferrer">
           Player público ↗
         </a>
       </div>

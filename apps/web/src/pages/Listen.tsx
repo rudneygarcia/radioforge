@@ -74,15 +74,20 @@ export default function Listen() {
   if (!info) return <p className="center muted">Estação não encontrada.</p>;
 
   return (
-    <div className="container listen">
-      <div className="card center">
+    <div className="listen-wrap">
+    <div className="listen">
+      <div className="card player">
+        <div className="cover">📻</div>
         <h1>{info.name}</h1>
-        <p className="muted">{info.description}</p>
+        {info.description && <p className="muted">{info.description}</p>}
         <span className={`badge ${info.online ? 'on' : 'off'}`}>{info.online ? 'no ar' : 'offline'}</span>
-        {info.online && info.live && <p>🎙 <strong>Ao vivo com {info.live.name}</strong></p>}
-        <p className="big small">{info.nowPlaying?.title ?? '—'}</p>
+        {info.online && info.live && <div><span className="live-tag">Ao vivo com {info.live.name}</span></div>}
+        <p className="now">{info.nowPlaying?.title ?? '—'}</p>
         <p className="muted">{info.nowPlaying?.artist}</p>
-        <button className="play" onClick={toggle} disabled={!info.online}>{playing ? '⏸ Pausar' : '▶ Ouvir'}</button>
+        <button className="play" onClick={toggle} disabled={!info.online}>
+          {playing ? '⏸ Pausar' : '▶ Ouvir'}
+          {playing && <span className="eq" aria-hidden="true"><i /><i /><i /><i /></span>}
+        </button>
         {info.streams.length > 1 && !playing && (
           <select value={quality} onChange={(e) => setQuality(Number(e.target.value))}>
             {info.streams.map((s, i) => (
@@ -96,7 +101,8 @@ export default function Listen() {
       {msg && <p className="muted center">{msg}</p>}
       <div className="card">
         <h3>Tocou recentemente</h3>
-        {history.slice(0, 8).map((h, i) => <p key={i} className="muted">{h.artist ? `${h.artist} — ` : ''}{h.title}</p>)}
+        {history.slice(0, 8).map((h, i) => <div key={i} className="hist-item"><span>♪</span><span>{h.artist ? `${h.artist} — ` : ''}{h.title}</span></div>)}
+        {history.length === 0 && <p className="muted">Nada tocou ainda.</p>}
       </div>
       {info.requestsEnabled && songs.length > 0 && (
         <div className="card">
@@ -111,6 +117,7 @@ export default function Listen() {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

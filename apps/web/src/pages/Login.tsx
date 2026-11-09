@@ -34,14 +34,16 @@ export default function Login() {
   }
 
   return (
+    <div className="auth-wrap">
     <form className="card auth" onSubmit={submit}>
-      <h1>📻 RadioForge</h1>
-      <p className="muted">{needsSetup ? 'Crie a conta de administrador' : 'Entre no painel'}</p>
+      <h1><span className="brand-mark">📻</span> RadioForge</h1>
+      <p className="muted">{needsSetup ? 'Crie a conta de administrador para começar' : 'Entre para gerenciar suas rádios'}</p>
       {needsSetup && <input placeholder="Nome" value={name} onChange={(e) => setName(e.target.value)} required />}
       <input type="email" placeholder="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} required />
       <input type="password" placeholder="Senha (mín. 8 caracteres)" value={password} onChange={(e) => setPassword(e.target.value)} required />
       {error && <p className="error">{error}</p>}
       <button>{needsSetup ? 'Criar administrador' : 'Entrar'}</button>
     </form>
+    </div>
   );
 }
