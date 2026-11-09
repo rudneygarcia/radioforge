@@ -130,3 +130,8 @@ Em cada estação, aba **Integrações**. Eventos: troca de música, estação i
 - **Formatos:** MP3, **AAC** (AAC-LC via FFmpeg do Liquidsoap, mountpoint padrão `/radio.aac`) e OGG. AAC e OGG só no modo Liquidsoap; o modo simples (Node) serve só MP3. Gravações de DJ em AAC são salvas em MP3. **O encoder AAC ainda não foi executado num Liquidsoap real**: se der erro ao iniciar, o painel mostra a mensagem.
 - **Processador de áudio** (Configurações): `Equilibrado` (compressão leve + limitador) e `Forte, estilo FM` (normaliza + compressão firme + limitador). Vale para tudo que vai ao ar (músicas e DJ), só no modo Liquidsoap. Os parâmetros ainda não foram validados num Liquidsoap real; padrão desligado.
 - **Histórico:** o painel mostra 5/10/20/50 últimas músicas (a escolha fica no navegador); o player público mostra a quantidade definida em Configurações (padrão 5, com "Ver mais").
+
+## Vinhetas e pedidos por playlist
+
+- **Vinheta** (opção da playlist): toca normalmente, mas o nome do arquivo **não é enviado ao servidor**: não aparece em "Tocando agora", no histórico nem nos webhooks. No Liquidsoap, as faixas vão no `.m3u` com `annotate:rf_jingle="1":` e o `notify` ignora essas faixas (**script ainda não executado num Liquidsoap real**); no motor simples, a faixa é tocada sem anunciar. Vale também para playlists por tempo e "a cada N músicas". Vinheta não pode ser pedida.
+- **Pedidos por playlist:** o ouvinte só vê (e só pode pedir) músicas de playlists ativas com **"Permitir pedidos desta playlist"** ligado, além de a estação ter "Permitir pedidos" nas Configurações. Playlists antigas começam com pedidos desligados.

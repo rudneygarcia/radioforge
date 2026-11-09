@@ -10,6 +10,8 @@ export interface LiqPlaylist {
   weight: number;
   /** > 0: toca 1 faixa desta playlist a cada N faixas da rotação normal (vinhetas/avisos). */
   everySongs: number;
+  /** Vinheta: as faixas vão ao ar sem enviar o nome do arquivo ao servidor. */
+  jingle?: boolean;
   m3uPath: string;
   /** Se presente, a playlist só toca na janela indicada e tem prioridade sobre a rotação geral. */
   schedule?: { days: number[]; start: string; end: string };
@@ -72,9 +74,12 @@ export function buildLiquidsoapScript(
     `settings.server.telnet.port := ${telnetPort(st)}`,
     ``,
     `# Avisa a API de cada faixa tocada (histórico + now playing).`,
+    `# Vinhetas vêm marcadas com rf_jingle (annotate no .m3u): não avisam o servidor.`,
     `def notify(m) =`,
-    `  payload = json.stringify({artist = m["artist"], title = m["title"], filename = m["filename"]})`,
-    `  thread.run({ignore(http.post(headers = [("Content-Type", "application/json"), ("X-Internal-Token", ${q(config.internalToken)})], data = payload, ${q(`${config.apiInternalUrl}/internal/stations/${st.id}/track`)}))})`,
+    `  if m["rf_jingle"] != "1" then`,
+    `    payload = json.stringify({artist = m["artist"], title = m["title"], filename = m["filename"]})`,
+    `    thread.run({ignore(http.post(headers = [("Content-Type", "application/json"), ("X-Internal-Token", ${q(config.internalToken)})], data = payload, ${q(`${config.apiInternalUrl}/internal/stations/${st.id}/track`)}))})`,
+    `  end`,
     `end`,
     ``,
   );

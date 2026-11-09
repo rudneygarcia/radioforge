@@ -9,6 +9,8 @@ const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 /** Resumo em etiquetas do que a playlist faz. */
 function summary(p: Playlist): string[] {
   const out: string[] = [p.mode === 'shuffle' ? 'Aleatória' : 'Sequencial'];
+  if (p.jingle) out.push('Vinheta');
+  if (p.requestable) out.push('Permite pedidos');
   if (p.scheduleEnabled) out.push(`${p.startTime}–${p.endTime} · ${p.days.length === 7 ? 'todos os dias' : p.days.map((d) => DAYS[d]).join(', ')}`);
   else if (p.everyMinutes > 0) out.push(`1 faixa a cada ${p.everyMinutes} min`);
   else if (p.everySongs > 0) out.push(`1 faixa a cada ${p.everySongs} músicas`);
@@ -163,6 +165,20 @@ export default function Playlists() {
               </label>
             </div>
             <label className="check-line"><input type="checkbox" checked={editing.enabled} onChange={(e) => patch({ enabled: e.target.checked })} /> <span>Playlist ativa</span></label>
+
+            <div className="card" style={{ margin: 0, background: 'var(--panel-2)', boxShadow: 'none' }}>
+              <h3>Tipo e pedidos</h3>
+              <div className="fields">
+                <label className="check-line">
+                  <input type="checkbox" checked={editing.jingle} onChange={(e) => patch({ jingle: e.target.checked, requestable: e.target.checked ? false : editing.requestable })} />
+                  <span>Vinheta <small>Toca normalmente, mas o nome do arquivo não é enviado ao servidor: não aparece em “Tocando agora”, no histórico nem nos webhooks.</small></span>
+                </label>
+                <label className="check-line" style={{ opacity: editing.jingle ? 0.55 : 1 }}>
+                  <input type="checkbox" checked={editing.requestable && !editing.jingle} disabled={editing.jingle} onChange={(e) => patch({ requestable: e.target.checked })} />
+                  <span>Permitir pedidos desta playlist <small>As músicas dela (e das pastas marcadas) aparecem para os ouvintes pedirem no player. Só aparece se “Permitir pedidos” também estiver ligado nas Configurações da estação.</small></span>
+                </label>
+              </div>
+            </div>
 
             <div className="card" style={{ margin: 0, background: 'var(--panel-2)', boxShadow: 'none' }}>
               <h3>Quando tocar</h3>

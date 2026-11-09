@@ -150,6 +150,10 @@ addColumn('stations', 'history_limit', 'INTEGER NOT NULL DEFAULT 5'); // quantas
 addColumn('stations', 'audio_preset', "TEXT NOT NULL DEFAULT 'off'"); // off | balanced | loud (Liquidsoap)
 addColumn('media', 'folder_id', 'INTEGER REFERENCES media_folders(id) ON DELETE SET NULL');
 addColumn('playlists', 'schedule_enabled', 'INTEGER NOT NULL DEFAULT 0');
+// Vinheta: toca normalmente, mas o nome do arquivo NÃO é enviado ao servidor (não entra no "tocando agora", histórico nem webhooks).
+addColumn('playlists', 'is_jingle', 'INTEGER NOT NULL DEFAULT 0');
+// Pedidos dos ouvintes: só as músicas das playlists com esta opção ligada aparecem para pedir.
+addColumn('playlists', 'requestable', 'INTEGER NOT NULL DEFAULT 0');
 // 0 = rotação normal; N > 0 = toca 1 faixa desta playlist a cada N faixas da rotação (vinhetas, avisos).
 addColumn('playlists', 'every_songs', 'INTEGER NOT NULL DEFAULT 0');
 // 0 = desligado; N > 0 = a cada N minutos (alinhado ao relógio, ex.: 60 = todo início de hora) entra 1 faixa desta playlist.
@@ -374,6 +378,13 @@ export function playlistMedia(playlistId: number): MediaRow[] {
   const seen = new Set(direct.map((m) => m.id));
   return [...direct, ...fromFolders.filter((m) => !seen.has(m.id))];
 }
+/** Músicas que os ouvintes podem pedir: as de playlists ativas com pedidos ligados (e que não são vinhetas). */
+export function requestableMedia(stationId: number): MediaRow[] {
+  const lists = all<{ id: number }>('SELECT id FROM playlists WHERE station_id = ? AND enabled = 1 AND requestable = 1 AND is_jingle = 0', stationId);
+  const seen = new Map<number, MediaRow>();
+  for (const l of lists) for (const m of playlistMedia(l.id)) if (!seen.has(m.id)) seen.set(m.id, m);
+  return [...seen.values()].sort((a, b) => (a.artist + ' ' + a.title).localeCompare(b.artist + ' ' + b.title, 'pt-BR'));
+}
 export interface PlaylistRow {
   id: number;
   station_id: number;
@@ -383,6 +394,8 @@ export interface PlaylistRow {
   weight: number;
   every_songs: number;
   every_minutes: number;
+  is_jingle: number;
+  requestable: number;
   schedule_enabled: number;
   start_time: string;
   end_time: string;

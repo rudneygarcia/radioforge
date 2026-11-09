@@ -5,7 +5,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { HttpError } from '../auth.js';
 import { config } from '../config.js';
-import { all, get, mountsFor, run, type MediaRow, type StationRow } from '../db.js';
+import { all, get, mountsFor, requestableMedia, run, type MediaRow, type StationRow } from '../db.js';
 import { isRunning, pushRequest } from '../engine/manager.js';
 import { getHistory, getListeners, getLive, getNowPlaying, recordTrack, setLive } from '../engine/nowplaying.js';
 import { streamsOf, streamUrl } from './stations.js';
@@ -115,9 +115,8 @@ export async function publicRoutes(app: FastifyInstance) {
   app.get('/api/public/stations/:slug/songs', async (req) => {
     const st = stationBySlug(slugParam.parse(req.params).slug);
     if (!st.requests_enabled) return [];
-    return all<MediaRow>('SELECT id, title, artist FROM media WHERE station_id = ? ORDER BY artist, title', st.id).map(
-      (m) => ({ id: m.id, title: m.title, artist: m.artist }),
-    );
+    // Só as músicas de playlists com "Permitir pedidos" ligado (e que não são vinhetas).
+    return requestableMedia(st.id).map((m) => ({ id: m.id, title: m.title, artist: m.artist }));
   });
 
   app.post('/api/public/stations/:slug/request', async (req, reply) => {
@@ -128,8 +127,9 @@ export async function publicRoutes(app: FastifyInstance) {
     const key = `${st.id}:${req.ip}`;
     const last = lastRequest.get(key) ?? 0;
     if (Date.now() - last < 5 * 60_000) throw new HttpError(429, 'Aguarde alguns minutos para pedir outra música');
-    const m = get<MediaRow>('SELECT * FROM media WHERE id = ? AND station_id = ?', mediaId, st.id);
-    if (!m) throw new HttpError(404, 'Música não encontrada');
+    // Só pode pedir quem está em playlist com pedidos ligados.
+    const m = requestableMedia(st.id).find((x) => x.id === mediaId);
+    if (!m) throw new HttpError(404, 'Música não disponível para pedido');
     await pushRequest(st.id, path.join(config.dataDir, m.path));
     lastRequest.set(key, Date.now());
     run('INSERT INTO song_requests (station_id, media_id, ip) VALUES (?, ?, ?)', st.id, m.id, req.ip);

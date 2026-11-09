@@ -108,11 +108,17 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
     const media = playlistMedia(p.id);
     if (media.length === 0) continue;
     const m3uPath = path.join(stationDir(stationId), 'playlists', `${p.id}.m3u`);
-    fs.writeFileSync(m3uPath, media.map((m) => path.join(config.dataDir, m.path)).join('\n') + '\n');
+    // Vinheta: o prefixo annotate marca a faixa para o Liquidsoap não avisar o servidor do nome dela.
+    const uri = (m: MediaRow) => {
+      const abs = path.join(config.dataDir, m.path);
+      return p.is_jingle ? `annotate:rf_jingle="1":${abs}` : abs;
+    };
+    fs.writeFileSync(m3uPath, media.map(uri).join('\n') + '\n');
     out.push({
       id: p.id,
       mode: p.mode,
       weight: p.weight,
+      jingle: !!p.is_jingle,
       everySongs: p.schedule_enabled ? 0 : p.every_songs, // agendada tem prioridade: ignora "a cada N"
       m3uPath,
       schedule: p.schedule_enabled
@@ -252,13 +258,13 @@ export async function startAutostart() {
 }
 
 /** Empurra um arquivo na fila de pedidos do Liquidsoap via telnet local. */
-export function pushRequest(stationId: number, absPath: string): Promise<void> {
+export function pushRequest(stationId: number, absPath: string, silent = false): Promise<void> {
   const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', stationId);
   if (!st) return Promise.reject(new Error('Estação não encontrada'));
   if (engineMode() === 'native') {
     const m = get<MediaRow>('SELECT * FROM media WHERE station_id = ? AND path = ?', stationId, path.relative(config.dataDir, absPath));
     if (!m) return Promise.reject(new Error('Música não encontrada'));
-    nativeEnqueue(stationId, m.id);
+    nativeEnqueue(stationId, m.id, silent);
     return Promise.resolve();
   }
   return new Promise((resolve, reject) => {
@@ -268,7 +274,9 @@ export function pushRequest(stationId: number, absPath: string): Promise<void> {
       reject(new Error('Timeout falando com o Liquidsoap'));
     });
     sock.on('error', reject);
-    sock.on('connect', () => sock.write(`requests.push ${absPath}\nquit\n`));
+    // Vinheta pedida pela fila: o annotate mantém o nome fora do servidor.
+    const uri = silent ? `annotate:rf_jingle="1":${absPath}` : absPath;
+    sock.on('connect', () => sock.write(`requests.push ${uri}\nquit\n`));
     sock.on('close', () => resolve());
   });
 }

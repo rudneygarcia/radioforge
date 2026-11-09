@@ -151,6 +151,8 @@ export interface Playlist {
   enabled: boolean;
   mode: 'shuffle' | 'sequential';
   weight: number;
+  jingle: boolean;
+  requestable: boolean;
   everySongs: number;
   everyMinutes: number;
   scheduleEnabled: boolean;

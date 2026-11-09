@@ -30,7 +30,7 @@ export function tickTimedPlaylists(now = Date.now()) {
       } else {
         m = media[Math.floor(Math.random() * media.length)];
       }
-      pushRequest(st.id, path.join(config.dataDir, m.path)).catch((e) =>
+      pushRequest(st.id, path.join(config.dataDir, m.path), !!p.is_jingle).catch((e) =>
         console.error(`[timed] falha ao enfileirar "${m.title}" na estação ${st.slug}:`, (e as Error).message),
       );
     }

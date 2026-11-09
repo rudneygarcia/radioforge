@@ -11,6 +11,8 @@ const body = z.object({
   enabled: z.boolean().default(true),
   mode: z.enum(['shuffle', 'sequential']).default('shuffle'),
   weight: z.number().int().min(1).max(100).default(1),
+  jingle: z.boolean().default(false),
+  requestable: z.boolean().default(false),
   everySongs: z.number().int().min(0).max(50).default(0),
   everyMinutes: z.number().int().min(0).max(1440).default(0),
   scheduleEnabled: z.boolean().default(false),
@@ -33,6 +35,8 @@ function view(p: PlaylistRow) {
     enabled: !!p.enabled,
     mode: p.mode,
     weight: p.weight,
+    jingle: !!p.is_jingle,
+    requestable: !!p.requestable,
     everySongs: p.every_songs,
     everyMinutes: p.every_minutes,
     scheduleEnabled: !!p.schedule_enabled,
@@ -86,8 +90,8 @@ export async function playlistRoutes(app: FastifyInstance) {
     const st = stationFor(req, id);
     const b = body.parse(req.body);
     const r = run(
-      `INSERT INTO playlists (station_id, name, enabled, mode, weight, every_songs, every_minutes, schedule_enabled, start_time, end_time, days)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO playlists (station_id, name, enabled, mode, weight, every_songs, every_minutes, is_jingle, requestable, schedule_enabled, start_time, end_time, days)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       st.id,
       b.name,
       b.enabled ? 1 : 0,
@@ -95,6 +99,8 @@ export async function playlistRoutes(app: FastifyInstance) {
       b.weight,
       b.everySongs,
       b.everyMinutes,
+      b.jingle ? 1 : 0,
+      b.jingle ? 0 : b.requestable ? 1 : 0, // vinheta não pode ser pedida
       b.scheduleEnabled ? 1 : 0,
       b.startTime,
       b.endTime,
@@ -112,7 +118,7 @@ export async function playlistRoutes(app: FastifyInstance) {
     const st = stationFor(req, id);
     const b = body.parse(req.body);
     const r = run(
-      `UPDATE playlists SET name = ?, enabled = ?, mode = ?, weight = ?, every_songs = ?, every_minutes = ?,
+      `UPDATE playlists SET name = ?, enabled = ?, mode = ?, weight = ?, every_songs = ?, every_minutes = ?, is_jingle = ?, requestable = ?,
          schedule_enabled = ?, start_time = ?, end_time = ?, days = ? WHERE id = ? AND station_id = ?`,
       b.name,
       b.enabled ? 1 : 0,
@@ -120,6 +126,8 @@ export async function playlistRoutes(app: FastifyInstance) {
       b.weight,
       b.everySongs,
       b.everyMinutes,
+      b.jingle ? 1 : 0,
+      b.jingle ? 0 : b.requestable ? 1 : 0,
       b.scheduleEnabled ? 1 : 0,
       b.startTime,
       b.endTime,

@@ -62,7 +62,7 @@ class NativeStation {
   private recent: Buffer[] = [];
   private recentBytes = 0;
   private running = false;
-  private queue: number[] = [];
+  private queue: { id: number; silent: boolean }[] = [];
   private seqIndex = new Map<number, number>();
   private lastPlayed: number[] = [];
   private nextStart = 0;
@@ -76,8 +76,8 @@ class NativeStation {
     return this.clients.size;
   }
 
-  enqueue(mediaId: number) {
-    this.queue.push(mediaId);
+  enqueue(mediaId: number, silent = false) {
+    this.queue.push({ id: mediaId, silent });
   }
 
   async start() {
@@ -155,10 +155,12 @@ class NativeStation {
   }
 
   /** Escolhe a próxima faixa: pedidos > playlist agendada ativa > rotação por peso > biblioteca inteira. */
-  private pickNext(): MediaRow | null {
+  /** `silent` = vinheta: toca, mas não é anunciada (fora do "tocando agora", do histórico e dos webhooks). */
+  private pickNext(): { m: MediaRow; silent: boolean } | null {
     while (this.queue.length) {
-      const m = get<MediaRow>('SELECT * FROM media WHERE id = ? AND station_id = ?', this.queue.shift()!, this.st.id);
-      if (m && /\.mp3$/i.test(m.path)) return m;
+      const item = this.queue.shift()!;
+      const m = get<MediaRow>('SELECT * FROM media WHERE id = ? AND station_id = ?', item.id, this.st.id);
+      if (m && /\.mp3$/i.test(m.path)) return { m, silent: item.silent };
     }
     const lists = all<PlaylistRow>('SELECT * FROM playlists WHERE station_id = ? AND enabled = 1 AND every_minutes = 0', this.st.id)
       .map((p) => ({
@@ -174,7 +176,7 @@ class NativeStation {
     if (pool.length === 0) {
       // Sem playlists utilizáveis: toca a biblioteca inteira em ordem aleatória.
       const media = all<MediaRow>("SELECT * FROM media WHERE station_id = ? AND lower(path) LIKE '%.mp3'", this.st.id);
-      return media.length ? this.shuffle(media) : null;
+      return media.length ? { m: this.shuffle(media), silent: false } : null;
     }
 
     // Sorteio ponderado entre as playlists elegíveis.
@@ -191,9 +193,9 @@ class NativeStation {
     if (chosen.p.mode === 'sequential') {
       const i = this.seqIndex.get(chosen.p.id) ?? 0;
       this.seqIndex.set(chosen.p.id, (i + 1) % chosen.media.length);
-      return chosen.media[i % chosen.media.length];
+      return { m: chosen.media[i % chosen.media.length], silent: !!chosen.p.is_jingle };
     }
-    return this.shuffle(chosen.media);
+    return { m: this.shuffle(chosen.media), silent: !!chosen.p.is_jingle };
   }
 
   /** Aleatório evitando repetir as últimas faixas tocadas. */
@@ -208,8 +210,9 @@ class NativeStation {
 
   private async loop() {
     while (this.running) {
-      const m = this.pickNext();
-      if (!m) {
+      const pick = this.pickNext();
+      const m = pick?.m;
+      if (!pick || !m) {
         this.nextStart = 0;
         await sleep(3000);
         continue;
@@ -233,7 +236,7 @@ class NativeStation {
       // Anuncia a música no momento em que ela realmente começa a tocar.
       const wait = startedAt - Date.now();
       if (wait > 0) await sleep(wait);
-      recordTrack(this.st.id, m.artist, m.title);
+      if (!pick.silent) recordTrack(this.st.id, m.artist, m.title);
 
       let sent = 0;
       while (this.running && sent < audio.length) {
@@ -273,6 +276,6 @@ export async function stopNative(id: number) {
   await s.stop();
 }
 
-export function nativeEnqueue(stationId: number, mediaId: number) {
-  stations.get(stationId)?.enqueue(mediaId);
+export function nativeEnqueue(stationId: number, mediaId: number, silent = false) {
+  stations.get(stationId)?.enqueue(mediaId, silent);
 }
