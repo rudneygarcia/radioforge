@@ -14,12 +14,14 @@ RUN npm run build
 FROM savonet/liquidsoap:v2.3.3
 USER root
 ENV DEBIAN_FRONTEND=noninteractive
+# NÃO instalar o pacote "ffmpeg" aqui: ele troca as bibliotecas libav* da imagem do Liquidsoap por
+# outra versão e o Liquidsoap morre ao iniciar ("Could not find OCaml value ... recompile the ffmpeg binding").
 RUN apt-get update \
- && apt-get install -y --no-install-recommends icecast2 ffmpeg ca-certificates \
+ && apt-get install -y --no-install-recommends icecast2 ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 COPY --from=node:24-bookworm-slim /usr/local/bin/node /usr/local/bin/node
 # Mostra no log do build a versão de cada programa (não falha o build: só informa).
-RUN for c in "node --version" "liquidsoap --version" "icecast2 -v" "ffmpeg -version"; do echo "== $c"; $c 2>&1 | head -2 || true; done
+RUN for c in "node --version" "liquidsoap --version" "icecast2 -v" "liquidsoap --list-functions"; do echo "== $c"; $c 2>&1 | head -2 || true; done
 
 RUN useradd --create-home --uid 1001 radio \
  && mkdir -p /data /app && chown -R radio:radio /data /app
