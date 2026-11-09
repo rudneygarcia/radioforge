@@ -25,6 +25,14 @@ interface Song {
   /** Tocou há pouco (regra de não repetir): não dá para pedir agora. */
   recent: boolean;
 }
+interface Req {
+  id: number;
+  title: string;
+  artist: string;
+  createdAt: string;
+  mine: boolean;
+  played: boolean;
+}
 interface Hist {
   title: string;
   artist: string;
@@ -38,7 +46,11 @@ export default function Listen() {
   const [history, setHistory] = useState<Hist[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
   const [playing, setPlaying] = useState(false);
-  const [msg, setMsg] = useState('');
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [reqs, setReqs] = useState<Req[]>([]);
+  const [sending, setSending] = useState<number | null>(null);
+  const [sent, setSent] = useState<Set<number>>(new Set());
+  const [filter, setFilter] = useState('');
   const [quality, setQuality] = useState(0);
   const audio = useRef<HTMLAudioElement>(null);
   // Volume do ouvinte (0–1), lembrado neste navegador.
@@ -55,6 +67,7 @@ export default function Listen() {
     const load = () => {
       api<Pub>(`/api/public/stations/${slug}`).then(setInfo).catch(() => setInfo(null));
       api<Hist[]>(`/api/public/stations/${slug}/history`).then(setHistory).catch(() => {});
+      api<Req[]>(`/api/public/stations/${slug}/requests`).then(setReqs).catch(() => {});
     };
     load();
     api<Song[]>(`/api/public/stations/${slug}/songs`).then(setSongs).catch(() => {});
@@ -87,16 +100,22 @@ export default function Listen() {
       // Passa pelo servidor do painel (mesma origem/HTTPS) em vez de http://host:porta, que o navegador bloqueia.
       const idx = info.streams[quality] ? quality : 0;
       a.src = `/api/public/stations/${slug}/stream/${idx}?t=${Date.now()}`;
-      a.play().then(() => setPlaying(true)).catch(() => setMsg('Não foi possível iniciar o áudio.'));
+      a.play().then(() => setPlaying(true)).catch(() => setMsg({ text: 'Não foi possível iniciar o áudio.', ok: false }));
     }
   }
 
-  async function request(id: number) {
+  async function request(s: Song) {
+    setSending(s.id);
+    setMsg(null);
     try {
-      await api(`/api/public/stations/${slug}/request`, { method: 'POST', body: { mediaId: id } });
-      setMsg('Pedido enviado! Toca em breve.');
+      await api(`/api/public/stations/${slug}/request`, { method: 'POST', body: { mediaId: s.id } });
+      setSent((cur) => new Set(cur).add(s.id));
+      setMsg({ text: `Pedido enviado! “${s.title}” entra na fila e toca em breve.`, ok: true });
+      api<Req[]>(`/api/public/stations/${slug}/requests`).then(setReqs).catch(() => {});
     } catch (e) {
-      setMsg((e as Error).message);
+      setMsg({ text: (e as Error).message || 'Não foi possível enviar o pedido.', ok: false });
+    } finally {
+      setSending(null);
     }
   }
 
@@ -135,7 +154,7 @@ export default function Listen() {
         <p className="muted">👥 {info.listeners} ouvintes</p>
         <audio ref={audio} />
       </div>
-      {msg && <p className="muted center">{msg}</p>}
+      {msg && <div className={`req-msg ${msg.ok ? 'ok' : 'err'}`} role="status"><Icon name={msg.ok ? 'check' : 'alert'} size={18} /><span>{msg.text}</span><button type="button" className="icon-btn" onClick={() => setMsg(null)} aria-label="Fechar"><Icon name="x" size={14} /></button></div>}
       <div className="card">
         <h3>Tocou recentemente</h3>
         {history.slice(0, info.historyLimit).map((h, i) => <div key={i} className="hist-item"><Cover url={h.coverUrl} size={36} /><span>{h.artist ? `${h.artist} — ` : ''}{h.title}</span></div>)}
@@ -144,14 +163,33 @@ export default function Listen() {
       {info.requestsEnabled && songs.length > 0 && !(info.live && info.liveContinue) && (
         <div className="card">
           <h3>Peça uma música</h3>
-          <div className="picker">
-            {songs.map((s) => (
-              <div key={s.id} className="row between">
-                <span>{s.artist ? `${s.artist} — ` : ''}{s.title}</span>
-                <button className="small" onClick={() => request(s.id)} disabled={s.recent} title={s.recent ? "Tocou há pouco" : undefined}>{s.recent ? "Tocou há pouco" : "Pedir"}</button>
-              </div>
-            ))}
+          <input className="req-search" type="search" placeholder="Buscar música ou artista…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <div className="req-list">
+            {songs
+              .filter((s) => `${s.artist} ${s.title}`.toLowerCase().includes(filter.trim().toLowerCase()))
+              .map((s) => (
+                <div key={s.id} className="req-item">
+                  <span className="req-ico"><Icon name="music" size={16} /></span>
+                  <span className="req-txt"><strong>{s.title}</strong><small>{s.artist || '—'}</small></span>
+                  <button type="button" className={`req-btn${sent.has(s.id) ? ' done' : ''}`} onClick={() => request(s)} disabled={s.recent || sending !== null} title={s.recent ? 'Tocou há pouco' : undefined}>
+                    {sending === s.id ? 'Enviando…' : sent.has(s.id) ? 'Pedido ✓' : s.recent ? 'Tocou há pouco' : 'Pedir'}
+                  </button>
+                </div>
+              ))}
           </div>
+        </div>
+      )}
+      {info.requestsEnabled && (
+        <div className="card">
+          <h3>Pedidos dos ouvintes</h3>
+          {reqs.length === 0 && <p className="muted">Nenhum pedido ainda. Seja o primeiro!</p>}
+          {reqs.map((r) => (
+            <div key={r.id} className="req-item">
+              <span className="req-ico"><Icon name="music" size={16} /></span>
+              <span className="req-txt"><strong>{r.title}</strong><small>{r.artist || '—'}{r.mine ? ' · seu pedido' : ''}</small></span>
+              <span className={`req-state ${r.played ? 'played' : 'queued'}`}>{r.played ? 'Tocou' : 'Na fila'}</span>
+            </div>
+          ))}
         </div>
       )}
     </div>

@@ -182,7 +182,26 @@ export async function publicRoutes(app: FastifyInstance) {
     await pushRequest(st.id, path.join(config.dataDir, m.path));
     lastRequest.set(key, Date.now());
     run('INSERT INTO song_requests (station_id, media_id, ip) VALUES (?, ?, ?)', st.id, m.id, req.ip);
-    return reply.code(202).send({ ok: true });
+    return reply.code(202).send({ ok: true, title: m.title, artist: m.artist });
+  });
+
+  // Pedidos recentes da estação (sem IPs); `mine` marca os feitos por este ouvinte. `played` = já tocou depois do pedido.
+  app.get('/api/public/stations/:slug/requests', async (req) => {
+    const st = stationBySlug(slugParam.parse(req.params).slug);
+    if (!st.requests_enabled) return [];
+    const rows = all<{ id: number; title: string; artist: string; ip: string; created_at: string }>(
+      `SELECT r.id, m.title, m.artist, r.ip, r.created_at FROM song_requests r JOIN media m ON m.id = r.media_id
+       WHERE r.station_id = ? ORDER BY r.id DESC LIMIT 15`,
+      st.id,
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      artist: r.artist,
+      createdAt: r.created_at,
+      mine: r.ip === req.ip,
+      played: !!get('SELECT 1 AS ok FROM history WHERE station_id = ? AND title = ? AND artist = ? AND played_at >= ? LIMIT 1', st.id, r.title, r.artist, r.created_at),
+    }));
   });
 
   // Chamado pelo Liquidsoap quando um DJ conecta/desconecta; mesmo token compartilhado.
