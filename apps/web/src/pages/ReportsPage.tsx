@@ -3,10 +3,31 @@ import { useOutletContext } from 'react-router-dom';
 import { api, downloadFile } from '../api';
 import type { StationCtx } from './StationLayout';
 
+interface Summary {
+  sessions: number;
+  uniqueListeners: number;
+  listeningHours: number;
+  avgSessionMinutes: number;
+  peakListeners: number;
+}
+
+/** Variação em relação ao período anterior; sem base de comparação (0) mostra só "novo" ou nada. */
+function Delta({ now, before }: { now: number; before: number }) {
+  if (before === 0) return <p className="muted small">{now > 0 ? 'sem dados no período anterior' : ''}</p>;
+  const pct = Math.round(((now - before) / before) * 100);
+  const sign = pct > 0 ? '▲ +' : pct < 0 ? '▼ ' : '= ';
+  return (
+    <p className="muted small" title={`Período anterior: ${before}`}>
+      {sign}{pct}% vs. período anterior
+    </p>
+  );
+}
+
 interface Report {
   days: number;
   bucket: 'hour' | 'day';
-  summary: { sessions: number; uniqueListeners: number; listeningHours: number; avgSessionMinutes: number; peakListeners: number };
+  summary: Summary;
+  previous: Summary;
   timeline: { t: string; avg: number; max: number }[];
   countries: { name: string; sessions: number; listeners: number }[];
   players: { name: string; sessions: number; listeners: number }[];
@@ -184,10 +205,10 @@ export default function ReportsPage() {
       </div>
 
       <div className="grid">
-        <div className="card"><p className="muted">Ouvintes únicos</p><p className="big">{s.uniqueListeners}</p></div>
-        <div className="card"><p className="muted">Sessões de escuta</p><p className="big">{s.sessions}</p></div>
-        <div className="card"><p className="muted">Horas ouvidas</p><p className="big">{s.listeningHours}</p></div>
-        <div className="card"><p className="muted">Pico de ouvintes</p><p className="big">{s.peakListeners}</p></div>
+        <div className="card"><p className="muted">Ouvintes únicos</p><p className="big">{s.uniqueListeners}</p><Delta now={s.uniqueListeners} before={report.previous.uniqueListeners} /></div>
+        <div className="card"><p className="muted">Sessões de escuta</p><p className="big">{s.sessions}</p><Delta now={s.sessions} before={report.previous.sessions} /></div>
+        <div className="card"><p className="muted">Horas ouvidas</p><p className="big">{s.listeningHours}</p><Delta now={s.listeningHours} before={report.previous.listeningHours} /></div>
+        <div className="card"><p className="muted">Pico de ouvintes</p><p className="big">{s.peakListeners}</p><Delta now={s.peakListeners} before={report.previous.peakListeners} /></div>
       </div>
       <p className="muted">Duração média por sessão: {s.avgSessionMinutes} min</p>
 

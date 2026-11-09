@@ -18,6 +18,33 @@ function csvField(v: string | number): string {
 }
 const csvRow = (cols: (string | number)[]) => cols.map(csvField).join(',');
 
+/** Resumo de um intervalo [from, to), com deslocamentos relativos a agora (ex.: '-7 days'). */
+function summaryFor(stationId: number, from: string, to: string) {
+  const t = get<{ sessions: number; unique_listeners: number; seconds: number | null }>(
+    `SELECT COUNT(*) AS sessions, COUNT(DISTINCT ip_hash) AS unique_listeners, SUM(duration) AS seconds
+     FROM listener_sessions
+     WHERE station_id = ? AND started_at >= datetime('now', ?) AND started_at < datetime('now', ?)`,
+    stationId,
+    from,
+    to,
+  )!;
+  const peak = get<{ peak: number | null }>(
+    `SELECT MAX(listeners) AS peak FROM listener_samples
+     WHERE station_id = ? AND at >= datetime('now', ?) AND at < datetime('now', ?)`,
+    stationId,
+    from,
+    to,
+  );
+  const seconds = t.seconds ?? 0;
+  return {
+    sessions: t.sessions,
+    uniqueListeners: t.unique_listeners,
+    listeningHours: Math.round((seconds / 3600) * 10) / 10,
+    avgSessionMinutes: t.sessions ? Math.round(seconds / t.sessions / 60) : 0,
+    peakListeners: peak?.peak ?? 0,
+  };
+}
+
 export async function reportRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate);
 
@@ -27,17 +54,9 @@ export async function reportRoutes(app: FastifyInstance) {
     const { days, tzOffset, format } = query.parse(req.query);
     const since = `-${days} days`;
 
-    const totals = get<{ sessions: number; unique_listeners: number; seconds: number | null }>(
-      `SELECT COUNT(*) AS sessions, COUNT(DISTINCT ip_hash) AS unique_listeners, SUM(duration) AS seconds
-       FROM listener_sessions WHERE station_id = ? AND started_at >= datetime('now', ?)`,
-      st.id,
-      since,
-    )!;
-    const peak = get<{ peak: number | null }>(
-      `SELECT MAX(listeners) AS peak FROM listener_samples WHERE station_id = ? AND at >= datetime('now', ?)`,
-      st.id,
-      since,
-    );
+    const current = summaryFor(st.id, `-${days} days`, '+1 day');
+    // Período imediatamente anterior, de mesma duração (ex.: 7 dias → os 7 dias antes desses).
+    const previous = summaryFor(st.id, `-${days * 2} days`, `-${days} days`);
 
     // Até 7 dias: ponto por hora; acima disso: ponto por dia.
     const bucket = days <= 7 ? '%Y-%m-%d %H:00' : '%Y-%m-%d';
@@ -73,17 +92,11 @@ export async function reportRoutes(app: FastifyInstance) {
       sessions: byHour.find((r) => Number(r.h) === h)?.sessions ?? 0,
     }));
 
-    const seconds = totals.seconds ?? 0;
     const report = {
       days,
       bucket: days <= 7 ? 'hour' : 'day',
-      summary: {
-        sessions: totals.sessions,
-        uniqueListeners: totals.unique_listeners,
-        listeningHours: Math.round((seconds / 3600) * 10) / 10,
-        avgSessionMinutes: totals.sessions ? Math.round(seconds / totals.sessions / 60) : 0,
-        peakListeners: peak?.peak ?? 0,
-      },
+      summary: current,
+      previous,
       timeline,
       countries: group('country'),
       players: group('player'),
@@ -93,13 +106,14 @@ export async function reportRoutes(app: FastifyInstance) {
 
     // CSV com seções separadas por linha em branco; UTF-8 com BOM para o Excel acertar os acentos.
     const s = report.summary;
+    const p = report.previous;
     const lines = [
-      csvRow(['Resumo', `Últimos ${days} dia(s)`]),
-      csvRow(['Ouvintes únicos', s.uniqueListeners]),
-      csvRow(['Sessões', s.sessions]),
-      csvRow(['Horas ouvidas', s.listeningHours]),
-      csvRow(['Duração média da sessão (min)', s.avgSessionMinutes]),
-      csvRow(['Pico de ouvintes', s.peakListeners]),
+      csvRow(['Resumo', `Últimos ${days} dia(s)`, `${days} dia(s) anteriores`]),
+      csvRow(['Ouvintes únicos', s.uniqueListeners, p.uniqueListeners]),
+      csvRow(['Sessões', s.sessions, p.sessions]),
+      csvRow(['Horas ouvidas', s.listeningHours, p.listeningHours]),
+      csvRow(['Duração média da sessão (min)', s.avgSessionMinutes, p.avgSessionMinutes]),
+      csvRow(['Pico de ouvintes', s.peakListeners, p.peakListeners]),
       '',
       csvRow([report.bucket === 'hour' ? 'Hora (UTC)' : 'Dia (UTC)', 'Média de ouvintes', 'Pico']),
       ...timeline.map((r) => csvRow([r.t, r.avg, r.max])),
