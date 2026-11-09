@@ -23,6 +23,7 @@ export function buildIcecastConfig(st: StationRow, logDir: string): string {
     <admin-password>${esc(st.admin_password)}</admin-password>
   </authentication>
   <hostname>localhost</hostname>
+  <x-forwarded-for>127.0.0.1</x-forwarded-for>
   <listen-socket>
     <port>${st.stream_port}</port>
     <bind-address>0.0.0.0</bind-address>

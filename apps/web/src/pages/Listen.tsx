@@ -54,8 +54,9 @@ export default function Listen() {
       setPlaying(false);
     } else {
       // Recarrega o stream a cada play para pegar o ao vivo, não o buffer antigo.
-      const stream = info.streams[quality] ?? info.streams[0];
-      a.src = `${stream.url}?t=${Date.now()}`;
+      // Passa pelo servidor do painel (mesma origem/HTTPS) em vez de http://host:porta, que o navegador bloqueia.
+      const idx = info.streams[quality] ? quality : 0;
+      a.src = `/api/public/stations/${slug}/stream/${idx}?t=${Date.now()}`;
       a.play().then(() => setPlaying(true)).catch(() => setMsg('Não foi possível iniciar o áudio.'));
     }
   }
