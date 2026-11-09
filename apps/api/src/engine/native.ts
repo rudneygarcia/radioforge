@@ -11,6 +11,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { config } from '../config.js';
 import { all, avoidRecent, get, mountsFor, playlistMedia, recentMedia, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
+import { setNativeClientProvider } from './listeners.js';
 import { recordTrack, setNativeListenerCounter } from './nowplaying.js';
 import { recordSession } from './sessions.js';
 
@@ -73,6 +74,11 @@ class NativeStation {
 
   get isRunning() {
     return this.running;
+  }
+  /** Ouvintes conectados agora (IP real, user-agent, tempo e stream). */
+  get clientList() {
+    const now = Date.now();
+    return [...this.clients].map((c) => ({ ip: c.ip, ua: c.ua, mount: c.mount, seconds: Math.round((now - c.startedAt.getTime()) / 1000) }));
   }
   get listeners() {
     return this.clients.size;
@@ -286,6 +292,8 @@ const stations = new Map<number, NativeStation>();
 setNativeListenerCounter((id) => stations.get(id)?.listeners ?? null);
 
 export const nativeRunning = (id: number) => stations.get(id)?.isRunning ?? false;
+export const nativeClients = (id: number) => stations.get(id)?.clientList ?? null;
+setNativeClientProvider(nativeClients);
 
 export async function startNative(st: StationRow) {
   await stopNative(st.id);

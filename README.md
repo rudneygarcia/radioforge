@@ -157,3 +157,7 @@ Marque uma playlist como **padrão** (a primeira playlist de uma estação já n
 - **Icecast:** está instalado na imagem Docker (`icecast2`); `GET /api/health` mostra `engineMode: liquidsoap` quando Icecast + Liquidsoap estão em uso.
 
 **Capa da rádio:** em Configurações → Capa da rádio (só admin) envie um logo (PNG/JPG/WEBP/GIF, até 4 MB; o tipo é conferido pelo conteúdo do arquivo). Ela entra **no lugar da capa das músicas que não têm** ("Tocando agora" do painel e do player, históricos, tela de bloqueio do celular), aparece no player quando nada está tocando e na lista de estações.
+
+## Ouvintes em tempo real
+
+Aba **Ouvintes** (e o cartão "Ouvintes agora" do painel): lista quem está conectado **agora**, com **IP, país (bandeira), aparelho (celular/computador/TV… + sistema), player (Chrome, VLC, app…), stream e há quanto tempo**, atualizando a cada 5 s. A contagem do painel e do player público vem da mesma fonte: cada conexão aberta no Icecast (`/admin/listclients`), no lugar do total do `status-json`. Os IPs aparecem só ao vivo e **não são guardados** (os relatórios continuam só com identificador anônimo + país). A localização é só o **país** (a base GeoLite2-Country não tem cidade). Atrás do Cloudflare o IP vem de `CF-Connecting-IP`. **Ainda não validado contra um Icecast real**: se a lista vier vazia com gente ouvindo, a causa provável é o `listclients` ou o IP repassado pelo `X-Forwarded-For`; o total então cai no valor do `status-json`.

@@ -9,6 +9,7 @@ import MediaPage from './pages/MediaPage';
 import Playlists from './pages/Playlists';
 import DjsPage from './pages/DjsPage';
 import ReportsPage from './pages/ReportsPage';
+import ListenersPage from './pages/ListenersPage';
 import IntegrationsPage from './pages/IntegrationsPage';
 import AccountPage from './pages/AccountPage';
 import Settings from './pages/Settings';
@@ -67,6 +68,7 @@ export default function App() {
           <Route path="media" element={<MediaPage />} />
           <Route path="playlists" element={<Playlists />} />
           <Route path="djs" element={<DjsPage />} />
+          <Route path="listeners" element={<ListenersPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="podcast" element={<PodcastPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />

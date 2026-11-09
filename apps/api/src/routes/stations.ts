@@ -8,6 +8,7 @@ import { all, db, get, mountsFor, run, type StationRow } from '../db.js';
 import { historyView, nowPlayingView, removeStationCover, saveStationCover, sniffImage, stationCoverUrl } from '../engine/covers.js';
 import { audioWarningFor, engineMode, ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
 import { harborPort } from '../engine/liquidsoap.js';
+import { liveListeners } from '../engine/listeners.js';
 import { getHistory, getListeners, getLive, getNowPlaying } from '../engine/nowplaying.js';
 
 const idParam = z.object({ id: z.coerce.number().int() });
@@ -283,6 +284,33 @@ export async function stationRoutes(app: FastifyInstance) {
       return stationView(st);
     });
   }
+
+  // Quem está ouvindo agora: IP, país, aparelho, player, tempo e stream. Só tempo real (nada é guardado).
+  app.get('/api/stations/:id/listeners', async (req) => {
+    const { id } = idParam.parse(req.params);
+    const st = stationFor(req, id);
+    const items = (await liveListeners(st, engineMode())) ?? [];
+    items.sort((a, b) => a.seconds - b.seconds);
+    const count = <T extends string>(key: (l: (typeof items)[number]) => T, label: (l: (typeof items)[number]) => string) => {
+      const m = new Map<string, { name: string; count: number }>();
+      for (const l of items) {
+        const k = key(l);
+        const cur = m.get(k) ?? { name: label(l), count: 0 };
+        cur.count++;
+        m.set(k, cur);
+      }
+      return [...m.values()].sort((a, b) => b.count - a.count);
+    };
+    return {
+      running: isRunning(st.id),
+      total: items.length,
+      unique: new Set(items.map((l) => l.ip)).size,
+      countries: count((l) => l.country, (l) => `${l.flag} ${l.countryName}`),
+      devices: count((l) => l.device, (l) => l.device),
+      players: count((l) => l.player, (l) => l.player),
+      items,
+    };
+  });
 
   app.get('/api/stations/:id/history', async (req) => {
     const { id } = idParam.parse(req.params);

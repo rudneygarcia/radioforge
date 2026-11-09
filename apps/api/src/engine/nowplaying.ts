@@ -1,4 +1,5 @@
 import { all, get, run, type StationRow } from '../db.js';
+import { liveListeners } from './listeners.js';
 import { dispatch } from './webhooks.js';
 
 export interface NowPlaying {
@@ -77,6 +78,9 @@ export function setNativeListenerCounter(fn: (stationId: number) => number | nul
 export async function getListeners(st: StationRow): Promise<number> {
   const own = nativeCounter?.(st.id);
   if (own !== null && own !== undefined) return own;
+  // Contagem real: cada conexão aberta no Icecast (mesma fonte da lista de ouvintes do painel).
+  const live = await liveListeners(st, 'liquidsoap');
+  if (live) return live.length;
   const hit = listenerCache.get(st.id);
   if (hit && Date.now() - hit.at < 5000) return hit.value;
   let value = 0;

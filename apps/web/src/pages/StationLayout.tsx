@@ -53,6 +53,7 @@ export default function StationLayout() {
         <NavLink to="media">Biblioteca</NavLink>
         <NavLink to="playlists">Playlists</NavLink>
         <NavLink to="djs">DJs</NavLink>
+        <NavLink to="listeners">Ouvintes</NavLink>
         <NavLink to="reports">Relatórios</NavLink>
         <NavLink to="podcast">Podcast</NavLink>
         <NavLink to="integrations">Integrações</NavLink>

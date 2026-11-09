@@ -46,3 +46,42 @@ export function recordSession(stationId: number, ip: string, userAgent: string, 
     Math.round(durationSec),
   );
 }
+
+/** Tipo de aparelho e sistema, pelo user-agent (heurística simples). */
+export function classifyDevice(ua: string): { device: string; os: string } {
+  const s = ua.toLowerCase();
+  if (!s) return { device: 'Desconhecido', os: '—' };
+  if (/alexa|echo/.test(s)) return { device: 'Alto-falante (Alexa)', os: '—' };
+  if (/smart-?tv|tizen|webos|hbbtv|roku|appletv|bravia|crkey/.test(s)) return { device: 'TV', os: /tizen/.test(s) ? 'Tizen' : /webos/.test(s) ? 'webOS' : '—' };
+  if (/iphone|ipod/.test(s)) return { device: 'Celular', os: 'iOS' };
+  if (/ipad/.test(s)) return { device: 'Tablet', os: 'iPadOS' };
+  if (/android/.test(s)) return { device: /mobile/.test(s) || /okhttp|exoplayer|stagefright/.test(s) ? 'Celular' : 'Tablet', os: 'Android' };
+  if (/okhttp|exoplayer|stagefright/.test(s)) return { device: 'Celular', os: 'Android' };
+  if (/applecoremedia|cfnetwork/.test(s)) return { device: 'Celular/Tablet Apple', os: 'iOS' };
+  if (/windows/.test(s)) return { device: 'Computador', os: 'Windows' };
+  if (/macintosh|mac os/.test(s)) return { device: 'Computador', os: 'macOS' };
+  if (/cros/.test(s)) return { device: 'Computador', os: 'ChromeOS' };
+  if (/linux|x11/.test(s)) return { device: 'Computador', os: 'Linux' };
+  if (/vlc|winamp|foobar|mpv|ffmpeg|lavf|curl|wget/.test(s)) return { device: 'Computador / app', os: '—' };
+  return { device: 'Desconhecido', os: '—' };
+}
+
+const regionNames = new Intl.DisplayNames(['pt-BR'], { type: 'region' });
+const isPrivate = (ip: string) =>
+  /^(10\.|127\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip) || ip === '::1' || /^f[cd]/i.test(ip) || /^fe80/i.test(ip);
+
+/** País do IP (código, nome em português e bandeira). Só país: a base GeoLite2-Country não tem cidade. */
+export function locateIp(rawIp: string): { code: string; name: string; flag: string } {
+  const ip = rawIp.replace(/^::ffff:/, '');
+  if (isPrivate(ip)) return { code: 'LAN', name: 'Rede local', flag: '🏠' };
+  const code = countryOf(ip);
+  if (code === '??') return { code: '??', name: 'Desconhecido', flag: '🌐' };
+  let name = code;
+  try {
+    name = regionNames.of(code) ?? code;
+  } catch {
+    /* código inválido */
+  }
+  const flag = String.fromCodePoint(...[...code].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
+  return { code, name, flag };
+}

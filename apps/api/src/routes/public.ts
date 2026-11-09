@@ -48,7 +48,8 @@ function proxyStream(req: FastifyRequest, reply: FastifyReply, st: StationRow, m
       path: mount,
       // O Icecast (e o motor simples) confiam neste cabeçalho, vindo de 127.0.0.1, para registrar o IP real do ouvinte.
       headers: {
-        'X-Forwarded-For': req.ip,
+        // Atrás do Cloudflare, CF-Connecting-IP é o IP real do ouvinte (X-Forwarded-For pode ter valores do cliente).
+        'X-Forwarded-For': String(req.headers['cf-connecting-ip'] ?? req.ip),
         'User-Agent': String(req.headers['user-agent'] ?? 'RadioForge'),
         // Players de rádio (VLC, apps) pedem metadados ICY: repassamos o pedido e o resultado, que o Icecast intercala no áudio.
         'Icy-MetaData': wantsIcy ? '1' : '0',
