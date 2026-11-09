@@ -365,3 +365,10 @@ tr.picked td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .nav-toggle { display: none; align-items: center; gap: 12px; margin-top: 8px; padding: 10px 14px; background: transparent; border: 0; border-top: 1px solid var(--border); border-radius: 0 0 9px 9px; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; box-shadow: none; }
 .nav-toggle:hover { color: var(--text); background: var(--panel-2); }
 @media (max-width: 899px) { .tabs a { gap: 8px; } }
+
+/* Telas pequenas: o menu da estação quebra em linhas (nada fica cortado) */
+@media (max-width: 899px) {
+  .station-shell .tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); overflow: visible; gap: 4px; }
+  .station-shell .tabs a { justify-content: center; padding: 9px 8px; font-size: 13.5px; }
+  .station-shell .tabs a .icon { flex: none; }
+}
