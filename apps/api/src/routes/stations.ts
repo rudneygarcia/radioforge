@@ -6,10 +6,10 @@ import { authenticate, HttpError, requireAdmin, stationFor } from '../auth.js';
 import { config, stationDir } from '../config.js';
 import { all, db, get, mountsFor, run, type StationRow } from '../db.js';
 import { historyView, nowPlayingView, removeStationCover, saveStationCover, sniffImage, stationCoverUrl } from '../engine/covers.js';
-import { audioWarningFor, engineMode, ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
+import { audioWarningFor, kickLive, engineMode, ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
 import { harborPort } from '../engine/liquidsoap.js';
 import { icecastError, liveListeners } from '../engine/listeners.js';
-import { getHistory, getListeners, getLive, getNowPlaying } from '../engine/nowplaying.js';
+import { clearLive, getHistory, getListeners, getLive, getNowPlaying } from '../engine/nowplaying.js';
 
 const idParam = z.object({ id: z.coerce.number().int() });
 
@@ -45,6 +45,8 @@ const settings = z.object({
   audioGain: z.number().min(0).max(12).default(0),
   /** Não repetir a mesma música por N minutos (0 = desligado). */
   noRepeatMinutes: z.number().int().min(0).max(1440).default(60),
+  /** Segundos sem áudio do encoder até o AutoDJ voltar (3 a 60). */
+  liveTimeout: z.number().int().min(3).max(60).default(8),
   /** Mountpoint principal. Na criação, o padrão é /radio.mp3 (ou /radio.ogg); na edição, vazio mantém o atual. */
   mount: mountName.optional(),
   mounts: z
@@ -124,6 +126,7 @@ export async function stationView(st: StationRow) {
     audioPreset: st.audio_preset,
     audioGain: st.audio_gain,
     noRepeatMinutes: st.no_repeat_minutes,
+    liveTimeout: st.live_timeout,
     audioWarning: audioWarningFor(st.id),
     mounts: mountsFor(st.id).map((m) => ({ mount: m.mount, format: m.format, bitrate: m.bitrate })),
     streams: streamsOf(st),
@@ -169,8 +172,8 @@ export async function stationRoutes(app: FastifyInstance) {
     if (get('SELECT 1 AS ok FROM stations WHERE slug = ?', slug)) slug += '-' + crypto.randomBytes(2).toString('hex');
     const r = run(
       `INSERT INTO stations (name, slug, description, stream_port, mount, format, bitrate,
-         source_password, admin_password, live_enabled, requests_enabled, autostart, crossfade_seconds, normalize, record_live, history_limit, audio_preset, audio_gain, no_repeat_minutes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         source_password, admin_password, live_enabled, requests_enabled, autostart, crossfade_seconds, normalize, record_live, history_limit, audio_preset, audio_gain, no_repeat_minutes, live_timeout)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       body.name,
       slug,
       body.description,
@@ -190,6 +193,7 @@ export async function stationRoutes(app: FastifyInstance) {
       body.audioPreset,
       body.audioGain,
       body.noRepeatMinutes,
+      body.liveTimeout,
     );
     const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', Number(r.lastInsertRowid))!;
     saveMounts(st.id, st.mount, body.mounts);
@@ -216,7 +220,7 @@ export async function stationRoutes(app: FastifyInstance) {
     if (b.mounts.some((m) => m.mount === newMount)) throw new HttpError(400, `O nome ${newMount} já é usado por um stream extra`);
     run(
       `UPDATE stations SET name = ?, description = ?, mount = ?, format = ?, bitrate = ?,
-         live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ?, record_live = ?, history_limit = ?, audio_preset = ?, audio_gain = ?, no_repeat_minutes = ? WHERE id = ?`,
+         live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ?, record_live = ?, history_limit = ?, audio_preset = ?, audio_gain = ?, no_repeat_minutes = ?, live_timeout = ? WHERE id = ?`,
       b.name,
       b.description,
       newMount,
@@ -232,12 +236,28 @@ export async function stationRoutes(app: FastifyInstance) {
       b.audioPreset,
       b.audioGain,
       b.noRepeatMinutes,
+      b.liveTimeout,
       st.id,
     );
     saveMounts(st.id, newMount, b.mounts);
     const updated = get<StationRow>('SELECT * FROM stations WHERE id = ?', st.id)!;
     if (config.engine.enabled && isRunning(st.id)) await restartStation(updated);
     return stationView(updated);
+  });
+
+  // Derruba o encoder/DJ que está no ar: o AutoDJ assume na hora. Só admin e operadores da estação.
+  app.post('/api/stations/:id/live/kick', async (req) => {
+    const { id } = idParam.parse(req.params);
+    const st = stationFor(req, id);
+    if (engineMode() !== 'liquidsoap') throw new HttpError(400, 'O ao vivo só existe no modo completo (Icecast + Liquidsoap)');
+    if (!isRunning(st.id)) throw new HttpError(409, 'A estação está parada');
+    try {
+      await kickLive(st);
+    } catch (e) {
+      throw new HttpError(502, `Não foi possível falar com o Liquidsoap: ${(e as Error).message}`);
+    }
+    clearLive(st.id);
+    return { ok: true };
   });
 
   // Capa (logo) da rádio: entra no lugar da capa das músicas que não têm.

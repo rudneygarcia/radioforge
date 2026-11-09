@@ -86,6 +86,8 @@ export function buildLiquidsoapScript(
     `settings.server.telnet := true`,
     `settings.server.telnet.bind_addr := "127.0.0.1"`,
     `settings.server.telnet.port := ${telnetPort(st)}`,
+    // Encoder que para de mandar áudio (queda de internet) é dado como desconectado após este tempo e o AutoDJ volta.
+    `settings.harbor.timeout := ${Math.max(3, Math.min(60, Math.round(st.live_timeout || 8)))}.`,
     ``,
     `# Avisa a API de cada faixa tocada (histórico + now playing).`,
     `# Vinhetas vêm marcadas com rf_jingle (annotate no .m3u): não avisam o servidor.`,

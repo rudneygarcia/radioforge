@@ -295,6 +295,20 @@ export async function startAutostart() {
   }
 }
 
+/** Derruba o encoder que está no ar (comando `live.stop` do harbor); o AutoDJ volta na hora. */
+export function kickLive(st: StationRow): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const sock = net.connect(telnetPort(st), '127.0.0.1');
+    sock.setTimeout(3000, () => {
+      sock.destroy();
+      reject(new Error('tempo esgotado'));
+    });
+    sock.on('error', reject);
+    sock.on('connect', () => sock.write('live.stop\nquit\n'));
+    sock.on('close', () => resolve());
+  });
+}
+
 /** Empurra um arquivo na fila de pedidos do Liquidsoap via telnet local. */
 export function pushRequest(stationId: number, absPath: string, silent = false): Promise<void> {
   const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', stationId);

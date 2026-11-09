@@ -149,6 +149,8 @@ allowAacFormat();
 addColumn('stations', 'history_limit', 'INTEGER NOT NULL DEFAULT 5'); // quantas músicas recentes o player público mostra
 addColumn('stations', 'audio_preset', "TEXT NOT NULL DEFAULT 'off'"); // off | balanced | loud (Liquidsoap)
 // Não repetir a mesma música por N minutos (0 = desligado).
+// Segundos sem receber áudio do encoder até considerá-lo desconectado (e o AutoDJ voltar). Padrão do Liquidsoap: 30.
+addColumn('stations', 'live_timeout', 'INTEGER NOT NULL DEFAULT 8');
 addColumn('stations', 'cover', 'TEXT'); // capa/logo da rádio (arquivo dentro da pasta da estação); usada quando a música não tem capa
 addColumn('stations', 'no_repeat_minutes', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('history', 'media_id', 'INTEGER'); // música tocada (para a regra de não repetir); null em vinhetas/antigos
@@ -319,6 +321,7 @@ export interface StationRow {
   audio_preset: 'off' | 'balanced' | 'loud';
   audio_gain: number;
   no_repeat_minutes: number;
+  live_timeout: number;
   cover: string | null;
   created_at: string;
 }

@@ -37,6 +37,20 @@ export default function Dashboard() {
     api<Hist[]>(`/api/stations/${station.id}/history`).then(setHistory);
   }, [station.id, station.nowPlaying?.playedAt]);
 
+  async function kick() {
+    if (!(await confirm({ title: 'Derrubar a transmissão ao vivo?', message: 'O encoder atual é desconectado e o AutoDJ assume na hora. O DJ pode reconectar se o programa dele tentar de novo.', confirmLabel: 'Voltar ao AutoDJ', danger: true }))) return;
+    setBusy(true);
+    try {
+      await api(`/api/stations/${station.id}/live/kick`, { method: 'POST' });
+      await reload();
+      toast('AutoDJ no ar');
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function action(a: 'start' | 'stop' | 'restart') {
     if (a === 'stop' && !(await confirm({ title: 'Parar a estação?', message: 'Os ouvintes conectados serão desconectados.', confirmLabel: 'Parar', danger: true }))) return;
     setBusy(true);
@@ -75,6 +89,9 @@ export default function Dashboard() {
               <span className="tag accent" style={{ marginLeft: 8 }}>
                 <Icon name="mic" size={13} /> {station.live.name} ao vivo
               </span>
+            )}
+            {station.running && station.live && (
+              <button className="ghost small" style={{ marginLeft: 8 }} onClick={kick} disabled={busy}>Voltar ao AutoDJ</button>
             )}
           </div>
           <div className="row" style={{ marginBottom: 0 }}>
