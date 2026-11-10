@@ -93,7 +93,8 @@ export function engineMode(): 'liquidsoap' | 'native' {
 
 interface StationProcs {
   icecast: Supervised;
-  liquidsoap: Supervised;
+  /** null = estação sem AutoDJ (só Icecast). */
+  liquidsoap: Supervised | null;
 }
 const procs = new Map<number, StationProcs>();
 
@@ -186,7 +187,7 @@ function writeConfigs(st: StationRow, variant: Variant = variantOf.get(st.id) ??
 export function isRunning(stationId: number) {
   if (engineMode() === 'native') return nativeRunning(stationId);
   const p = procs.get(stationId);
-  return !!p && p.icecast.running && p.liquidsoap.running;
+  return !!p && p.icecast.running && (p.liquidsoap === null || p.liquidsoap.running);
 }
 
 /** Tira a chave de licença do Stereo Tool de qualquer texto que vá para log/painel. */
@@ -205,6 +206,29 @@ export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn
   }
   if (procs.has(st.id)) await stopStation(st.id);
   const base = stationDir(st.id);
+  // Sem AutoDJ: só o Icecast (nada de Liquidsoap, análise de áudio, processadores ou Stereo Tool). O DJ conecta direto nele.
+  if (!st.autodj) {
+    ensureStationDirs(st.id);
+    fs.writeFileSync(path.join(base, 'config', 'icecast.xml'), buildIcecastConfig(st, path.join(base, 'logs')));
+    audioWarnings.delete(st.id);
+    variantOf.delete(st.id);
+    const ice = new Supervised(`icecast:${st.slug}`, config.engine.icecastBin, ['-c', path.join(base, 'config', 'icecast.xml')], path.join(base, 'logs', 'icecast.out.log'), { TZ: st.timezone || process.env.TZ || 'America/Sao_Paulo' });
+    procs.set(st.id, { icecast: ice, liquidsoap: null });
+    ice.start();
+    await new Promise((r) => setTimeout(r, 2500));
+    if (!procs.get(st.id)?.icecast.running) {
+      await stopStation(st.id);
+      let log = '';
+      try {
+        log = fs.readFileSync(path.join(base, 'logs', 'icecast.out.log'), 'utf8');
+      } catch {
+        /* sem log */
+      }
+      throw startError(`Icecast não ficou no ar:\n${tail(log) || '(sem saída no log)'}`);
+    }
+    dispatch(st.id, 'station_start', {});
+    return;
+  }
   const runCheck = () =>
     spawnSync(config.engine.liquidsoapBin, ['--check', path.join(base, 'config', 'radio.liq')], { encoding: 'utf8', timeout: 60_000 });
 
@@ -294,12 +318,12 @@ export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn
   procs.set(st.id, { icecast, liquidsoap });
   icecast.start();
   // Dá um instante para o Icecast abrir a porta antes do Liquidsoap conectar.
-  setTimeout(() => procs.get(st.id)?.liquidsoap.start(), 1500);
+  setTimeout(() => procs.get(st.id)?.liquidsoap?.start(), 1500);
 
   // Se algum dos dois cair logo na partida, devolve o motivo (fim do log) em vez de "subir" e voltar a "parada".
   await new Promise((r) => setTimeout(r, 4500));
   const p = procs.get(st.id);
-  const dead = !p?.icecast.running ? 'icecast' : !p.liquidsoap.running ? 'liquidsoap' : null;
+  const dead = !p?.icecast.running ? 'icecast' : !p.liquidsoap?.running ? 'liquidsoap' : null;
   if (dead) {
     await stopStation(st.id);
     let log = '';
@@ -353,7 +377,7 @@ export async function stopStation(stationId: number) {
   const p = procs.get(stationId);
   if (!p) return;
   procs.delete(stationId);
-  await Promise.all([p.liquidsoap.stop(), p.icecast.stop()]);
+  await Promise.all([p.liquidsoap?.stop(), p.icecast.stop()]);
   dispatch(stationId, 'station_stop', {});
 }
 
@@ -369,7 +393,7 @@ export async function restartStation(st: StationRow) {
 export async function reloadLiquidsoap(st: StationRow) {
   if (engineMode() === 'native') return; // o motor simples lê o banco a cada faixa
   const p = procs.get(st.id);
-  if (!p) return;
+  if (!p || !p.liquidsoap) return;
   writeConfigs(st);
   clearLive(st.id); // reiniciar o Liquidsoap derruba o DJ conectado
   await p.liquidsoap.stop();
@@ -393,7 +417,18 @@ export async function startAutostart() {
 }
 
 /** Derruba o encoder que está no ar (comando `live.stop` do harbor); o AutoDJ volta na hora. */
-export function kickLive(st: StationRow): Promise<void> {
+export async function kickLive(st: StationRow): Promise<void> {
+  if (!st.autodj) {
+    // Sem AutoDJ o encoder está direto no Icecast: derruba pela API de administração dele.
+    const auth = Buffer.from(`admin:${st.admin_password}`).toString('base64');
+    const r = await fetch(`http://127.0.0.1:${st.stream_port}/admin/killsource?mount=${encodeURIComponent(st.mount)}`, { headers: { Authorization: `Basic ${auth}` }, signal: AbortSignal.timeout(4000) });
+    if (!r.ok) throw new Error(`Icecast respondeu ${r.status}`);
+    return;
+  }
+  return kickLiveHarbor(st);
+}
+
+function kickLiveHarbor(st: StationRow): Promise<void> {
   return new Promise((resolve, reject) => {
     const sock = net.connect(telnetPort(st), '127.0.0.1');
     sock.setTimeout(3000, () => {

@@ -34,6 +34,7 @@ function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
     name: station.name,
     slug: station.slug,
     port: station.streamPort,
+    autodj: station.autodj,
     description: station.description,
     mount: station.mount,
     format: station.format,
@@ -172,6 +173,7 @@ function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
             </div>
             <small className="hint">Mudar o endereço muda os links: quem já usa o antigo (players, apps, o site) precisa trocar.</small>
           </label>
+          <Toggle checked={f.autodj} onChange={(v) => setF({ ...f, autodj: v })} disabled={!isAdmin} title="AutoDJ (músicas automáticas)" hint="Desligado = só transmissão ao vivo: roda apenas o Icecast (o DJ conecta direto nele, na porta e no mount mostrados no Painel) e o Liquidsoap e todo o processamento de áudio ficam desligados, economizando CPU. Sem AutoDJ não há playlists, pedidos, hora certa, AutoCue, processadores nem streams extras. Ao salvar, a estação reinicia." />
           <label className="field" style={{ maxWidth: 340 }}>
             <span>Porta da estação</span>
             <input type="number" min={1024} max={65000} value={f.port} onChange={(e) => setF({ ...f, port: Number(e.target.value) || 0 })} disabled={!isAdmin} />

@@ -217,6 +217,8 @@ addColumn('stations', 'stereo_key', "TEXT NOT NULL DEFAULT ''");
 addColumn('stations', 'stereo_preset', "TEXT NOT NULL DEFAULT ''");
 // Não repetir o mesmo artista por N minutos (0 = desligado).
 addColumn('stations', 'no_repeat_artist_minutes', 'INTEGER NOT NULL DEFAULT 0');
+// AutoDJ ligado (1) ou só transmissão ao vivo (0): sem AutoDJ roda apenas o Icecast (o DJ conecta direto nele) e o Liquidsoap fica desligado.
+addColumn('stations', 'autodj', 'INTEGER NOT NULL DEFAULT 1');
 // Não repetir o mesmo artista por N minutos (0 = desligado).
 addColumn('song_requests', 'due_at', "TEXT NOT NULL DEFAULT ''");
 addColumn('song_requests', 'pushed', 'INTEGER NOT NULL DEFAULT 1');
@@ -413,6 +415,7 @@ export interface StationRow {
   stereo_key: string;
   stereo_preset: string;
   no_repeat_artist_minutes: number;
+  autodj: number;
   timezone: string;
   cover: string | null;
   created_at: string;

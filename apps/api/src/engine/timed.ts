@@ -16,7 +16,7 @@ const lastBucket = new Map<number, number>();
 const seq = new Map<number, number>();
 
 export function tickTimedPlaylists(now = Date.now()) {
-  for (const st of all<StationRow>('SELECT * FROM stations')) {
+  for (const st of all<StationRow>('SELECT * FROM stations WHERE autodj = 1')) {
     // Músicas que já passaram do tempo de "não repetir" voltam para as playlists.
     if (st.no_repeat_minutes > 0 && isRunning(st.id) && !usesDynamic(st.id)) {
       try {
@@ -56,7 +56,7 @@ export function tickTimedPlaylists(now = Date.now()) {
 export function tickScheduledRequests() {
   const due = all<{ id: number; station_id: number; path: string }>(
     `SELECT r.id, r.station_id, m.path FROM song_requests r JOIN media m ON m.id = r.media_id
-     WHERE r.pushed = 0 AND r.due_at <= datetime('now') ORDER BY r.id LIMIT 20`,
+     WHERE r.pushed = 0 AND r.due_at <= datetime('now') AND r.station_id IN (SELECT id FROM stations WHERE autodj = 1) ORDER BY r.id LIMIT 20`,
   );
   for (const r of due) {
     const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', r.station_id);
@@ -81,7 +81,7 @@ export async function retryLostRequests() {
   try {
     const lost = all<{ id: number; station_id: number; path: string; title: string; artist: string }>(
       `SELECT r.id, r.station_id, m.path, m.title, m.artist FROM song_requests r JOIN media m ON m.id = r.media_id
-       WHERE r.pushed = 1 AND r.retried = 0 AND r.created_at < datetime('now', '-8 minutes') AND r.created_at >= datetime('now', '-45 minutes')
+       WHERE r.station_id IN (SELECT id FROM stations WHERE autodj = 1) AND r.pushed = 1 AND r.retried = 0 AND r.created_at < datetime('now', '-8 minutes') AND r.created_at >= datetime('now', '-45 minutes')
          AND NOT EXISTS (SELECT 1 FROM history h WHERE h.station_id = r.station_id AND h.title = m.title AND h.artist = m.artist AND h.played_at >= r.created_at)
        ORDER BY r.id LIMIT 10`,
     );

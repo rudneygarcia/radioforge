@@ -86,6 +86,8 @@ const settings = z.object({
   port: z.number().int().optional(),
   /** Senha da transmissão ao vivo (usuário "source"). Em branco = automática ao criar / manter ao editar. */
   sourcePassword: z.string().max(64).optional(),
+  /** AutoDJ (músicas automáticas) ligado. Desligado = só transmissão ao vivo, sem Liquidsoap. */
+  autodj: z.boolean().default(true),
   /** Não repetir o mesmo artista por N minutos (0 = desligado). */
   noRepeatArtistMinutes: z.number().int().min(0).max(1440).default(0),
   /** Não repetir o mesmo artista por N minutos (0 = desligado). */
@@ -191,6 +193,7 @@ export async function stationView(st: StationRow) {
     stereoPreset: st.stereo_preset,
     stereoKeySet: !!st.stereo_key,
     streamPort: st.stream_port,
+    autodj: !!st.autodj,
     noRepeatArtistMinutes: st.no_repeat_artist_minutes,
     timezone: st.timezone,
     audioWarning: audioWarningFor(st.id),
@@ -203,9 +206,14 @@ export async function stationView(st: StationRow) {
     live: getLive(st.id),
     streamUrl: streamUrl(st),
     engine: engineMode(),
-    dj: st.live_enabled && engineMode() === 'liquidsoap'
-      ? { host: config.publicHost, port: harborPort(st), mount: '/live', username: 'source', password: st.source_password }
-      : null,
+    // Com AutoDJ o DJ entra pelo Liquidsoap (/live); sem AutoDJ ele conecta direto no Icecast, no mount da estação.
+    dj: engineMode() !== 'liquidsoap'
+      ? null
+      : !st.autodj
+        ? { host: config.publicHost, port: st.stream_port, mount: st.mount, username: 'source', password: st.source_password }
+        : st.live_enabled
+          ? { host: config.publicHost, port: harborPort(st), mount: '/live', username: 'source', password: st.source_password }
+          : null,
   };
 }
 
@@ -261,8 +269,8 @@ export async function stationRoutes(app: FastifyInstance) {
     }
     const r = run(
       `INSERT INTO stations (name, slug, description, stream_port, mount, format, bitrate,
-         source_password, admin_password, live_enabled, requests_enabled, autostart, crossfade_seconds, normalize, record_live, history_limit, audio_preset, audio_gain, no_repeat_minutes, live_timeout, live_continue, time_announce, timezone, time_announce_voice, time_voice, autocue, autocue_custom, autocue_duration, autocue_fade_in, autocue_fade_out, jingle_overlap, jingle_gain, autocue_level, hidden_words, jingle_hide_name, request_interval, request_delay, stereo_enabled, stereo_key, stereo_preset, no_repeat_artist_minutes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         source_password, admin_password, live_enabled, requests_enabled, autostart, crossfade_seconds, normalize, record_live, history_limit, audio_preset, audio_gain, no_repeat_minutes, live_timeout, live_continue, time_announce, timezone, time_announce_voice, time_voice, autocue, autocue_custom, autocue_duration, autocue_fade_in, autocue_fade_out, jingle_overlap, jingle_gain, autocue_level, hidden_words, jingle_hide_name, request_interval, request_delay, stereo_enabled, stereo_key, stereo_preset, no_repeat_artist_minutes, autodj)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       body.name,
       slug,
       body.description,
@@ -304,6 +312,7 @@ export async function stationRoutes(app: FastifyInstance) {
       body.stereoKey ?? '',
       body.stereoPreset,
       body.noRepeatArtistMinutes,
+      body.autodj ? 1 : 0,
     );
     const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', Number(r.lastInsertRowid))!;
     saveMounts(st.id, st.mount, body.mounts);
@@ -345,7 +354,7 @@ export async function stationRoutes(app: FastifyInstance) {
     if (b.mounts.some((m) => m.mount === newMount)) throw new HttpError(400, `O nome ${newMount} já é usado por um stream extra`);
     run(
       `UPDATE stations SET name = ?, description = ?, mount = ?, format = ?, bitrate = ?,
-         live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ?, record_live = ?, history_limit = ?, audio_preset = ?, audio_gain = ?, no_repeat_minutes = ?, live_timeout = ?, live_continue = ?, time_announce = ?, timezone = ?, time_announce_voice = ?, time_voice = ?, autocue = ?, autocue_custom = ?, autocue_duration = ?, autocue_fade_in = ?, autocue_fade_out = ?, jingle_overlap = ?, jingle_gain = ?, autocue_level = ?, hidden_words = ?, jingle_hide_name = ?, request_interval = ?, request_delay = ?, stereo_enabled = ?, stereo_key = ?, stereo_preset = ?, no_repeat_artist_minutes = ? WHERE id = ?`,
+         live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ?, record_live = ?, history_limit = ?, audio_preset = ?, audio_gain = ?, no_repeat_minutes = ?, live_timeout = ?, live_continue = ?, time_announce = ?, timezone = ?, time_announce_voice = ?, time_voice = ?, autocue = ?, autocue_custom = ?, autocue_duration = ?, autocue_fade_in = ?, autocue_fade_out = ?, jingle_overlap = ?, jingle_gain = ?, autocue_level = ?, hidden_words = ?, jingle_hide_name = ?, request_interval = ?, request_delay = ?, stereo_enabled = ?, stereo_key = ?, stereo_preset = ?, no_repeat_artist_minutes = ?, autodj = ? WHERE id = ?`,
       b.name,
       b.description,
       newMount,
@@ -383,6 +392,7 @@ export async function stationRoutes(app: FastifyInstance) {
       b.stereoKey === undefined ? st.stereo_key : b.stereoKey,
       b.stereoPreset,
       b.noRepeatArtistMinutes,
+      b.autodj ? 1 : 0,
       st.id,
     );
     saveMounts(st.id, newMount, b.mounts);

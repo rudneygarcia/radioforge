@@ -121,7 +121,7 @@ const lastSlot = new Map<number, string>();
 /** Chamado a cada ~30 s: quando vira uma marca (ex.: :00 e :30), enfileira o aviso uma única vez. */
 export async function tickAnnouncements(now = new Date()) {
   if (engineMode() !== 'liquidsoap') return; // o motor simples só toca MP3
-  for (const st of all<StationRow>('SELECT * FROM stations WHERE time_announce > 0')) {
+  for (const st of all<StationRow>('SELECT * FROM stations WHERE time_announce > 0 AND autodj = 1')) {
     if (!isRunning(st.id)) continue;
     const t = localTime(st.timezone, now);
     if (t.minute % st.time_announce !== 0 || lastSlot.get(st.id) === t.key) continue;

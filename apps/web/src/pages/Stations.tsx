@@ -17,6 +17,7 @@ export default function Stations() {
   const [slugEdited, setSlugEdited] = useState(false);
   const [port, setPort] = useState('');
   const [secret, setSecret] = useState('');
+  const [autodj, setAutodj] = useState(true);
   const genSecret = () => setSecret(Array.from(crypto.getRandomValues(new Uint8Array(14)), (b) => 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 56]).join(''));
   const toSlug = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, 40);
   const [busy, setBusy] = useState(false);
@@ -34,7 +35,7 @@ export default function Stations() {
     setBusy(true);
     setError('');
     try {
-      await api('/api/stations', { method: 'POST', body: { name, description, mount, slug: slug.replace(/-+$/, '') || undefined, port: port.trim() ? Number(port) : undefined, sourcePassword: secret.trim() || undefined } });
+      await api('/api/stations', { method: 'POST', body: { name, description, mount, slug: slug.replace(/-+$/, '') || undefined, port: port.trim() ? Number(port) : undefined, sourcePassword: secret.trim() || undefined, autodj } });
       setOpen(false);
       setName('');
       setDescription('');
@@ -43,6 +44,7 @@ export default function Stations() {
       setSlugEdited(false);
       setPort('');
       setSecret('');
+      setAutodj(true);
       toast('Estação criada');
       load();
     } catch (err) {
@@ -152,6 +154,10 @@ export default function Stations() {
             <span>Nome do stream</span>
             <input value={mount} onChange={(e) => setMount(e.target.value.replace(/[^a-zA-Z0-9._-]/g, ''))} placeholder="radio.mp3" maxLength={40} required />
             <small className="hint">É o final do endereço de escuta. Padrão: radio.mp3 — dá para mudar depois em Editar estação.</small>
+          </label>
+          <label className="check-line">
+            <input type="checkbox" checked={autodj} onChange={(e) => setAutodj(e.target.checked)} />
+            <span>Usar AutoDJ (músicas automáticas)<small>Desmarque se o cliente só transmite ao vivo: a estação roda só com o Icecast (o DJ conecta direto nele) e todo o processamento de áudio e o Liquidsoap ficam desligados, economizando CPU. Dá para ligar o AutoDJ depois em Editar estação.</small></span>
           </label>
           <label className="field">
             <span>Porta da estação <em className="hint">(opcional)</em></span>

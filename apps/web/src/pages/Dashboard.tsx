@@ -166,6 +166,12 @@ export default function Dashboard() {
         </div>
       )}
 
+      {!station.autodj && (
+        <div className="card notice">
+          <strong>AutoDJ desligado.</strong> Esta estação só transmite ao vivo: roda apenas o Icecast e o Liquidsoap está desligado (sem consumo de processamento de áudio). O DJ conecta direto no Icecast com o endereço, usuário e senha do cartão “Serviço de transmissão”. Para tocar músicas automáticas, ligue o AutoDJ em <Link to="edit">Editar estação</Link>.
+        </div>
+      )}
+
       {station.audioWarning && (
         <div className="card notice" style={{ whiteSpace: 'pre-wrap' }}>
           <strong>Processador de áudio:</strong> {station.audioWarning}

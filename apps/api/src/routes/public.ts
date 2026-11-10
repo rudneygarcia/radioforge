@@ -97,7 +97,8 @@ export async function publicRoutes(app: FastifyInstance) {
       streamUrl: streamUrl(st),
       streams: streamsOf(st),
       format: st.format,
-      online: isRunning(st.id),
+      // Sem AutoDJ a rádio só tem som enquanto um DJ está ao vivo.
+      online: isRunning(st.id) && (!!st.autodj || !!getLive(st.id)),
       listeners: await getListeners(st),
       nowPlaying: nowPlayingView(st, getNowPlaying(st.id)),
       // No público, só o nome de exibição (nunca o usuário de login).
@@ -170,6 +171,7 @@ export async function publicRoutes(app: FastifyInstance) {
   app.post('/api/public/stations/:slug/request', async (req, reply) => {
     const st = stationBySlug(slugParam.parse(req.params).slug);
     if (!st.requests_enabled) throw new HttpError(403, 'Pedidos desativados');
+    if (!st.autodj) throw new HttpError(409, 'Esta rádio não tem AutoDJ: só transmissão ao vivo.');
     if (!isRunning(st.id)) throw new HttpError(503, 'A rádio está offline');
     // Com o AutoDJ em segundo plano durante o ao vivo, o pedido tocaria mudo: só aceita quando o DJ sair.
     if (st.live_continue && getLive(st.id)) throw new HttpError(409, 'Estamos ao vivo agora. Os pedidos voltam quando o AutoDJ retornar.');
