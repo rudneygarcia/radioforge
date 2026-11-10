@@ -11,7 +11,7 @@ import { clearLive } from './nowplaying.js';
 import { nativeEnqueue, nativeRunning, startNative, stopNative } from './native.js';
 import { buildLiquidsoapScript, telnetPort, type LiqPlaylist } from './liquidsoap.js';
 import { isHiddenTrack } from './hide.js';
-import { libraryInfo, listPresets } from './stereotool.js';
+import { getLicenseKey, libraryInfo, listPresets } from './stereotool.js';
 
 /** Mantém um processo vivo, reiniciando com backoff se cair. */
 class Supervised {
@@ -183,7 +183,13 @@ export function isRunning(stationId: number) {
   return !!p && p.icecast.running && p.liquidsoap.running;
 }
 
-export async function startStation(st: StationRow) {
+/** Tira a chave de licença do Stereo Tool de qualquer texto que vá para log/painel. */
+const maskKey = (s: string) => {
+  const k = getLicenseKey();
+  return k.length >= 6 ? s.split(k).join('<chave oculta>') : s;
+};
+
+export async function startStation(st: StationRow, skipStereo = false) {
   if (!config.engine.enabled) throw new Error('Engine desativada (ENGINE_ENABLED=false)');
   if (engineMode() === 'native') {
     await startNative(st);
@@ -220,7 +226,7 @@ export async function startStation(st: StationRow) {
       : st.stereo_preset && !listPresets(st.id).includes(st.stereo_preset)
         ? `O preset "${st.stereo_preset}" do Stereo Tool não foi encontrado.`
         : '';
-  const wantsStereo = !!st.stereo_enabled && !stereoProblem;
+  const wantsStereo = !!st.stereo_enabled && !stereoProblem && !skipStereo;
   if (wantsStereo) {
     const stereoAttempts: Variant[] = attempts.filter((v) => v.audio === attempts[0].audio || v.audio === 2).map((v) => ({ ...v, audio: 2 as const, stereo: true }));
     const seen = new Set<string>();
@@ -247,12 +253,12 @@ export async function startStation(st: StationRow) {
   const notes: string[] = [];
   if (stereoProblem) notes.push(stereoProblem + ' Usando o processador interno.');
   if (wantsStereo && !chosen.stereo) notes.push('O Stereo Tool NÃO foi carregado (o Liquidsoap recusou o script: verifique se esta versão do Liquidsoap tem o suporte a Stereo Tool). Usando o processador interno.');
-  if (wantsChain && chosen.audio === 1) notes.push(`O processador de áudio roda só com valores padrão (os ajustes finos não foram aceitos pelo Liquidsoap).`);
-  if (wantsChain && chosen.audio === 2) notes.push(`O processador de áudio foi DESLIGADO porque o Liquidsoap recusou o script.`);
+  if (wantsChain && !chosen.stereo && chosen.audio === 1) notes.push(`O processador de áudio roda só com valores padrão (os ajustes finos não foram aceitos pelo Liquidsoap).`);
+  if (wantsChain && !chosen.stereo && chosen.audio === 2) notes.push(`O processador de áudio foi DESLIGADO porque o Liquidsoap recusou o script.`);
   if (wantsAutocue && chosen.autocue && !chosen.tuned && st.autocue_custom) notes.push(`O AutoCue roda com a configuração padrão (os valores personalizados de duração/fade não foram aceitos pelo Liquidsoap).`);
   if (wantsAutocue && !chosen.autocue) notes.push(`O AutoCue foi DESLIGADO porque o Liquidsoap recusou o script (as passagens ficam sem o ajuste automático).`);
   if (wantsKeep && !chosen.keepAlive) notes.push(`O AutoDJ não continua em segundo plano durante o ao vivo (o Liquidsoap recusou): ao voltar, ele pode começar uma música nova.`);
-  if (notes.length) audioWarnings.set(st.id, `${notes.join('\n')}\n${firstError}`);
+  if (notes.length) audioWarnings.set(st.id, maskKey(`${notes.join('\n')}\n${firstError}`));
   if (audioWarnings.has(st.id)) console.warn(`[engine] ${st.slug}: ${audioWarnings.get(st.id)}`);
 
   const icecast = new Supervised(
@@ -284,6 +290,14 @@ export async function startStation(st: StationRow) {
     } catch {
       /* sem log */
     }
+    // O Stereo Tool só falha de verdade ao carregar a biblioteca (depois do --check): sobe de novo sem ele, para a rádio não ficar fora do ar.
+    if (dead === 'liquidsoap' && chosen.stereo && !skipStereo) {
+      const reason = maskKey(tail(log));
+      console.warn(`[engine] ${st.slug}: Stereo Tool recusado, subindo sem ele:\n${reason}`);
+      await startStation(st, true);
+      audioWarnings.set(st.id, `O Stereo Tool NÃO carregou e a rádio subiu com o processador interno. Motivo informado pelo Liquidsoap:\n${reason}`);
+      return;
+    }
     throw startError(`${dead === 'icecast' ? 'Icecast' : 'Liquidsoap'} não ficou no ar:\n${tail(log) || '(sem saída no log)'}`);
   }
   dispatch(st.id, 'station_start', {});
@@ -295,7 +309,7 @@ const startError = (msg: string) => {
   return new HttpError(422, msg);
 };
 
-const tail = (s: string, n = 15) => s.trim().split('\n').slice(-n).join('\n');
+const tail = (s: string, n = 15) => maskKey(s.trim().split('\n').slice(-n).join('\n'));
 
 export async function stopStation(stationId: number) {
   if (engineMode() === 'native') {

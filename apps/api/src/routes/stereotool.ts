@@ -4,7 +4,7 @@ import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authenticate, HttpError, requireAdmin, stationFor } from '../auth.js';
-import { extractLibraryFromZip, getLicenseKey, libraryInfo, setLicenseKey, listPresets, presetPath, presetsDir, safePresetName, stereoLibDir, stereoLibPath } from '../engine/stereotool.js';
+import { extractLibraryFromZip, getLicenseKey, libraryInfo, setLibraryName, setLicenseKey, listPresets, presetPath, presetsDir, safePresetName, stereoLibDir, stereoLibPath } from '../engine/stereotool.js';
 
 const idParam = z.object({ id: z.coerce.number().int() });
 const MAX_LIB = 400 * 1024 * 1024; // o ZIP do plugin traz as bibliotecas de várias plataformas
@@ -42,10 +42,11 @@ export async function stereoToolRoutes(app: FastifyInstance) {
         return h;
       };
       let head = readHead(tmp);
+      let libName = part.filename;
       if (head[0] === 0x50 && head[1] === 0x4b) {
         const extracted = `${tmp}.so`;
         try {
-          await extractLibraryFromZip(tmp, extracted);
+          libName = await extractLibraryFromZip(tmp, extracted);
           fs.renameSync(extracted, tmp);
         } catch (e) {
           fs.rmSync(extracted, { force: true });
@@ -59,6 +60,7 @@ export async function stereoToolRoutes(app: FastifyInstance) {
       }
       fs.chmodSync(tmp, 0o755);
       fs.renameSync(tmp, stereoLibPath());
+      setLibraryName(libName);
     } finally {
       fs.rmSync(tmp, { force: true });
     }

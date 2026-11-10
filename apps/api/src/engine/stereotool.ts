@@ -29,12 +29,27 @@ export function setLicenseKey(key: string) {
   fs.writeFileSync(licensePath(), k, { mode: 0o600 });
 }
 
+const libNamePath = () => path.join(stereoLibDir(), 'libStereoTool.name');
+export const setLibraryName = (name: string) => {
+  try {
+    fs.writeFileSync(libNamePath(), path.basename(name).slice(0, 120));
+  } catch {
+    /* só informativo */
+  }
+};
+
 export const libraryInfo = () => {
   try {
     const s = fs.statSync(stereoLibPath());
-    return { present: true, size: s.size, updatedAt: s.mtime.toISOString() };
+    let name = '';
+    try {
+      name = fs.readFileSync(libNamePath(), 'utf8').trim();
+    } catch {
+      /* sem nome guardado */
+    }
+    return { present: true, size: s.size, updatedAt: s.mtime.toISOString(), name };
   } catch {
-    return { present: false, size: 0, updatedAt: null as string | null };
+    return { present: false, size: 0, updatedAt: null as string | null, name: '' };
   }
 };
 
@@ -44,8 +59,10 @@ function libScore(name: string): number {
   if (!/\.so(\.\d+)*$/.test(n) || /__macosx|\/\._/.test(n)) return -1;
   if (!/libstereotool/.test(n)) return -1;
   let score = 1;
-  if (/x64|x86[_-]?64|amd64|64/.test(n)) score += 4;
-  if (/arm|aarch|armhf|i386|i686|x86(?![_-]?64)|32/.test(n)) score -= 6;
+  if (/intel64|x86[_-]?64|amd64|x64/.test(n)) score += 5;
+  else if (/64/.test(n)) score += 1;
+  if (/arm|aarch|armhf|pi\d|i386|i686|intel32|x86(?![_-]?64)|32/.test(n)) score -= 7;
+  if (/x11|gui|gtk|qt/.test(n)) score -= 4; // versão com interface gráfica, não serve de plugin
   if (/linux/.test(n)) score += 1;
   return score;
 }

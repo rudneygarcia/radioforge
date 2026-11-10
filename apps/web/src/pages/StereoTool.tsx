@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, uploadForm } from '../api';
 import { Icon, useUi } from '../ui';
-import { extractStereoLib } from '../zipLib';
+import { extractZipLib, listZipLibs, type ZipLib } from '../zipLib';
 
 interface Lib {
   present: boolean;
   size: number;
   updatedAt: string | null;
+  name: string;
 }
 
 /** Stereo Tool: biblioteca do servidor (.so), preset (.sts) por estação e chave de licença. */
@@ -31,6 +32,8 @@ export default function StereoTool({
   const [busy, setBusy] = useState(false);
   // Andamento do envio: mostra a barra, o "processando" no servidor e o resultado (ou o erro) na tela.
   const [up, setUp] = useState<{ name: string; pct: number; stage: 'sending' | 'processing' | 'done' | 'error'; msg: string } | null>(null);
+  // ZIP do plugin aberto: bibliotecas .so encontradas dentro dele para a pessoa escolher a certa.
+  const [pick, setPick] = useState<{ file: File; libs: ZipLib[]; chosen: string } | null>(null);
   const [key, setKey] = useState('');
   const [keySet, setKeySet] = useState(false);
 
@@ -43,11 +46,16 @@ export default function StereoTool({
   async function send(path: string, file: File | undefined, done: string) {
     if (!file) return;
     setBusy(true);
-    // ZIP grande do plugin (traz todas as plataformas): extrai a biblioteca Linux aqui no navegador e envia só ela.
-    if (path.endsWith('/library') && /.zip$/i.test(file.name) && file.size > 20 * 1024 * 1024) {
-      setUp({ name: `${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`, pct: 0, stage: 'processing', msg: 'Extraindo a biblioteca Linux do ZIP aqui no seu computador (o ZIP inteiro é grande demais para enviar)…' });
-      const lib = await extractStereoLib(file);
-      if (lib) file = lib;
+    // ZIP do plugin (traz todas as plataformas, +300 MB): lê o ZIP aqui no navegador e envia só a biblioteca Linux escolhida.
+    if (path.endsWith('/library') && /\.zip$/i.test(file.name)) {
+      setUp({ name: `${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`, pct: 0, stage: 'processing', msg: 'Lendo o ZIP aqui no seu computador…' });
+      const libs = await listZipLibs(file);
+      if (libs && libs.length > 0) {
+        setUp(null);
+        setBusy(false);
+        setPick({ file, libs, chosen: libs[0].name });
+        return;
+      }
     }
     const mb = (file.size / 1024 / 1024).toFixed(1);
     setUp({ name: `${file.name} (${mb} MB)`, pct: 0, stage: 'sending', msg: 'Enviando…' });
@@ -68,6 +76,23 @@ export default function StereoTool({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function sendPicked() {
+    if (!pick) return;
+    const lib = pick.libs.find((l) => l.name === pick.chosen);
+    const zip = pick.file;
+    setPick(null);
+    if (!lib) return;
+    setBusy(true);
+    setUp({ name: lib.name, pct: 0, stage: 'processing', msg: 'Extraindo a biblioteca do ZIP…' });
+    const file = await extractZipLib(zip, lib);
+    if (!file) {
+      setBusy(false);
+      setUp({ name: lib.name, pct: 100, stage: 'error', msg: 'Não foi possível extrair essa biblioteca do ZIP.' });
+      return;
+    }
+    await send('/api/stereotool/library', file, 'Biblioteca enviada');
   }
 
   async function saveKey(k: string) {
@@ -116,10 +141,27 @@ export default function StereoTool({
         </div>
       )}
 
+      {pick && (
+        <div className="card" style={{ padding: 14 }}>
+          <strong>Qual biblioteca usar? (achei {pick.libs.length} no ZIP)</strong>
+          <p className="muted small-text" style={{ margin: '4px 0 8px' }}>Para o servidor Linux de 64 bits, normalmente é a <code>…intel64…so</code> / <code>x86_64</code> / <code>x64</code>, sem “x11” ou “gui” no nome. A mais provável já vem marcada.</p>
+          {pick.libs.map((l) => (
+            <label key={l.name} className="check-line" style={{ marginBottom: 6 }}>
+              <input type="radio" name="zip-lib" checked={pick.chosen === l.name} onChange={() => setPick({ ...pick, chosen: l.name })} />
+              <span style={{ wordBreak: 'break-all' }}>{l.name}<small>{(l.size / 1024 / 1024).toFixed(1)} MB</small></span>
+            </label>
+          ))}
+          <div className="row" style={{ margin: '10px 0 0' }}>
+            <button type="button" onClick={sendPicked}>Enviar a biblioteca escolhida</button>
+            <button type="button" className="ghost" onClick={() => setPick(null)}>Cancelar</button>
+          </div>
+        </div>
+      )}
+
       <div className="card" style={{ padding: 14 }}>
         <strong>1. Biblioteca e licença (do servidor, valem para todas as estações)</strong>
         <p className="muted small-text" style={{ margin: '4px 0 8px' }}>
-          {lib === null ? 'Verificando…' : lib.present ? `Enviada (${(lib.size / 1024 / 1024).toFixed(1)} MB).` : 'Ainda não enviada.'}
+          {lib === null ? 'Verificando…' : lib.present ? `Enviada: ${lib.name || 'biblioteca'} (${(lib.size / 1024 / 1024).toFixed(1)} MB).` : 'Ainda não enviada.'}
         </p>
         {isAdmin && (
           <div className="row" style={{ margin: 0 }}>
