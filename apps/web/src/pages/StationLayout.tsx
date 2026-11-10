@@ -17,7 +17,6 @@ const NAV = [
   { to: 'djs', label: 'DJs', icon: 'mic' },
   { to: 'listeners', label: 'Ouvintes', icon: 'users' },
   { to: 'reports', label: 'Relatórios', icon: 'chart' },
-  { to: 'podcast', label: 'Podcast', icon: 'podcast' },
   { to: 'integrations', label: 'Integrações', icon: 'plug' },
   { to: 'edit', label: 'Editar estação', icon: 'edit' },
   { to: 'settings', label: 'Configurações', icon: 'cog' },

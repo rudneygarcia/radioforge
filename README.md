@@ -119,7 +119,7 @@ Em cada estação, aba **Integrações**. Eventos: troca de música, estação i
 4. ~~DJs com conta própria, gravação de transmissões ao vivo~~ (feito). O painel e o player público mostram quem está ao vivo (o Liquidsoap avisa a API ao conectar/desconectar; **não validado com um DJ real ainda**). Cada DJ pode ter janela de horário (dias + início/fim): fora dela a conexão é recusada (horário do servidor; **script não validado com Liquidsoap real**).
 5. ~~Relatórios de ouvintes (por país, player, tempo) e gráficos~~ (feito, com exportação CSV: botão no painel ou `GET /api/stations/:id/reports?days=7&format=csv`). Os cartões comparam com o período anterior de mesma duração (▲/▼ %), também no CSV e em `previous` no JSON.
 6. ~~Webhooks e integrações (Discord), API com chaves de acesso~~ (feito, chaves podem ser **somente leitura**: só GET/HEAD). Falta integração com redes sociais e documentação OpenAPI.
-7. ~~Backups agendados~~ (feito: menu **Backups**, só admin; cópia diária do banco, guarda as 7 últimas, download pelo painel; **não inclui músicas/gravações**, copie o volume `/data` para elas). **Restaurar** pelo painel (guarda antes uma cópia de segurança do banco atual e reinicia a API; depende de o Docker religar o contêiner, o que `restart: unless-stopped` faz). Menu **Sistema** (admin): mostra versão/commit em uso e verifica se há commit novo no GitHub (repositório privado: defina `UPDATE_GITHUB_TOKEN`, token só de leitura; `UPDATE_REPO`, `UPDATE_BRANCH` opcionais); o botão "Atualizar agora" chama `UPDATE_WEBHOOK_URL` se definida (senão, o deploy automático do seu painel já atualiza a cada push). **Podcast** (aba por estação): envie episódios (ou publique uma gravação ao vivo) e use o feed RSS `/api/public/stations/<slug>/podcast.xml` em qualquer app de podcast (com suporte a Range; rascunhos ficam fora do feed).
+7. ~~Backups agendados~~ (feito: menu **Backups**, só admin; cópia diária do banco, guarda as 7 últimas, download pelo painel; **não inclui músicas/gravações**, copie o volume `/data` para elas). **Restaurar** pelo painel (guarda antes uma cópia de segurança do banco atual e reinicia a API; depende de o Docker religar o contêiner, o que `restart: unless-stopped` faz). Menu **Sistema** (admin): mostra versão/commit em uso e verifica se há commit novo no GitHub (repositório privado: defina `UPDATE_GITHUB_TOKEN`, token só de leitura; `UPDATE_REPO`, `UPDATE_BRANCH` opcionais); o botão "Atualizar agora" chama `UPDATE_WEBHOOK_URL` se definida (senão, o deploy automático do seu painel já atualiza a cada push). 
 8. Relay/transmissão para outros serviços, HTTPS automático (Caddy) e multi-idioma.
 9. Migrar SQLite para Postgres se o volume pedir.
 
@@ -138,7 +138,7 @@ Em cada estação, aba **Integrações**. Eventos: troca de música, estação i
 
 ## Progresso de envio
 
-Ao enviar músicas (Biblioteca) ou episódios (Podcast), o painel mostra o andamento: barra total com porcentagem, MB enviados, velocidade e tempo restante, e uma lista por arquivo (na fila, enviando %, processando, enviado ou erro). Dá para cancelar o envio; arquivos com erro ficam listados até você fechar o painel.
+Ao enviar músicas (Biblioteca), o painel mostra o andamento: barra total com porcentagem, MB enviados, velocidade e tempo restante, e uma lista por arquivo (na fila, enviando %, processando, enviado ou erro). Dá para cancelar o envio; arquivos com erro ficam listados até você fechar o painel.
 
 ## Volume, não repetir músicas e biblioteca por pastas
 

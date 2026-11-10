@@ -16,7 +16,6 @@ import { startIcecastLiveWatcher } from './engine/icecastlive.js';
 import { startStatsCollector } from './engine/stats.js';
 import { backupRoutes } from './routes/backups.js';
 import { systemRoutes } from './routes/system.js';
-import { podcastRoutes } from './routes/podcast.js';
 import { timeClipRoutes } from './routes/timeclips.js';
 import { stereoToolRoutes } from './routes/stereotool.js';
 import { authRoutes } from './routes/auth.js';
@@ -76,7 +75,6 @@ await app.register(webhookRoutes);
 await app.register(publicRoutes);
 await app.register(backupRoutes);
 await app.register(systemRoutes);
-await app.register(podcastRoutes);
 await app.register(timeClipRoutes);
 await app.register(stereoToolRoutes);
 

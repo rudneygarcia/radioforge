@@ -132,7 +132,7 @@ export default function DjsPage() {
       {!station.recordLive && <p className="muted" style={{ marginTop: -4 }}>A gravação está desligada. Ative em Editar estação.</p>}
       <div className="card tight">
         {recs.length === 0 ? (
-          <Empty icon="mic" title="Sem gravações" text="As transmissões ao vivo gravadas aparecem aqui para baixar ou virar episódio de podcast." />
+          <Empty icon="mic" title="Sem gravações" text="As transmissões ao vivo gravadas aparecem aqui para baixar." />
         ) : (
           <table>
             <tbody>

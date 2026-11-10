@@ -17,7 +17,6 @@ import Settings, { EditStation } from './pages/Settings';
 import Users from './pages/Users';
 import BackupsPage from './pages/BackupsPage';
 import SystemPage from './pages/SystemPage';
-import PodcastPage from './pages/PodcastPage';
 
 function Protected() {
   const { user, loading, logout } = useAuth();
@@ -72,7 +71,6 @@ export default function App() {
           <Route path="listeners" element={<ListenersPage />} />
           <Route path="requests" element={<RequestsPage />} />
           <Route path="reports" element={<ReportsPage />} />
-          <Route path="podcast" element={<PodcastPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="edit" element={<EditStation />} />
           <Route path="settings" element={<Settings />} />
