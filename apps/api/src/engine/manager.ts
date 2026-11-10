@@ -344,6 +344,22 @@ export function kickLive(st: StationRow): Promise<void> {
   });
 }
 
+/** Últimas linhas do log do Liquidsoap da estação (diagnóstico no painel). */
+export function engineLogTail(stationId: number, lines = 120): string {
+  const file = path.join(stationDir(stationId), 'logs', 'liquidsoap.out.log');
+  try {
+    const size = fs.statSync(file).size;
+    const fd = fs.openSync(file, 'r');
+    const len = Math.min(size, 64 * 1024);
+    const buf = Buffer.alloc(len);
+    fs.readSync(fd, buf, 0, len, size - len);
+    fs.closeSync(fd);
+    return buf.toString('utf8').split('\n').slice(-lines).join('\n');
+  } catch {
+    return '(sem log)';
+  }
+}
+
 /** Empurra um arquivo na fila de pedidos do Liquidsoap via telnet local. */
 export function pushRequest(stationId: number, absPath: string, silent = false, duration = 0, hide = false): Promise<void> {
   const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', stationId);
@@ -358,14 +374,26 @@ export function pushRequest(stationId: number, absPath: string, silent = false, 
     const sock = net.connect(telnetPort(st), '127.0.0.1');
     // requests.push só responde depois que o Liquidsoap prepara o arquivo (com AutoCue isso inclui a análise da música,
     // que pode levar vários segundos): 3 s dava "erro interno" no pedido do ouvinte.
-    sock.setTimeout(45_000, () => {
+    // Depois de 6 s sem resposta o pedido é dado como aceito (o comando já foi entregue e continua rodando no
+    // Liquidsoap); a conexão só é fechada se passar de 2 min. Assim o ouvinte não fica preso em "Enviando…".
+    let settled = false;
+    const done = (err?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(soft);
+      err ? reject(err) : resolve();
+    };
+    const soft = setTimeout(() => {
+      if (sock.bytesWritten > 0) done();
+    }, 6000);
+    sock.setTimeout(120_000, () => {
       sock.destroy();
-      reject(new Error('Timeout falando com o Liquidsoap'));
+      done(new Error('Timeout falando com o Liquidsoap'));
     });
-    sock.on('error', reject);
+    sock.on('error', (e) => done(e));
     // Vinheta pedida pela fila: o annotate mantém o nome fora do servidor.
     const uri = hide ? hiddenUri(absPath) : silent ? jingleUri(st, absPath, duration) : absPath;
     sock.on('connect', () => sock.write(`requests.push ${uri}\nquit\n`));
-    sock.on('close', () => resolve());
+    sock.on('close', () => done());
   });
 }

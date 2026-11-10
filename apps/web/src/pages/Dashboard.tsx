@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { api } from '../api';
-import { CopyButton, Cover, Empty, Icon, useUi } from '../ui';
+import { CopyButton, Cover, Empty, Icon, Modal, useUi } from '../ui';
+import { useAuth } from '../auth';
 import type { StationCtx } from './StationLayout';
 
 interface Req {
@@ -69,6 +70,18 @@ export default function Dashboard() {
   const [history, setHistory] = useState<Hist[]>([]);
   const [busy, setBusy] = useState(false);
   const [reqs, setReqs] = useState<Req[]>([]);
+  const { user } = useAuth();
+  const [logOpen, setLogOpen] = useState(false);
+  const [log, setLog] = useState('');
+  const showLog = async () => {
+    setLogOpen(true);
+    setLog('Carregando…');
+    try {
+      setLog((await api<{ log: string }>(`/api/stations/${station.id}/engine-log`)).log);
+    } catch (e) {
+      setLog((e as Error).message);
+    }
+  };
   // Quantas músicas mostrar no histórico (lembra a escolha neste navegador).
   const [shown, setShown] = useState(() => {
     try {
@@ -156,6 +169,7 @@ export default function Dashboard() {
             <button disabled={busy || station.running} onClick={() => action('start')}><Icon name="play" /> Iniciar</button>
             <button disabled={busy || !station.running} onClick={() => action('restart')} className="ghost"><Icon name="refresh" /> Reiniciar</button>
             <button disabled={busy || !station.running} onClick={() => action('stop')} className="danger"><Icon name="stop" /> Parar</button>
+            {user?.role === 'admin' && <button type="button" className="ghost" onClick={showLog} title="Log do Liquidsoap"><Icon name="info" /> Log</button>}
           </div>
         </div>
         <div className="card">
@@ -199,6 +213,10 @@ export default function Dashboard() {
           )}
         </div>
       )}
+
+      <Modal open={logOpen} title="Log do Liquidsoap" onClose={() => setLogOpen(false)} size="lg" footer={<button type="button" onClick={showLog}>Atualizar</button>}>
+        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: 12, maxHeight: '60vh', overflow: 'auto', margin: 0 }}>{log}</pre>
+      </Modal>
 
       <div className="card section">
         <div className="section-title"><h3>Links de transmissão</h3></div>

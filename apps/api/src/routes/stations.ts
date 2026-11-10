@@ -7,7 +7,7 @@ import { config, stationDir } from '../config.js';
 import { all, db, get, mountsFor, run, type StationRow } from '../db.js';
 import { historyView, nowPlayingView, removeStationCover, saveStationCover, sniffImage, stationCoverUrl } from '../engine/covers.js';
 import { announceNow, isValidTimezone, localTime, resolveClip } from '../engine/announce.js';
-import { audioWarningFor, kickLive, engineMode, ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
+import { audioWarningFor, engineLogTail, kickLive, engineMode, ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
 import { harborPort } from '../engine/liquidsoap.js';
 import { icecastError, liveListeners } from '../engine/listeners.js';
 import { clearLive, getHistory, getListeners, getLive, getNowPlaying } from '../engine/nowplaying.js';
@@ -498,6 +498,14 @@ export async function stationRoutes(app: FastifyInstance) {
         status: !r.pushed ? 'waiting' : r.played ? 'played' : 'queued',
       })),
     };
+  });
+
+  // Log do Liquidsoap (só administradores): ajuda a diagnosticar problemas de áudio/fila.
+  app.get('/api/stations/:id/engine-log', async (req) => {
+    requireAdmin(req);
+    const { id } = idParam.parse(req.params);
+    const st = stationFor(req, id);
+    return { log: engineLogTail(st.id) };
   });
 
   // Cancela um pedido ainda agendado (que não entrou na fila do AutoDJ).
