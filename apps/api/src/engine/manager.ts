@@ -375,6 +375,24 @@ export function kickLive(st: StationRow): Promise<void> {
   });
 }
 
+/** Executa comandos no console (telnet) local do Liquidsoap e devolve a resposta (para diagnóstico). */
+export function telnetRun(stationId: number, commands: string, timeoutMs = 5000): Promise<string> {
+  const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', stationId);
+  if (!st || engineMode() === 'native') return Promise.resolve('(indisponível neste modo)');
+  return new Promise((resolve) => {
+    let out = '';
+    const sock = net.connect(telnetPort(st), '127.0.0.1');
+    sock.setTimeout(timeoutMs, () => {
+      sock.destroy();
+      resolve(`${out.trim()}\n(sem resposta em ${timeoutMs / 1000}s: o Liquidsoap pode estar ocupado)`.trim());
+    });
+    sock.on('error', (e) => resolve(`(erro: ${e.message})`));
+    sock.on('connect', () => sock.write(`${commands}\nquit\n`));
+    sock.on('data', (d) => (out += d.toString()));
+    sock.on('close', () => resolve(out.replace(/Bye!?/gi, '').trim()));
+  });
+}
+
 /** Últimas linhas do log do Liquidsoap da estação (diagnóstico no painel). */
 export function engineLogTail(stationId: number, lines = 120): string {
   const file = path.join(stationDir(stationId), 'logs', 'liquidsoap.out.log');
@@ -408,6 +426,7 @@ export function pushRequest(stationId: number, absPath: string, silent = false, 
     // Depois de 6 s sem resposta o pedido é dado como aceito (o comando já foi entregue e continua rodando no
     // Liquidsoap); a conexão só é fechada se passar de 2 min. Assim o ouvinte não fica preso em "Enviando…".
     let settled = false;
+    let reply = '';
     const done = (err?: Error) => {
       if (settled) return;
       settled = true;
@@ -416,7 +435,7 @@ export function pushRequest(stationId: number, absPath: string, silent = false, 
     };
     const soft = setTimeout(() => {
       if (sock.bytesWritten > 0) done();
-    }, 6000);
+    }, 25_000);
     sock.setTimeout(120_000, () => {
       sock.destroy();
       done(new Error('Timeout falando com o Liquidsoap'));
@@ -425,6 +444,13 @@ export function pushRequest(stationId: number, absPath: string, silent = false, 
     // Vinheta pedida pela fila: o annotate mantém o nome fora do servidor.
     const uri = hide ? hiddenUri(absPath) : silent ? jingleUri(st, absPath, duration) : absPath;
     sock.on('connect', () => sock.write(`requests.push ${uri}\nquit\n`));
-    sock.on('close', () => done());
+    sock.on('data', (d) => (reply += d.toString()));
+    sock.on('close', () => {
+      // Resposta do Liquidsoap: o número do pedido na fila (ex.: "12"). Erro ou vazio = o arquivo não entrou.
+      const text = reply.replace(/Bye!?/gi, '').replace(/\bEND\b/g, '').trim();
+      console.log(`[fila] ${st.slug}: requests.push ${path.basename(absPath)} -> ${text || '(sem resposta)'}`);
+      if (/error|invalid|not\s+found|unknown/i.test(text) || !/\d/.test(text)) return done(new Error(`O Liquidsoap não aceitou o arquivo na fila: ${text || 'sem resposta'}`));
+      done();
+    });
   });
 }

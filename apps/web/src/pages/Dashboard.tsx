@@ -73,11 +73,14 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [logOpen, setLogOpen] = useState(false);
   const [log, setLog] = useState('');
+  const [queue, setQueue] = useState('');
   const showLog = async () => {
     setLogOpen(true);
     setLog('Carregando…');
     try {
-      setLog((await api<{ log: string }>(`/api/stations/${station.id}/engine-log`)).log);
+      const r = await api<{ log: string; queue: string }>(`/api/stations/${station.id}/engine-log`);
+      setLog(r.log);
+      setQueue(r.queue);
     } catch (e) {
       setLog((e as Error).message);
     }
@@ -215,7 +218,7 @@ export default function Dashboard() {
       )}
 
       <Modal open={logOpen} title="Log do Liquidsoap" onClose={() => setLogOpen(false)} size="lg" footer={<button type="button" onClick={showLog}>Atualizar</button>}>
-        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: 12, maxHeight: '60vh', overflow: 'auto', margin: 0 }}>{log}</pre>
+        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: 12, maxHeight: '60vh', overflow: 'auto', margin: 0 }}>{`Fila de pedidos do Liquidsoap (requests.queue): ${queue.trim() || '(vazia)'}\n\n${log}`}</pre>
       </Modal>
 
       <div className="card section">

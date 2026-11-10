@@ -7,7 +7,7 @@ import { config, stationDir } from '../config.js';
 import { all, db, get, mountsFor, run, type StationRow } from '../db.js';
 import { historyView, nowPlayingView, removeStationCover, saveStationCover, sniffImage, stationCoverUrl } from '../engine/covers.js';
 import { announceNow, isValidTimezone, localTime, resolveClip } from '../engine/announce.js';
-import { audioWarningFor, engineLogTail, kickLive, engineMode, ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
+import { audioWarningFor, engineLogTail, telnetRun, kickLive, engineMode, ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
 import { harborPort } from '../engine/liquidsoap.js';
 import { icecastError, liveListeners } from '../engine/listeners.js';
 import { clearLive, getHistory, getListeners, getLive, getNowPlaying } from '../engine/nowplaying.js';
@@ -532,7 +532,9 @@ export async function stationRoutes(app: FastifyInstance) {
     requireAdmin(req);
     const { id } = idParam.parse(req.params);
     const st = stationFor(req, id);
-    return { log: engineLogTail(st.id) };
+    // Fila de pedidos do Liquidsoap (RIDs ainda não tocados) e o que está tocando agora, para ver se o pedido realmente entrou.
+    const queue = await telnetRun(st.id, 'requests.queue');
+    return { log: engineLogTail(st.id), queue };
   });
 
   // Cancela um pedido ainda agendado (que não entrou na fila do AutoDJ).
