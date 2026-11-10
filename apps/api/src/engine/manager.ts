@@ -385,7 +385,7 @@ export function engineLogTail(stationId: number, lines = 120): string {
     const buf = Buffer.alloc(len);
     fs.readSync(fd, buf, 0, len, size - len);
     fs.closeSync(fd);
-    return buf.toString('utf8').split('\n').slice(-lines).join('\n');
+    return maskKey(buf.toString('utf8').split('\n').slice(-lines).join('\n'));
   } catch {
     return '(sem log)';
   }
