@@ -102,6 +102,9 @@ export interface Station {
   jingleHideName: boolean;
   requestInterval: number;
   requestDelay: number;
+  stereoEnabled: boolean;
+  stereoPreset: string;
+  stereoKeySet: boolean;
   timeAnnounceVoice: boolean;
   timezone: string;
   liveEnabled: boolean;

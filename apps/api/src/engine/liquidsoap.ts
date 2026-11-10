@@ -1,5 +1,6 @@
 import type { DjRow, MountRow, StationRow } from '../db.js';
 import { config } from '../config.js';
+import { presetPath, stereoLibPath } from './stereotool.js';
 
 /** Literal de string seguro para Liquidsoap (JSON é compatível com as escapes dele). */
 const q = (s: string) => JSON.stringify(s);
@@ -87,6 +88,8 @@ export function buildLiquidsoapScript(
     autocue?: boolean;
     /** Crossfade com os valores personalizados da estação (duração e fades); senão, o padrão do Liquidsoap. */
     tuned?: boolean;
+    /** Stereo Tool no lugar do processador interno (precisa da biblioteca enviada). */
+    stereo?: boolean;
   } = {},
 ): string {
   const lines: string[] = [];
@@ -225,7 +228,13 @@ export function buildLiquidsoapScript(
 
   // Processador de áudio: sobre tudo que vai ao ar (músicas e DJ). Sem a opção, o áudio sai como veio.
   const audioVariant = opts.audio ?? 0;
-  if (audioVariant === 0 || audioVariant === 1) lines.push(...audioChain(st.audio_preset, st.audio_gain, audioVariant));
+  if (opts.stereo) {
+    // Stereo Tool: biblioteca do servidor + preset (.sts) da estação + licença. Substitui o processador interno.
+    const args = [`library_file = ${q(stereoLibPath())}`];
+    if (st.stereo_key) args.push(`license_key = ${q(st.stereo_key)}`);
+    if (st.stereo_preset) args.push(`preset = ${q(presetPath(st.id, st.stereo_preset))}`);
+    lines.push(`radio = stereotool(${args.join(', ')}, radio)`);
+  } else if (audioVariant === 0 || audioVariant === 1) lines.push(...audioChain(st.audio_preset, st.audio_gain, audioVariant));
 
   lines.push(`radio = mksafe(radio)`, `radio.on_metadata(notify)`, ``);
 

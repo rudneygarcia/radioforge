@@ -17,6 +17,7 @@ import { backupRoutes } from './routes/backups.js';
 import { systemRoutes } from './routes/system.js';
 import { podcastRoutes } from './routes/podcast.js';
 import { timeClipRoutes } from './routes/timeclips.js';
+import { stereoToolRoutes } from './routes/stereotool.js';
 import { authRoutes } from './routes/auth.js';
 import { djRoutes } from './routes/djs.js';
 import { reportRoutes } from './routes/reports.js';
@@ -66,6 +67,7 @@ await app.register(backupRoutes);
 await app.register(systemRoutes);
 await app.register(podcastRoutes);
 await app.register(timeClipRoutes);
+await app.register(stereoToolRoutes);
 
 app.get('/api/health', async () => ({ ok: true, engine: config.engine.enabled, engineMode: engineMode() }));
 

@@ -11,6 +11,7 @@ import { clearLive } from './nowplaying.js';
 import { nativeEnqueue, nativeRunning, startNative, stopNative } from './native.js';
 import { buildLiquidsoapScript, telnetPort, type LiqPlaylist } from './liquidsoap.js';
 import { isHiddenTrack } from './hide.js';
+import { libraryInfo, listPresets } from './stereotool.js';
 
 /** Mantém um processo vivo, reiniciando com backoff se cair. */
 class Supervised {
@@ -159,7 +160,7 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
 }
 
 /** Versão do script que vale por estação: processador (0 completo, 1 só padrões, 2 desligado) e AutoDJ em segundo plano. */
-type Variant = { audio: 0 | 1 | 2; keepAlive: boolean; autocue: boolean; tuned: boolean };
+type Variant = { audio: 0 | 1 | 2; keepAlive: boolean; autocue: boolean; tuned: boolean; stereo?: boolean };
 const variantOf = new Map<number, Variant>();
 const audioWarnings = new Map<number, string>();
 /** Aviso para o painel quando o processador ou o "AutoDJ em segundo plano" precisaram ser reduzidos/desligados por erro no script. */
@@ -211,6 +212,20 @@ export async function startStation(st: StationRow) {
       for (const audio of audios) attempts.push({ audio, keepAlive, autocue: cue.autocue, tuned: cue.tuned });
   const reductions = (v: Variant) => audios.indexOf(v.audio) + (wantsKeep && !v.keepAlive ? 1 : 0) + cueLevels.findIndex((c) => c.autocue === v.autocue && c.tuned === v.tuned);
   attempts.sort((a, b) => reductions(a) - reductions(b));
+  // Stereo Tool (se ligado, com biblioteca e preset enviados): tentado primeiro; se o Liquidsoap recusar, cai no processador interno.
+  const stereoProblem = !st.stereo_enabled
+    ? ''
+    : !libraryInfo().present
+      ? 'A biblioteca do Stereo Tool ainda não foi enviada (Configurações → Stereo Tool).'
+      : st.stereo_preset && !listPresets(st.id).includes(st.stereo_preset)
+        ? `O preset "${st.stereo_preset}" do Stereo Tool não foi encontrado.`
+        : '';
+  const wantsStereo = !!st.stereo_enabled && !stereoProblem;
+  if (wantsStereo) {
+    const stereoAttempts: Variant[] = attempts.filter((v) => v.audio === attempts[0].audio || v.audio === 2).map((v) => ({ ...v, audio: 2 as const, stereo: true }));
+    const seen = new Set<string>();
+    attempts.unshift(...stereoAttempts.filter((v) => !seen.has(JSON.stringify(v)) && seen.add(JSON.stringify(v))));
+  }
   audioWarnings.delete(st.id);
   let firstError = '';
   let lastOut = '';
@@ -230,6 +245,8 @@ export async function startStation(st: StationRow) {
   if (!chosen) throw startError(`Script do Liquidsoap inválido:\n${lastOut}`);
   variantOf.set(st.id, chosen);
   const notes: string[] = [];
+  if (stereoProblem) notes.push(stereoProblem + ' Usando o processador interno.');
+  if (wantsStereo && !chosen.stereo) notes.push('O Stereo Tool NÃO foi carregado (o Liquidsoap recusou o script: verifique se esta versão do Liquidsoap tem o suporte a Stereo Tool). Usando o processador interno.');
   if (wantsChain && chosen.audio === 1) notes.push(`O processador de áudio roda só com valores padrão (os ajustes finos não foram aceitos pelo Liquidsoap).`);
   if (wantsChain && chosen.audio === 2) notes.push(`O processador de áudio foi DESLIGADO porque o Liquidsoap recusou o script.`);
   if (wantsAutocue && chosen.autocue && !chosen.tuned && st.autocue_custom) notes.push(`O AutoCue roda com a configuração padrão (os valores personalizados de duração/fade não foram aceitos pelo Liquidsoap).`);

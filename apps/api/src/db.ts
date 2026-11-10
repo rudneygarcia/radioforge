@@ -211,6 +211,10 @@ addColumn('stations', 'jingle_hide_name', 'INTEGER NOT NULL DEFAULT 0');
 // Pedidos: minutos que cada ouvinte espera para pedir de novo (0 = sem limite) e minutos até o pedido entrar no AutoDJ (0 = na hora).
 addColumn('stations', 'request_interval', 'INTEGER NOT NULL DEFAULT 5');
 addColumn('stations', 'request_delay', 'INTEGER NOT NULL DEFAULT 0');
+// Stereo Tool: processador comercial; a biblioteca (.so) é do servidor, o preset (.sts) e a chave de licença são da estação.
+addColumn('stations', 'stereo_enabled', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('stations', 'stereo_key', "TEXT NOT NULL DEFAULT ''");
+addColumn('stations', 'stereo_preset', "TEXT NOT NULL DEFAULT ''");
 addColumn('song_requests', 'due_at', "TEXT NOT NULL DEFAULT ''");
 addColumn('song_requests', 'pushed', 'INTEGER NOT NULL DEFAULT 1');
 addColumn('stations', 'cover', 'TEXT'); // capa/logo da rádio (arquivo dentro da pasta da estação); usada quando a música não tem capa
@@ -400,6 +404,9 @@ export interface StationRow {
   jingle_hide_name: number;
   request_interval: number;
   request_delay: number;
+  stereo_enabled: number;
+  stereo_key: string;
+  stereo_preset: string;
   timezone: string;
   cover: string | null;
   created_at: string;

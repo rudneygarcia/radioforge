@@ -4,6 +4,7 @@ import { api, getToken, uploadForm, type MountCfg, type Station } from '../api';
 import { useAuth } from '../auth';
 import { Cover, Icon, Modal, useUi } from '../ui';
 import TimeClips from './TimeClips';
+import StereoTool from './StereoTool';
 import type { StationCtx } from './StationLayout';
 
 const TIMEZONES = ['America/Sao_Paulo', 'America/Manaus', 'America/Cuiaba', 'America/Belem', 'America/Fortaleza', 'America/Recife', 'America/Bahia', 'America/Rio_Branco', 'America/Noronha', 'Europe/Lisbon', 'America/New_York', 'UTC'];
@@ -48,6 +49,8 @@ export default function Settings() {
     jingleHideName: station.jingleHideName,
     requestInterval: station.requestInterval,
     requestDelay: station.requestDelay,
+    stereoEnabled: station.stereoEnabled,
+    stereoPreset: station.stereoPreset,
     timezone: station.timezone,
     historyLimit: station.historyLimit,
     liveEnabled: station.liveEnabled,
@@ -60,6 +63,8 @@ export default function Settings() {
   });
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
+  // Chave do Stereo Tool: só vai ao servidor se for digitada (o servidor nunca devolve a chave salva).
+  const [stereoKey, setStereoKey] = useState('');
   const close = () => setOpen(null);
   const [coverBusy, setCoverBusy] = useState(false);
   const isAdmin = user?.role === 'admin';
@@ -70,7 +75,8 @@ export default function Settings() {
     e.preventDefault();
     setBusy(true);
     try {
-      await api(`/api/stations/${station.id}`, { method: 'PUT', body: f });
+      await api(`/api/stations/${station.id}`, { method: 'PUT', body: { ...f, ...(stereoKey ? { stereoKey: stereoKey.trim() } : {}) } });
+      setStereoKey('');
       await reload();
       toast('Configurações salvas');
     } catch (err) {
@@ -184,6 +190,10 @@ export default function Settings() {
           <strong>Processador de áudio</strong>
           <span>{f.audioPreset === 'off' ? 'Desligado' : `${f.audioPreset === 'loud' ? 'Forte (FM)' : 'Equilibrado'}${f.audioGain ? ` · +${f.audioGain} dB` : ''}`}</span>
         </button>
+        <button type="button" className="setting-card" onClick={() => setOpen('stereo')}>
+          <strong>Stereo Tool</strong>
+          <span>{f.stereoEnabled ? `Ligado${f.stereoPreset ? ` · ${f.stereoPreset}` : ''}` : 'Desligado'}</span>
+        </button>
         <button type="button" className="setting-card" onClick={() => setOpen('hora')}>
           <strong>Hora certa</strong>
           <span>{f.timeAnnounce === 0 ? 'Desligada' : `A cada ${f.timeAnnounce === 60 ? 'hora' : `${f.timeAnnounce} min`} · ${f.timezone}`}</span>
@@ -295,6 +305,10 @@ export default function Settings() {
             <small className="hint">Se ainda estiver baixo, suba de 2 em 2 dB. Acima de uns +8 dB o som pode ficar “espremido”; o limitador evita o estouro, mas escute antes de deixar fixo.</small>
           </label>
         </div>
+      </Modal>
+
+      <Modal open={open === 'stereo'} title="Stereo Tool" onClose={close} size="lg" footer={<button type="button" onClick={close}>Concluído</button>}>
+        <StereoTool stationId={station.id} isAdmin={isAdmin} keySet={station.stereoKeySet} enabled={f.stereoEnabled} preset={f.stereoPreset} onEnabled={(v) => setF({ ...f, stereoEnabled: v })} onPreset={(v) => setF({ ...f, stereoPreset: v })} onKey={setStereoKey} />
       </Modal>
 
       <Modal open={open === 'hora'} title="Hora certa" onClose={close} size="lg" footer={<button type="button" onClick={close}>Concluído</button>}>

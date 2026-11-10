@@ -197,3 +197,7 @@ Em Configurações → Qualidade do áudio → **AutoCue**: o Liquidsoap analisa
 ### Ocultar nomes (metadados)
 
 Em *Configurações → Ocultar nomes*, liste palavras (uma por linha). Faixas cujo título, artista, álbum ou nome do arquivo contenham alguma delas tocam normalmente, mas **sem enviar metadados**: não entram em "Tocando agora", histórico, webhooks nem no stream, e o nome da estação também não é enviado. Há ainda a opção de as vinhetas não enviarem o nome da estação como título.
+
+### Stereo Tool
+
+Em *Configurações → Stereo Tool*: envie a biblioteca Linux do Stereo Tool (`libStereoTool_*.so`, 64 bits; uma vez para o servidor), os presets `.sts` de cada estação, cole a **sua** chave de licença e ligue. O Liquidsoap carrega a biblioteca (`stereotool(library_file, license_key, preset, ...)`) no lugar do processador interno. A chave fica só no servidor e nunca volta para o navegador. Se o Liquidsoap recusar o script (por exemplo, build sem suporte a Stereo Tool), a rádio sobe com o processador interno e o painel avisa. O Stereo Tool consome bastante CPU: ligue só onde precisar.
