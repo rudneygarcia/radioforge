@@ -445,3 +445,32 @@ tr.picked td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .kv > div:last-child { border-bottom: 0; }
 .kv > div > span:first-child { color: var(--muted); font-size: 13px; }
 .danger-text { color: var(--danger, #dc2626); }
+
+/* Menu lateral fixo (estilo painel): coluna inteira à esquerda, com cabeçalho da estação, item ativo em pílula e rodapé */
+.nav-head, .nav-foot { display: none; }
+@media (min-width: 900px) {
+  .container:has(.station-shell) { max-width: none; padding-left: 276px; padding-right: 28px; transition: padding-left .2s; }
+  .container:has(.station-shell.collapsed) { padding-left: 100px; }
+  .station-shell, .station-shell.collapsed { display: block; }
+  .station-shell .tabs {
+    position: fixed; left: 0; top: 60px; bottom: 0; width: 250px; margin: 0; padding: 14px 12px 8px;
+    display: flex; flex-direction: column; gap: 2px; overflow-y: auto; overflow-x: hidden;
+    background: var(--panel); border: 0; border-right: 1px solid var(--border); border-radius: 0; box-shadow: none; z-index: 15;
+    transition: width .2s;
+  }
+  .station-shell.collapsed .tabs { width: 76px; }
+  .station-shell .tabs a { padding: 11px 14px; border-radius: 12px; font-size: 15px; color: var(--muted); }
+  .station-shell .tabs a:hover { background: var(--panel-2); color: var(--text); }
+  .station-shell .tabs a.active { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); box-shadow: none; font-weight: 650; }
+  .station-shell .nav-head { display: flex; align-items: center; gap: 12px; padding: 4px 8px 16px; margin-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .nav-head-txt { display: flex; flex-direction: column; min-width: 0; }
+  .nav-head-txt strong { font-size: 15px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .nav-head-txt small { color: var(--muted); font-size: 12px; }
+  .station-shell.collapsed .nav-head { justify-content: center; padding-left: 0; padding-right: 0; }
+  .station-shell.collapsed .nav-head-txt { display: none; }
+  .station-shell .nav-toggle { margin-top: auto; border-top: 1px solid var(--border); border-radius: 12px; }
+  .station-shell .nav-foot { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px 6px; color: var(--muted); font-size: 13px; }
+  .station-shell .nav-foot:hover { color: var(--accent); text-decoration: none; }
+  .station-shell.collapsed .nav-foot { justify-content: center; padding-left: 0; padding-right: 0; }
+  .station-shell.collapsed .nav-foot .nav-label { display: none; }
+}

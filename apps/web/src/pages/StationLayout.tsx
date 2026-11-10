@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { NavLink, Outlet, useLocation, useParams } from 'react-router-dom';
 import { api, type Station } from '../api';
-import { Icon, PageHeader } from '../ui';
+import { Cover, Icon, PageHeader } from '../ui';
 
 export interface StationCtx {
   station: Station;
@@ -81,6 +81,13 @@ export default function StationLayout() {
         <Icon name="chevron" size={16} />
       </button>
       <nav className="tabs">
+        <div className="nav-head">
+          <Cover url={station.coverUrl} size={42} />
+          <div className="nav-head-txt">
+            <strong>{station.name}</strong>
+            <small>Painel da estação</small>
+          </div>
+        </div>
         {NAV.map((n) => (
           <NavLink key={n.to} end={n.to === '.'} to={n.to} title={n.label}>
             <Icon name={n.icon} size={18} />
@@ -91,6 +98,9 @@ export default function StationLayout() {
           <Icon name="panelleft" size={18} />
           <span className="nav-label">Recolher menu</span>
         </button>
+        <a className="nav-foot" href={`/listen/${station.slug}`} target="_blank" rel="noreferrer" title="Abrir o player público">
+          <span className="nav-label">Ver player público</span> <Icon name="link" size={14} />
+        </a>
       </nav>
       <div className="station-main">
         <Outlet context={{ station, reload } satisfies StationCtx} />
