@@ -9,6 +9,8 @@ interface LiveListener {
   ip: string;
   country: string;
   countryName: string;
+  city: string;
+  region: string;
   flag: string;
   player: string;
   device: string;
@@ -23,6 +25,7 @@ interface Data {
   total: number;
   unique: number;
   countries: { name: string; count: number }[];
+  cities: { name: string; count: number }[];
   devices: { name: string; count: number }[];
   players: { name: string; count: number }[];
   items: LiveListener[];
@@ -81,6 +84,12 @@ export default function ListenersPage() {
           </div>
         </div>
         <div className="card">
+          <div className="stat-label">Cidades</div>
+          <div className="chips" style={{ marginTop: 10 }}>
+            {data.cities.length === 0 ? <span className="muted">—</span> : data.cities.slice(0, 6).map((c) => <span className="tag" key={c.name}>{c.name} · {c.count}</span>)}
+          </div>
+        </div>
+        <div className="card">
           <div className="stat-label">Aparelho</div>
           <div className="chips" style={{ marginTop: 10 }}>
             {data.devices.length === 0 ? <span className="muted">—</span> : data.devices.map((c) => <span className="tag" key={c.name}>{c.name} · {c.count}</span>)}
@@ -100,13 +109,14 @@ export default function ListenersPage() {
         ) : (
           <table>
             <thead>
-              <tr><th>IP</th><th>Local</th><th>Aparelho</th><th>Player</th>{multi && <th className="hide-sm">Stream</th>}<th>Conectado há</th></tr>
+              <tr><th>IP</th><th>País</th><th>Cidade</th><th>Aparelho</th><th>Player</th>{multi && <th className="hide-sm">Stream</th>}<th>Conectado há</th></tr>
             </thead>
             <tbody>
               {data.items.map((l) => (
                 <tr key={l.id}>
                   <td><code>{l.ip}</code> <CopyButton text={l.ip} label="" /></td>
                   <td>{l.flag} {l.countryName}</td>
+                  <td>{l.city ? `${l.city}${l.region ? `, ${l.region}` : ''}` : <span className="muted">—</span>}</td>
                   <td title={l.userAgent}>{l.device}{l.os !== '—' ? <span className="muted"> · {l.os}</span> : null}</td>
                   <td>{l.player}</td>
                   {multi && <td className="muted hide-sm">{l.mount}</td>}
@@ -118,7 +128,7 @@ export default function ListenersPage() {
         )}
       </div>
       <p className="muted small-text" style={{ marginTop: 12 }}>
-        Só tempo real: os IPs não são guardados (os relatórios guardam apenas um identificador anônimo e o país). A localização é só o <strong>país</strong>; passe o mouse no aparelho para ver o user-agent completo. Cada conexão conta como um ouvinte; quem abre em duas abas conta duas vezes.
+        Só tempo real: os IPs não são guardados (os relatórios guardam apenas um identificador anônimo e o país). A <strong>cidade</strong> vem de uma base de localização de IPs embutida (não consulta serviços externos) e é aproximada: costuma ser a cidade do provedor, e pode ficar em branco; passe o mouse no aparelho para ver o user-agent completo. Cada conexão conta como um ouvinte; quem abre em duas abas conta duas vezes.
       </p>
     </>
   );

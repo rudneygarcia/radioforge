@@ -471,6 +471,7 @@ export async function stationRoutes(app: FastifyInstance) {
       total: items.length,
       unique: new Set(items.map((l) => l.ip)).size,
       countries: count((l) => l.country, (l) => `${l.flag} ${l.countryName}`),
+      cities: count((l) => (l.city ? `${l.city}|${l.region}|${l.country}` : ''), (l) => (l.city ? `${l.city}${l.region ? `, ${l.region}` : ''}` : 'Cidade desconhecida')).filter((c) => c.name !== 'Cidade desconhecida'),
       devices: count((l) => l.device, (l) => l.device),
       players: count((l) => l.player, (l) => l.player),
       items,

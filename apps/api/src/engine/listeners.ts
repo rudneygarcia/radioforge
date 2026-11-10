@@ -14,6 +14,8 @@ export interface LiveListener {
   ip: string;
   country: string;
   countryName: string;
+  city: string;
+  region: string;
   flag: string;
   player: string;
   device: string;
@@ -32,7 +34,7 @@ const tag = (block: string, name: string) => {
 function build(id: string, ip: string, userAgent: string, seconds: number, mount: string): LiveListener {
   const loc = locateIp(ip);
   const dev = classifyDevice(userAgent);
-  return { id, ip: ip.replace(/^::ffff:/, ''), country: loc.code, countryName: loc.name, flag: loc.flag, player: classifyPlayer(userAgent), device: dev.device, os: dev.os, userAgent, seconds, mount };
+  return { id, ip: ip.replace(/^::ffff:/, ''), country: loc.code, countryName: loc.name, city: loc.city, region: loc.region, flag: loc.flag, player: classifyPlayer(userAgent), device: dev.device, os: dev.os, userAgent, seconds, mount };
 }
 
 /** Lê os ouvintes conectados de um mountpoint no Icecast (admin/listclients). */

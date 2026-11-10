@@ -18,6 +18,7 @@
     "bcryptjs": "^3.0.2",
     "fastify": "^5.1.0",
     "geoip-country": "^5.0.202611040312",
+    "geoip-lite": "^2.0.3",
     "music-metadata": "^11.0.0",
     "yauzl": "^2.10.0",
     "zod": "^3.23.8"

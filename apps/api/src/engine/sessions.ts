@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import geoip from 'geoip-country';
+import geoCity from 'geoip-lite';
 import { config } from '../config.js';
 import { run } from '../db.js';
 
@@ -70,12 +71,23 @@ const regionNames = new Intl.DisplayNames(['pt-BR'], { type: 'region' });
 const isPrivate = (ip: string) =>
   /^(10\.|127\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip) || ip === '::1' || /^f[cd]/i.test(ip) || /^fe80/i.test(ip);
 
-/** País do IP (código, nome em português e bandeira). Só país: a base GeoLite2-Country não tem cidade. */
-export function locateIp(rawIp: string): { code: string; name: string; flag: string } {
+/** Cidade e estado do IP (base GeoLite embutida, sem consultar serviços externos). A precisão de cidade é aproximada: é a do provedor. */
+function cityOf(ip: string): { city: string; region: string } {
+  try {
+    const r = geoCity.lookup(ip);
+    return { city: r?.city ?? '', region: r?.region ?? '' };
+  } catch {
+    return { city: '', region: '' };
+  }
+}
+
+/** Local do IP: país (código, nome em português e bandeira) e, quando a base conhece, cidade e estado. */
+export function locateIp(rawIp: string): { code: string; name: string; flag: string; city: string; region: string } {
   const ip = rawIp.replace(/^::ffff:/, '');
-  if (isPrivate(ip)) return { code: 'LAN', name: 'Rede local', flag: '🏠' };
+  if (isPrivate(ip)) return { code: 'LAN', name: 'Rede local', flag: '🏠', city: '', region: '' };
   const code = countryOf(ip);
-  if (code === '??') return { code: '??', name: 'Desconhecido', flag: '🌐' };
+  if (code === '??') return { code: '??', name: 'Desconhecido', flag: '🌐', city: '', region: '' };
+  const { city, region } = cityOf(ip);
   let name = code;
   try {
     name = regionNames.of(code) ?? code;
@@ -83,5 +95,5 @@ export function locateIp(rawIp: string): { code: string; name: string; flag: str
     /* código inválido */
   }
   const flag = String.fromCodePoint(...[...code].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
-  return { code, name, flag };
+  return { code, name, flag, city, region };
 }
