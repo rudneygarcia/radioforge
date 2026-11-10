@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, uploadForm } from '../api';
 import { Icon, useUi } from '../ui';
+import { extractStereoLib } from '../zipLib';
 
 interface Lib {
   present: boolean;
@@ -42,6 +43,12 @@ export default function StereoTool({
   async function send(path: string, file: File | undefined, done: string) {
     if (!file) return;
     setBusy(true);
+    // ZIP grande do plugin (traz todas as plataformas): extrai a biblioteca Linux aqui no navegador e envia só ela.
+    if (path.endsWith('/library') && /.zip$/i.test(file.name) && file.size > 20 * 1024 * 1024) {
+      setUp({ name: `${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`, pct: 0, stage: 'processing', msg: 'Extraindo a biblioteca Linux do ZIP aqui no seu computador (o ZIP inteiro é grande demais para enviar)…' });
+      const lib = await extractStereoLib(file);
+      if (lib) file = lib;
+    }
     const mb = (file.size / 1024 / 1024).toFixed(1);
     setUp({ name: `${file.name} (${mb} MB)`, pct: 0, stage: 'sending', msg: 'Enviando…' });
     try {
