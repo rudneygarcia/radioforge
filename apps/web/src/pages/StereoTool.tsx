@@ -28,6 +28,8 @@ export default function StereoTool({
   const [lib, setLib] = useState<Lib | null>(null);
   const [presets, setPresets] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  // Andamento do envio: mostra a barra, o "processando" no servidor e o resultado (ou o erro) na tela.
+  const [up, setUp] = useState<{ name: string; pct: number; stage: 'sending' | 'processing' | 'done' | 'error'; msg: string } | null>(null);
   const [key, setKey] = useState('');
   const [keySet, setKeySet] = useState(false);
 
@@ -40,14 +42,22 @@ export default function StereoTool({
   async function send(path: string, file: File | undefined, done: string) {
     if (!file) return;
     setBusy(true);
+    const mb = (file.size / 1024 / 1024).toFixed(1);
+    setUp({ name: `${file.name} (${mb} MB)`, pct: 0, stage: 'sending', msg: 'Enviando…' });
     try {
       const form = new FormData();
       form.append('file', file);
-      await uploadForm(path, form).promise;
+      await uploadForm(path, form, (loaded, total) => {
+        const pct = Math.round((loaded / total) * 100);
+        setUp((cur) => (cur ? { ...cur, pct, stage: pct >= 100 ? 'processing' : 'sending', msg: pct >= 100 ? 'Enviado. O servidor está verificando o arquivo…' : `Enviando… ${pct}%` } : cur));
+      }).promise;
+      setUp((cur) => (cur ? { ...cur, pct: 100, stage: 'done', msg: done } : cur));
       toast(done);
       load();
     } catch (e) {
-      toast((e as Error).message, 'error');
+      const msg = (e as Error).message;
+      setUp((cur) => (cur ? { ...cur, stage: 'error', msg } : cur));
+      toast(msg, 'error');
     } finally {
       setBusy(false);
     }
@@ -87,6 +97,18 @@ export default function StereoTool({
         processador interno. Ele usa bastante CPU: ligue só nas estações que precisam.
       </p>
 
+      {up && (
+        <div className={`req-msg ${up.stage === 'error' ? 'err' : up.stage === 'done' ? 'ok' : ''}`} style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }} role="status">
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Icon name={up.stage === 'error' ? 'alert' : up.stage === 'done' ? 'check' : 'upload'} size={18} />
+            <strong style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{up.name}</strong>
+            {(up.stage === 'done' || up.stage === 'error') && <button type="button" className="icon-btn" onClick={() => setUp(null)} aria-label="Fechar"><Icon name="x" size={14} /></button>}
+          </div>
+          <div className={`progress${up.stage === 'processing' ? ' indeterminate' : ''}${up.stage === 'done' ? ' done' : ''}${up.stage === 'error' ? ' error' : ''}`}><i style={{ width: `${up.stage === 'error' ? 100 : up.pct}%` }} /></div>
+          <span>{up.msg}</span>
+        </div>
+      )}
+
       <div className="card" style={{ padding: 14 }}>
         <strong>1. Biblioteca e licença (do servidor, valem para todas as estações)</strong>
         <p className="muted small-text" style={{ margin: '4px 0 8px' }}>
@@ -96,7 +118,7 @@ export default function StereoTool({
           <div className="row" style={{ margin: 0 }}>
             <label className="button ghost small">
               {busy ? 'Enviando…' : lib?.present ? 'Trocar biblioteca' : 'Enviar o ZIP do plugin'}
-              <input type="file" hidden accept=".zip,.so" disabled={busy} onChange={(e) => send('/api/stereotool/library', e.target.files?.[0], 'Biblioteca enviada')} />
+              <input type="file" hidden accept=".zip,.so" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; void send('/api/stereotool/library', f, 'Biblioteca enviada'); }} />
             </label>
             {lib?.present && <button type="button" className="ghost small" onClick={removeLib}><Icon name="trash" size={13} /> Remover</button>}
           </div>
@@ -133,7 +155,7 @@ export default function StereoTool({
           <div className="row" style={{ margin: '10px 0 0' }}>
             <label className="button ghost small">
               {busy ? 'Enviando…' : 'Enviar preset (.sts)'}
-              <input type="file" hidden accept=".sts,.ini" disabled={busy} onChange={(e) => send(`/api/stations/${stationId}/stereotool/presets`, e.target.files?.[0], 'Preset enviado')} />
+              <input type="file" hidden accept=".sts,.ini" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; void send(`/api/stations/${stationId}/stereotool/presets`, f, 'Preset enviado'); }} />
             </label>
             {preset && <button type="button" className="ghost small" onClick={() => onPreset('')}>Sem preset</button>}
           </div>
