@@ -449,7 +449,7 @@ tr.picked td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 /* Menu lateral fixo (estilo painel): coluna inteira à esquerda, com cabeçalho da estação, item ativo em pílula e rodapé */
 .nav-head, .nav-foot { display: none; }
 @media (min-width: 900px) {
-  .container:has(.station-shell) { max-width: none; padding-left: 276px; padding-right: 28px; transition: padding-left .2s; }
+  .container:has(.station-shell) { max-width: none; padding-left: 276px; padding-right: 28px; }
   .container:has(.station-shell.collapsed) { padding-left: 100px; }
   .station-shell, .station-shell.collapsed { display: block; }
   .station-shell .tabs {

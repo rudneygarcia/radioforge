@@ -278,12 +278,12 @@ export default function Dashboard() {
             footer={
               <>
                 <Link to="requests" className="button ghost small"><Icon name="heart" size={14} /> Ver pedidos</Link>
-                <Link to="settings" className="button ghost small"><Icon name="cog" size={14} /> {station.requestsEnabled ? 'Configurar' : 'Habilitar'}</Link>
+                <Link to="edit" className="button ghost small"><Icon name="edit" size={14} /> {station.requestsEnabled ? 'Configurar' : 'Habilitar'}</Link>
               </>
             }
           >
             {!station.requestsEnabled ? (
-              <p className="muted" style={{ margin: 0 }}>Os ouvintes não podem pedir músicas. Habilite em Configurações.</p>
+              <p className="muted" style={{ margin: 0 }}>Os ouvintes não podem pedir músicas. Habilite em Editar estação.</p>
             ) : pending.length === 0 ? (
               <p className="muted" style={{ margin: 0 }}>Nenhum pedido pendente.</p>
             ) : (

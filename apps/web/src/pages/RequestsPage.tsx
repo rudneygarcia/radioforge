@@ -62,7 +62,7 @@ export default function RequestsPage() {
   const stats = data?.stats;
   return (
     <>
-      {!station.requestsEnabled && <div className="card notice">Os pedidos estão desligados. Ative em Configurações → AutoDJ, ao vivo e pedidos.</div>}
+      {!station.requestsEnabled && <div className="card notice">Os pedidos estão desligados. Ative em Editar estação → AutoDJ, ao vivo e pedidos.</div>}
 
       <div className="stat-grid">
         <div className="card"><div className="stat-label"><Icon name="heart" /> Pedidos hoje</div><p className="big">{stats?.today ?? '—'}</p></div>

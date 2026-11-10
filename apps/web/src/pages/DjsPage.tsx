@@ -76,7 +76,7 @@ export default function DjsPage() {
   if (!station.liveEnabled)
     return (
       <div className="card">
-        <Empty icon="mic" title="Transmissão ao vivo desativada" text="Ative “Permitir DJ ao vivo” nas Configurações para criar DJs." />
+        <Empty icon="mic" title="Transmissão ao vivo desativada" text="Ative “Permitir DJ ao vivo” em Editar estação para criar DJs." />
       </div>
     );
 
@@ -129,7 +129,7 @@ export default function DjsPage() {
       </div>
 
       <div className="section-title" style={{ marginTop: 28 }}><h3>Gravações <span className="muted">({recs.length})</span></h3></div>
-      {!station.recordLive && <p className="muted" style={{ marginTop: -4 }}>A gravação está desligada. Ative em Configurações.</p>}
+      {!station.recordLive && <p className="muted" style={{ marginTop: -4 }}>A gravação está desligada. Ative em Editar estação.</p>}
       <div className="card tight">
         {recs.length === 0 ? (
           <Empty icon="mic" title="Sem gravações" text="As transmissões ao vivo gravadas aparecem aqui para baixar ou virar episódio de podcast." />

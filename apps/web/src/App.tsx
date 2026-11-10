@@ -13,7 +13,7 @@ import ListenersPage from './pages/ListenersPage';
 import RequestsPage from './pages/RequestsPage';
 import IntegrationsPage from './pages/IntegrationsPage';
 import AccountPage from './pages/AccountPage';
-import Settings from './pages/Settings';
+import Settings, { EditStation } from './pages/Settings';
 import Users from './pages/Users';
 import BackupsPage from './pages/BackupsPage';
 import SystemPage from './pages/SystemPage';
@@ -74,6 +74,7 @@ export default function App() {
           <Route path="reports" element={<ReportsPage />} />
           <Route path="podcast" element={<PodcastPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />
+          <Route path="edit" element={<EditStation />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Route>

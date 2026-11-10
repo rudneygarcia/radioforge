@@ -117,7 +117,7 @@ export default function Stations() {
               <span>{location.host}/listen/</span>
               <input value={slug} onChange={(e) => { setSlugEdited(true); setSlug(toSlug(e.target.value)); }} placeholder="radio-garcia" maxLength={40} />
             </div>
-            <small className="hint">Vira o link do player e do stream: {location.host}/listen/<strong>{slug.replace(/-+$/, '') || 'radio-garcia'}</strong>/{mount || 'radio.mp3'}. Só letras minúsculas, números e hífen. Dá para mudar depois nas Configurações.</small>
+            <small className="hint">Vira o link do player e do stream: {location.host}/listen/<strong>{slug.replace(/-+$/, '') || 'radio-garcia'}</strong>/{mount || 'radio.mp3'}. Só letras minúsculas, números e hífen. Dá para mudar depois em Editar estação.</small>
           </label>
           <label className="field">
             <span>Descrição <em className="hint">(opcional)</em></span>
@@ -126,7 +126,7 @@ export default function Stations() {
           <label className="field">
             <span>Nome do stream</span>
             <input value={mount} onChange={(e) => setMount(e.target.value.replace(/[^a-zA-Z0-9._-]/g, ''))} placeholder="radio.mp3" maxLength={40} required />
-            <small className="hint">É o final do endereço de escuta. Padrão: radio.mp3 — dá para mudar depois nas Configurações.</small>
+            <small className="hint">É o final do endereço de escuta. Padrão: radio.mp3 — dá para mudar depois em Editar estação.</small>
           </label>
           {error && <p className="error">{error}</p>}
         </form>

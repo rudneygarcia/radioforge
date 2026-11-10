@@ -18,7 +18,14 @@ function Toggle({ checked, onChange, disabled, title, hint }: { checked: boolean
   );
 }
 
-export default function Settings() {
+/** Editar estação: dados da rádio. Configurações: áudio e parte técnica. */
+const CARDS = {
+  edit: ['capa', 'hide', 'hora', 'dj'],
+  tech: ['qual', 'autocue', 'proc', 'stereo', 'extra'],
+} as const;
+
+function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
+  const show = (id: string) => (CARDS[view] as readonly string[]).includes(id);
   const { station, reload } = useOutletContext<StationCtx>();
   const { user } = useAuth();
   const { confirm, toast } = useUi();
@@ -77,7 +84,7 @@ export default function Settings() {
     try {
       await api(`/api/stations/${station.id}`, { method: 'PUT', body: f });
       await reload();
-      toast('Configurações salvas');
+      toast('Alterações salvas');
     } catch (err) {
       toast((err as Error).message, 'error');
     } finally {
@@ -148,6 +155,7 @@ export default function Settings() {
     <form onSubmit={save}>
       {!isAdmin && <div className="card notice">Só administradores podem alterar as configurações.</div>}
 
+      {view === 'edit' && (
       <div className="card section">
         <div className="section-title"><h3>Geral</h3></div>
         <div className="fields">
@@ -179,44 +187,63 @@ export default function Settings() {
           <Toggle checked={f.autostart} onChange={(v) => setF({ ...f, autostart: v })} disabled={!isAdmin} title="Iniciar automaticamente com o servidor" />
         </div>
       </div>
+      )}
 
       <div className="settings-grid">
-        <button type="button" className="setting-card" onClick={() => setOpen('capa')}>
-          <strong>Capa da rádio</strong>
-          <span>{station.coverUrl ? 'Imagem enviada' : 'Sem capa — usa o ícone padrão'}</span>
-        </button>
-        <button type="button" className="setting-card" onClick={() => setOpen('qual')}>
-          <strong>Qualidade do áudio</strong>
-          <span>{`${f.format.toUpperCase()} ${f.bitrate} kbps · normalizar ${onOff(f.normalize)}`}</span>
-        </button>
-        <button type="button" className="setting-card" onClick={() => setOpen('autocue')}>
-          <strong>AutoCue e passagens</strong>
-          <span>{f.autocue ? `Ligado${f.autocueCustom ? ' · personalizado' : ''} · vinhetas ${f.jingleOverlap === 0 ? 'inteiras' : `${f.jingleOverlap.toFixed(1)}s de sobreposição`}` : 'Desligado'}</span>
-        </button>
-        <button type="button" className="setting-card" onClick={() => setOpen('proc')}>
-          <strong>Processador de áudio</strong>
-          <span>{f.stereoEnabled ? 'Desativado: o Stereo Tool está em uso' : f.audioPreset === 'off' ? 'Desligado' : `${f.audioPreset === 'loud' ? 'Forte (FM)' : 'Equilibrado'}${f.audioGain ? ` · +${f.audioGain} dB` : ''}`}</span>
-        </button>
-        <button type="button" className="setting-card" onClick={() => setOpen('stereo')}>
-          <strong>Stereo Tool</strong>
-          <span>{f.stereoEnabled ? `Ligado${f.stereoPreset ? ` · ${f.stereoPreset}` : ''}` : 'Desligado'}</span>
-        </button>
-        <button type="button" className="setting-card" onClick={() => setOpen('hora')}>
-          <strong>Hora certa</strong>
-          <span>{f.timeAnnounce === 0 ? 'Desligada' : `A cada ${f.timeAnnounce === 60 ? 'hora' : `${f.timeAnnounce} min`} · ${f.timezone}`}</span>
-        </button>
-        <button type="button" className="setting-card" onClick={() => setOpen('dj')}>
-          <strong>AutoDJ, ao vivo e pedidos</strong>
-          <span>{`DJ ao vivo ${onOff(f.liveEnabled)} · pedidos ${onOff(f.requestsEnabled)} · sem repetir ${f.noRepeatMinutes ? f.noRepeatMinutes + ' min' : 'desligado'}`}</span>
-        </button>
-        <button type="button" className="setting-card" onClick={() => setOpen('hide')}>
-          <strong>Ocultar nomes (metadados)</strong>
-          <span>{f.hiddenWords.trim() ? `${f.hiddenWords.split(/[\n,;]+/).filter((w) => w.trim()).length} palavra(s) ocultas` : 'Nenhuma palavra'}{f.jingleHideName ? ' · vinhetas sem nome' : ''}</span>
-        </button>
-        <button type="button" className="setting-card" onClick={() => setOpen('extra')}>
-          <strong>Streams extras</strong>
-          <span>{f.mounts.length ? `${f.mounts.length} extra(s)` : 'Nenhum'}</span>
-        </button>
+        {show('capa') && (
+          <button type="button" className="setting-card" onClick={() => setOpen('capa')}>
+            <strong>Capa da rádio</strong>
+            <span>{station.coverUrl ? 'Imagem enviada' : 'Sem capa — usa o ícone padrão'}</span>
+          </button>
+        )}
+        {show('qual') && (
+          <button type="button" className="setting-card" onClick={() => setOpen('qual')}>
+            <strong>Qualidade do áudio</strong>
+            <span>{`${f.format.toUpperCase()} ${f.bitrate} kbps · normalizar ${onOff(f.normalize)}`}</span>
+          </button>
+        )}
+        {show('autocue') && (
+          <button type="button" className="setting-card" onClick={() => setOpen('autocue')}>
+            <strong>AutoCue e passagens</strong>
+            <span>{f.autocue ? `Ligado${f.autocueCustom ? ' · personalizado' : ''} · vinhetas ${f.jingleOverlap === 0 ? 'inteiras' : `${f.jingleOverlap.toFixed(1)}s de sobreposição`}` : 'Desligado'}</span>
+          </button>
+        )}
+        {show('proc') && (
+          <button type="button" className="setting-card" onClick={() => setOpen('proc')}>
+            <strong>Processador de áudio</strong>
+            <span>{f.stereoEnabled ? 'Desativado: o Stereo Tool está em uso' : f.audioPreset === 'off' ? 'Desligado' : `${f.audioPreset === 'loud' ? 'Forte (FM)' : 'Equilibrado'}${f.audioGain ? ` · +${f.audioGain} dB` : ''}`}</span>
+          </button>
+        )}
+        {show('stereo') && (
+          <button type="button" className="setting-card" onClick={() => setOpen('stereo')}>
+            <strong>Stereo Tool</strong>
+            <span>{f.stereoEnabled ? `Ligado${f.stereoPreset ? ` · ${f.stereoPreset}` : ''}` : 'Desligado'}</span>
+          </button>
+        )}
+        {show('hora') && (
+          <button type="button" className="setting-card" onClick={() => setOpen('hora')}>
+            <strong>Hora certa</strong>
+            <span>{f.timeAnnounce === 0 ? 'Desligada' : `A cada ${f.timeAnnounce === 60 ? 'hora' : `${f.timeAnnounce} min`} · ${f.timezone}`}</span>
+          </button>
+        )}
+        {show('dj') && (
+          <button type="button" className="setting-card" onClick={() => setOpen('dj')}>
+            <strong>AutoDJ, ao vivo e pedidos</strong>
+            <span>{`DJ ao vivo ${onOff(f.liveEnabled)} · pedidos ${onOff(f.requestsEnabled)} · sem repetir ${f.noRepeatMinutes ? f.noRepeatMinutes + ' min' : 'desligado'}`}</span>
+          </button>
+        )}
+        {show('hide') && (
+          <button type="button" className="setting-card" onClick={() => setOpen('hide')}>
+            <strong>Ocultar nomes (metadados)</strong>
+            <span>{f.hiddenWords.trim() ? `${f.hiddenWords.split(/[\n,;]+/).filter((w) => w.trim()).length} palavra(s) ocultas` : 'Nenhuma palavra'}{f.jingleHideName ? ' · vinhetas sem nome' : ''}</span>
+          </button>
+        )}
+        {show('extra') && (
+          <button type="button" className="setting-card" onClick={() => setOpen('extra')}>
+            <strong>Streams extras</strong>
+            <span>{f.mounts.length ? `${f.mounts.length} extra(s)` : 'Nenhum'}</span>
+          </button>
+        )}
       </div>
 
       <Modal open={open === 'capa'} title="Capa da rádio" onClose={close} size="md" footer={<button type="button" onClick={close}>Concluído</button>}>
@@ -433,7 +460,7 @@ export default function Settings() {
         </div>
       )}
 
-      {isAdmin && (
+      {isAdmin && view === 'edit' && (
         <div className="card danger-zone">
           <h3>Zona de perigo</h3>
           <p className="muted">Excluir a estação apaga a biblioteca, as playlists e o histórico dela.</p>
@@ -442,4 +469,14 @@ export default function Settings() {
       )}
     </form>
   );
+}
+
+/** Editar estação: nome, endereço, capa, ocultar nomes, hora certa, AutoDJ/ao vivo/pedidos e excluir. */
+export function EditStation() {
+  return <SettingsForm view="edit" />;
+}
+
+/** Configurações: áudio (qualidade, AutoCue, processador, Stereo Tool) e streams extras. */
+export default function Settings() {
+  return <SettingsForm view="tech" />;
 }
