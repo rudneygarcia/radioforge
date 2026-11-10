@@ -109,7 +109,7 @@ function jingleUri(st: StationRow, abs: string, duration = 0) {
   // Com AutoCue: cue exato (começa em 0 e vai até o fim real, sem a análise cortar o meio), sem pular silêncio,
   // sobreposição própria (padrão 0: vinheta→vinheta não se atropelam) e ganho opcional.
   const cue = st.autocue
-    ? `liq_blankskip="0.0",liq_cue_in="0.0",${duration > 0 ? `liq_cue_out="${(duration + 0.2).toFixed(2)}",` : ''}liq_cross_duration="${st.jingle_overlap.toFixed(2)}",${st.jingle_gain ? `liq_amplify="${Math.pow(10, st.jingle_gain / 20).toFixed(3)}",` : ''}`
+    ? `liq_blankskip="0.0",${duration > 0 ? `liq_cue_out="${(duration + 0.2).toFixed(2)}",` : 'liq_cue_in="0.0",'}liq_cross_duration="${st.jingle_overlap.toFixed(2)}",${st.jingle_gain ? `liq_amplify="${Math.pow(10, st.jingle_gain / 20).toFixed(3)}",` : ''}`
     : '';
   // liq_fade_in/out curtos: vinheta e aviso entram e saem sem estalo, e o AutoCue encaixa a passagem.
   return `annotate:rf_jingle="1",${cue}liq_fade_in="0.10",liq_fade_out="0.10",title="${label}",artist="",album="":${abs}`;
@@ -435,8 +435,8 @@ export function pushRequest(stationId: number, absPath: string, silent = false, 
     };
     const soft = setTimeout(() => {
       if (sock.bytesWritten > 0) done();
-    }, 25_000);
-    sock.setTimeout(120_000, () => {
+    }, 50_000);
+    sock.setTimeout(150_000, () => {
       sock.destroy();
       done(new Error('Timeout falando com o Liquidsoap'));
     });

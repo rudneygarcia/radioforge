@@ -99,6 +99,10 @@ export function buildLiquidsoapScript(
     `settings.server.telnet.bind_addr := "127.0.0.1"`,
     `settings.server.telnet.port := ${telnetPort(st)}`,
     // Encoder que para de mandar áudio (queda de internet) é dado como desconectado após este tempo e o AutoDJ volta.
+    // A análise do AutoCue lê a música inteira; com várias faixas na fila ela passava dos 29 s padrão e o pedido era descartado
+    // ("Time limit exceeded ... timeout: 29.00"). Prazos maiores evitam perder pedidos.
+    `settings.request.timeout := 120.`,
+    `settings.autocue.internal.timeout := 60.`,
     `settings.harbor.timeout := ${Math.max(3, Math.min(60, Math.round(st.live_timeout || 8)))}.`,
     ``,
     `# Avisa a API de cada faixa tocada (histórico + now playing).`,
