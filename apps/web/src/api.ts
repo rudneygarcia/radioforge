@@ -106,6 +106,7 @@ export interface Station {
   stereoPreset: string;
   stereoKeySet: boolean;
   noRepeatArtistMinutes: number;
+  streamPort: number;
   timeAnnounceVoice: boolean;
   timezone: string;
   liveEnabled: boolean;

@@ -33,6 +33,7 @@ function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
   const [f, setF] = useState({
     name: station.name,
     slug: station.slug,
+    port: station.streamPort,
     description: station.description,
     mount: station.mount,
     format: station.format,
@@ -167,6 +168,11 @@ function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
               <input value={f.slug} onChange={(e) => setF({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 40) })} disabled={!isAdmin} maxLength={40} required />
             </div>
             <small className="hint">Mudar o endereço muda os links: quem já usa o antigo (players, apps, o site) precisa trocar.</small>
+          </label>
+          <label className="field" style={{ maxWidth: 340 }}>
+            <span>Porta da estação</span>
+            <input type="number" min={1024} max={65000} value={f.port} onChange={(e) => setF({ ...f, port: Number(e.target.value) || 0 })} disabled={!isAdmin} />
+            <small className="hint">Usada pelo link direto do stream. A estação ocupa 10 portas seguidas a partir dela (DJ ao vivo = porta +5). Trocar a porta reinicia a estação e muda o link direto e o endereço do DJ: ela precisa estar liberada no servidor.</small>
           </label>
           <label className="field"><span>Descrição</span><input value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} disabled={!isAdmin} /></label>
           <label className="field">

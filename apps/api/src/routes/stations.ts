@@ -188,6 +188,7 @@ export async function stationView(st: StationRow) {
     stereoEnabled: !!st.stereo_enabled,
     stereoPreset: st.stereo_preset,
     stereoKeySet: !!st.stereo_key,
+    streamPort: st.stream_port,
     noRepeatArtistMinutes: st.no_repeat_artist_minutes,
     timezone: st.timezone,
     audioWarning: audioWarningFor(st.id),
@@ -207,11 +208,11 @@ export async function stationView(st: StationRow) {
 }
 
 /** Porta pedida pela pessoa: dentro da faixa e sem invadir as 10 portas de outra estação. */
-function customPort(port: number): number {
+function customPort(port: number, selfId = 0): number {
   const lo = config.engine.streamPortStart;
   const hi = config.engine.streamPortEnd - 9;
   if (port < lo || port > hi) throw new HttpError(400, `Porta fora da faixa permitida (${lo} a ${hi}).`);
-  const clash = get<{ stream_port: number; name: string }>('SELECT stream_port, name FROM stations WHERE stream_port > ? AND stream_port < ? ORDER BY stream_port LIMIT 1', port - 10, port + 10);
+  const clash = get<{ stream_port: number; name: string }>('SELECT stream_port, name FROM stations WHERE stream_port > ? AND stream_port < ? AND id <> ? ORDER BY stream_port LIMIT 1', port - 10, port + 10, selfId);
   if (clash) throw new HttpError(409, `A porta ${port} conflita com a estação "${clash.name}" (porta ${clash.stream_port}). Cada estação usa 10 portas seguidas: escolha uma porta com pelo menos 10 de diferença.`);
   return port;
 }
@@ -314,6 +315,10 @@ export async function stationRoutes(app: FastifyInstance) {
     requireAdmin(req);
     const b = settings.parse(req.body);
     const newMount = b.mount ?? st.mount;
+    // Porta do stream: muda os links diretos e as portas do DJ ao vivo (+5) e do console (+6); a estação reinicia ao salvar.
+    if (b.port !== undefined && b.port !== st.stream_port) {
+      run('UPDATE stations SET stream_port = ? WHERE id = ?', customPort(b.port, st.id), st.id);
+    }
     // Endereço curto: muda os links (player e stream) — quem usa o antigo precisa trocar.
     if (b.slug?.trim()) {
       const newSlug = slugify(b.slug);
