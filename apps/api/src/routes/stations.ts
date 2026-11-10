@@ -84,6 +84,8 @@ const settings = z.object({
   slug: z.string().max(40).optional(),
   /** Porta do stream (só ao criar). Em branco = automática. A estação usa 10 portas a partir dela (DJ ao vivo = +5, console = +6). */
   port: z.number().int().optional(),
+  /** Senha da transmissão ao vivo (usuário "source"). Em branco = automática ao criar / manter ao editar. */
+  sourcePassword: z.string().max(64).optional(),
   /** Não repetir o mesmo artista por N minutos (0 = desligado). */
   noRepeatArtistMinutes: z.number().int().min(0).max(1440).default(0),
   /** Não repetir o mesmo artista por N minutos (0 = desligado). */
@@ -217,6 +219,15 @@ function customPort(port: number, selfId = 0): number {
   return port;
 }
 
+/** Valida a senha de transmissão escolhida (vazia = não informada). */
+function liveSecret(raw?: string): string | undefined {
+  const v = raw?.trim();
+  if (!v) return undefined;
+  if (v.length < 6) throw new HttpError(400, 'A senha da transmissão ao vivo precisa ter pelo menos 6 caracteres.');
+  if (/\s/.test(v)) throw new HttpError(400, 'A senha da transmissão ao vivo não pode ter espaços.');
+  return v;
+}
+
 function nextPort(): number {
   const row = get<{ p: number | null }>('SELECT MAX(stream_port) AS p FROM stations');
   const port = row?.p ? row.p + 10 : config.engine.streamPortStart;
@@ -259,7 +270,7 @@ export async function stationRoutes(app: FastifyInstance) {
       body.mount ?? `/radio.${body.format}`,
       body.format,
       body.bitrate,
-      randomPassword(),
+      liveSecret(body.sourcePassword) ?? randomPassword(),
       randomPassword(),
       body.liveEnabled ? 1 : 0,
       body.requestsEnabled ? 1 : 0,
@@ -315,6 +326,9 @@ export async function stationRoutes(app: FastifyInstance) {
     requireAdmin(req);
     const b = settings.parse(req.body);
     const newMount = b.mount ?? st.mount;
+    // Senha da transmissão ao vivo: só troca se uma nova for informada; a estação reinicia ao salvar.
+    const newSecret = liveSecret(b.sourcePassword);
+    if (newSecret && newSecret !== st.source_password) run('UPDATE stations SET source_password = ? WHERE id = ?', newSecret, st.id);
     // Porta do stream: muda os links diretos e as portas do DJ ao vivo (+5) e do console (+6); a estação reinicia ao salvar.
     if (b.port !== undefined && b.port !== st.stream_port) {
       run('UPDATE stations SET stream_port = ? WHERE id = ?', customPort(b.port, st.id), st.id);

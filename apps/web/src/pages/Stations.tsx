@@ -16,6 +16,8 @@ export default function Stations() {
   const [slug, setSlug] = useState('');
   const [slugEdited, setSlugEdited] = useState(false);
   const [port, setPort] = useState('');
+  const [secret, setSecret] = useState('');
+  const genSecret = () => setSecret(Array.from(crypto.getRandomValues(new Uint8Array(14)), (b) => 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 56]).join(''));
   const toSlug = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, 40);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -32,7 +34,7 @@ export default function Stations() {
     setBusy(true);
     setError('');
     try {
-      await api('/api/stations', { method: 'POST', body: { name, description, mount, slug: slug.replace(/-+$/, '') || undefined, port: port.trim() ? Number(port) : undefined } });
+      await api('/api/stations', { method: 'POST', body: { name, description, mount, slug: slug.replace(/-+$/, '') || undefined, port: port.trim() ? Number(port) : undefined, sourcePassword: secret.trim() || undefined } });
       setOpen(false);
       setName('');
       setDescription('');
@@ -40,6 +42,7 @@ export default function Stations() {
       setSlug('');
       setSlugEdited(false);
       setPort('');
+      setSecret('');
       toast('Estação criada');
       load();
     } catch (err) {
@@ -154,6 +157,14 @@ export default function Stations() {
             <span>Porta da estação <em className="hint">(opcional)</em></span>
             <input type="number" min={1024} max={65000} value={port} onChange={(e) => setPort(e.target.value.replace(/[^0-9]/g, ''))} placeholder="Automática" />
             <small className="hint">Deixe em branco para o painel escolher uma porta livre. Se preencher, ela precisa estar liberada no servidor (a estação usa 10 portas seguidas a partir dela: o DJ ao vivo fica na porta +5).</small>
+          </label>
+          <label className="field">
+            <span>Senha da transmissão ao vivo <em className="hint">(opcional)</em></span>
+            <div className="row" style={{ margin: 0 }}>
+              <input value={secret} onChange={(e) => setSecret(e.target.value.replace(/\s/g, ''))} placeholder="Automática" maxLength={64} autoComplete="off" style={{ flex: 1, minWidth: 160 }} />
+              <button type="button" className="ghost small" onClick={genSecret}>Gerar</button>
+            </div>
+            <small className="hint">É a senha que o DJ usa no programa de transmissão (usuário <code>source</code>). Mínimo 6 caracteres, sem espaços. Em branco, o painel cria uma senha forte. Dá para trocar depois em Editar estação.</small>
           </label>
           {error && <p className="error">{error}</p>}
         </form>
