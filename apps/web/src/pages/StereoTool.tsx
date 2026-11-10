@@ -72,8 +72,7 @@ export default function StereoTool({
   return (
     <div className="fields">
       <p className="muted" style={{ marginTop: -4 }}>
-        O <strong>Stereo Tool</strong> é um processador de áudio profissional <strong>pago</strong>: você usa a sua própria licença. Envie a biblioteca Linux dele
-        (<code>libStereoTool_*.so</code>, 64 bits, baixada do site do Stereo Tool) uma vez para o servidor, e o preset (<code>.sts</code>) de cada estação. Ligado, ele substitui o
+        O <strong>Stereo Tool</strong> é um processador de áudio profissional <strong>pago</strong>: você usa a sua própria licença. Envie o <strong>ZIP do plugin para Liquidsoap</strong> baixado do site do Stereo Tool (“x86/64 Linux libStereoTool plugin”) uma vez para o servidor: o painel acha a biblioteca Linux 64 bits dentro dele (um <code>.so</code> solto também serve), e o preset (<code>.sts</code>) de cada estação. Ligado, ele substitui o
         processador interno. Ele usa bastante CPU: ligue só nas estações que precisam.
       </p>
 
@@ -85,8 +84,8 @@ export default function StereoTool({
         {isAdmin && (
           <div className="row" style={{ margin: 0 }}>
             <label className="button ghost small">
-              {busy ? 'Enviando…' : lib?.present ? 'Trocar biblioteca' : 'Enviar biblioteca (.so)'}
-              <input type="file" hidden accept=".so" disabled={busy} onChange={(e) => send('/api/stereotool/library', e.target.files?.[0], 'Biblioteca enviada')} />
+              {busy ? 'Enviando…' : lib?.present ? 'Trocar biblioteca' : 'Enviar o ZIP do plugin'}
+              <input type="file" hidden accept=".zip,.so" disabled={busy} onChange={(e) => send('/api/stereotool/library', e.target.files?.[0], 'Biblioteca enviada')} />
             </label>
             {lib?.present && <button type="button" className="ghost small" onClick={removeLib}><Icon name="trash" size={13} /> Remover</button>}
           </div>

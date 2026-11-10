@@ -4,10 +4,10 @@ import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authenticate, HttpError, requireAdmin, stationFor } from '../auth.js';
-import { libraryInfo, listPresets, presetPath, presetsDir, safePresetName, stereoLibDir, stereoLibPath } from '../engine/stereotool.js';
+import { extractLibraryFromZip, libraryInfo, listPresets, presetPath, presetsDir, safePresetName, stereoLibDir, stereoLibPath } from '../engine/stereotool.js';
 
 const idParam = z.object({ id: z.coerce.number().int() });
-const MAX_LIB = 150 * 1024 * 1024;
+const MAX_LIB = 400 * 1024 * 1024; // o ZIP do plugin traz as bibliotecas de várias plataformas
 const MAX_PRESET = 5 * 1024 * 1024;
 
 export async function stereoToolRoutes(app: FastifyInstance) {
@@ -25,11 +25,27 @@ export async function stereoToolRoutes(app: FastifyInstance) {
     try {
       await pipeline(part.file, fs.createWriteStream(tmp));
       if (part.file.truncated) throw new HttpError(413, 'Arquivo grande demais');
+      // Aceita o ZIP baixado do site (extrai a biblioteca Linux x86_64) ou o .so direto.
+      const readHead = (f: string) => {
+        const fd = fs.openSync(f, 'r');
+        const h = Buffer.alloc(4);
+        fs.readSync(fd, h, 0, 4, 0);
+        fs.closeSync(fd);
+        return h;
+      };
+      let head = readHead(tmp);
+      if (head[0] === 0x50 && head[1] === 0x4b) {
+        const extracted = `${tmp}.so`;
+        try {
+          await extractLibraryFromZip(tmp, extracted);
+          fs.renameSync(extracted, tmp);
+        } catch (e) {
+          fs.rmSync(extracted, { force: true });
+          throw new HttpError(400, (e as Error).message);
+        }
+        head = readHead(tmp);
+      }
       // Confere que é uma biblioteca Linux (ELF): o Liquidsoap roda dentro do contêiner Linux.
-      const fd = fs.openSync(tmp, 'r');
-      const head = Buffer.alloc(4);
-      fs.readSync(fd, head, 0, 4, 0);
-      fs.closeSync(fd);
       if (!(head[0] === 0x7f && head[1] === 0x45 && head[2] === 0x4c && head[3] === 0x46)) {
         throw new HttpError(400, 'Esse arquivo não é uma biblioteca Linux (.so). Baixe a versão "Linux" da biblioteca do Stereo Tool (libStereoTool_*.so, 64 bits).');
       }
