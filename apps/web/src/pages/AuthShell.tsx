@@ -1,4 +1,5 @@
 import LogoMark from '../Logo';
+import SiteFooter from '../SiteFooter';
 import type { ReactNode } from 'react';
 import { Icon } from '../ui';
 
@@ -8,7 +9,7 @@ export default function AuthShell({ title, subtitle, children }: { title: string
     <div className="login-page">
       <aside className="login-brand">
         <div className="login-brand-in">
-          <div className="login-logo"><LogoMark size={40} light /> RadioForge</div>
+          <div className="login-logo"><LogoMark size={40} light /> Painel RadioForge</div>
           <h2>Sua rádio no ar, do jeito profissional.</h2>
           <p>AutoDJ inteligente, transmissão ao vivo, programação por horário, blocos comerciais e relatórios de ouvintes em um só painel.</p>
           <ul>
@@ -21,11 +22,12 @@ export default function AuthShell({ title, subtitle, children }: { title: string
       </aside>
       <main className="login-main">
         <div className="login-card">
-          <div className="login-mobile-logo"><LogoMark size={32} /> RadioForge</div>
+          <div className="login-mobile-logo"><LogoMark size={32} /> Painel RadioForge</div>
           <h1>{title}</h1>
           {subtitle && <p className="muted">{subtitle}</p>}
           {children}
         </div>
+        <SiteFooter />
       </main>
     </div>
   );

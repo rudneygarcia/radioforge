@@ -1,3 +1,4 @@
+import SiteFooter from './SiteFooter';
 import LogoMark from './Logo';
 import { Link, NavLink, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth';
@@ -33,7 +34,7 @@ function Protected() {
       <header className="topbar">
         <Link to="/" className="brand">
           <LogoMark size={32} />
-          RadioForge
+          Painel RadioForge
         </Link>
         <nav>
           <NavLink end to="/">Estações</NavLink>
@@ -53,6 +54,7 @@ function Protected() {
       </header>
       <main className="container">
         <Outlet />
+        <SiteFooter />
       </main>
     </>
   );
