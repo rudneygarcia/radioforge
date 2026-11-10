@@ -219,6 +219,35 @@ addColumn('stations', 'stereo_preset', "TEXT NOT NULL DEFAULT ''");
 addColumn('stations', 'no_repeat_artist_minutes', 'INTEGER NOT NULL DEFAULT 0');
 // AutoDJ ligado (1) ou só transmissão ao vivo (0): sem AutoDJ roda apenas o Icecast (o DJ conecta direto nele) e o Liquidsoap fica desligado.
 addColumn('stations', 'autodj', 'INTEGER NOT NULL DEFAULT 1');
+
+// Blocos comerciais (comerciais de uma pasta da Biblioteca nos horários programados) e o comprovante de veiculação.
+db.exec(`
+CREATE TABLE IF NOT EXISTS ad_blocks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  folder_id INTEGER REFERENCES media_folders(id) ON DELETE SET NULL,
+  times TEXT NOT NULL DEFAULT '',
+  days TEXT NOT NULL DEFAULT '0,1,2,3,4,5,6',
+  mode TEXT NOT NULL DEFAULT 'sequential',
+  items INTEGER NOT NULL DEFAULT 0,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  last_fired TEXT NOT NULL DEFAULT '',
+  cursor INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS ad_plays (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id) ON DELETE CASCADE,
+  block_id INTEGER,
+  block_name TEXT NOT NULL DEFAULT '',
+  media_id INTEGER,
+  title TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'ok',
+  note TEXT NOT NULL DEFAULT '',
+  pushed_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ad_plays_station ON ad_plays(station_id, id DESC);
+`);
 // Não repetir o mesmo artista por N minutos (0 = desligado).
 addColumn('song_requests', 'due_at', "TEXT NOT NULL DEFAULT ''");
 addColumn('song_requests', 'pushed', 'INTEGER NOT NULL DEFAULT 1');

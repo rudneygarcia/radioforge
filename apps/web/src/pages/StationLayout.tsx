@@ -13,6 +13,7 @@ const NAV = [
   { to: '.', label: 'Painel', icon: 'home' },
   { to: 'media', label: 'Biblioteca', icon: 'music' },
   { to: 'playlists', label: 'Playlists', icon: 'list' },
+  { to: 'ads', label: 'Comerciais', icon: 'megaphone' },
   { to: 'requests', label: 'Pedidos', icon: 'heart' },
   { to: 'djs', label: 'DJs', icon: 'mic' },
   { to: 'listeners', label: 'Ouvintes', icon: 'users' },

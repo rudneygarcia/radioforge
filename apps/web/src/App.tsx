@@ -12,6 +12,7 @@ import ReportsPage from './pages/ReportsPage';
 import ListenersPage from './pages/ListenersPage';
 import Widget from './pages/Widget';
 import WidgetsPage from './pages/WidgetsPage';
+import AdsPage from './pages/AdsPage';
 import RequestsPage from './pages/RequestsPage';
 import IntegrationsPage from './pages/IntegrationsPage';
 import AccountPage from './pages/AccountPage';
@@ -74,6 +75,7 @@ export default function App() {
           <Route path="listeners" element={<ListenersPage />} />
           <Route path="requests" element={<RequestsPage />} />
           <Route path="widgets" element={<WidgetsPage />} />
+          <Route path="ads" element={<AdsPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="edit" element={<EditStation />} />

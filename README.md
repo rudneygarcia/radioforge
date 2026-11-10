@@ -205,3 +205,7 @@ Em *Configurações → Stereo Tool*: envie o ZIP do plugin do Stereo Tool (uma 
 ### Rotação pela API e não repetir música/artista
 
 O painel passou a escolher a próxima faixa de cada playlist (o Liquidsoap pergunta por HTTP, `request.dynamic`). Assim valem, de verdade: **não repetir a mesma música por N minutos** e **não repetir o mesmo artista por N minutos** (feats/participações contam como o artista principal), inclusive para faixas ocultas, pedidos e playlists por tempo, e as playlists `.m3u` deixam de ser regravadas a cada música (isso recarregava o Liquidsoap e refazia a análise do AutoCue). Se não houver faixa que obedeça às regras, o painel relaxa primeiro o artista e depois a música, nunca deixa a rádio muda. Se o Liquidsoap recusar o script ou não pedir faixas ao subir, a estação volta sozinha às playlists comuns e o painel avisa.
+
+### Blocos comerciais
+
+Menu **Comerciais**: crie uma pasta na Biblioteca com os comerciais e programe um bloco com **horários** (no fuso da estação), **dias da semana**, quantos comerciais por bloco e a ordem (em ordem ou aleatória). No horário o bloco entra na fila do AutoDJ e toca ao fim da música atual, sem aparecer em "Tocando agora" nem no histórico. Cada comercial colocado no ar fica em **Veiculações recentes** (data, hora e arquivo), como comprovante. Há **Disparar agora** para testar. Blocos não disparam com DJ ao vivo (ficam registrados como "Pulado") nem em estações sem AutoDJ. Não deixe a pasta dos comerciais dentro de uma playlist, senão eles também tocam na programação normal.

@@ -31,6 +31,7 @@ const PATHS: Record<string, string> = {
   home: 'M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10',
   menu: 'M4 6h16M4 12h16M4 18h16',
   code: 'M8 8l-4 4 4 4M16 8l4 4-4 4M14 5l-4 14',
+  megaphone: 'M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15 9a4 4 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11',
   heart: 'M12 20s-7-4.5-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.5-9 9-9 9z',
   chevron: 'M6 9l6 6 6-6',
   list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',

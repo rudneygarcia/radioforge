@@ -4,6 +4,7 @@ import { all, avoidRecent, get, playlistMedia, recentMedia, run, type MediaRow, 
 import { tickAnnouncements } from './announce.js';
 import { isRunning, pushRequest, telnetRun, usesDynamic, writePlaylists } from './manager.js';
 import { notePick } from './rotation.js';
+import { tickAdBlocks } from './ads.js';
 import { getLive } from './nowplaying.js';
 import { isHiddenTrack } from './hide.js';
 
@@ -110,6 +111,7 @@ export function startTimedPlaylists() {
     try {
       tickTimedPlaylists();
       tickScheduledRequests();
+      tickAdBlocks();
       void retryLostRequests().catch((e) => console.error('[pedidos] reenvio falhou:', e));
     } catch (e) {
       console.error('[timed] falhou:', e);
