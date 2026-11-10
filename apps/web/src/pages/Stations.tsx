@@ -58,9 +58,17 @@ export default function Stations() {
     <>
       <PageHeader title="Estações" subtitle="Suas rádios no ar e o que está tocando agora." actions={isAdmin ? newButton : undefined} />
 
+      {stations && stations.length > 0 && (
+        <div className="stat-grid" style={{ marginBottom: 20 }}>
+          <div className="card"><div className="stat-label"><Icon name="radio" /> Rádios</div><p className="big">{stations.length}</p></div>
+          <div className="card"><div className="stat-label"><Icon name="play" /> No ar agora</div><p className="big">{stations.filter((x) => x.running).length}<span className="muted" style={{ fontSize: 16 }}> / {stations.length}</span></p></div>
+          <div className="card"><div className="stat-label"><Icon name="users" /> Ouvintes agora</div><p className="big">{stations.reduce((n, x) => n + x.listeners, 0)}</p></div>
+        </div>
+      )}
+
       {stations === null && (
-        <div className="grid">
-          {[0, 1, 2].map((i) => <div key={i} className="card skeleton" style={{ height: 116 }} />)}
+        <div className="sgrid">
+          {[0, 1, 2].map((i) => <div key={i} className="card skeleton" style={{ height: 230 }} />)}
         </div>
       )}
 
@@ -76,21 +84,33 @@ export default function Stations() {
       )}
 
       {stations && stations.length > 0 && (
-        <div className="grid">
+        <div className="sgrid">
           {stations.map((s) => (
-            <Link key={s.id} to={`/stations/${s.id}`} className={`card station ${s.running ? 'live' : ''}`}>
-              <div className="row between" style={{ marginBottom: 4 }}>
-                <span className="station-name" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>{s.coverUrl && <Cover url={s.coverUrl} size={30} />}<span className="ellipsis">{s.name}</span></span>
-                <span className={`badge ${s.running ? 'on' : 'off'}`}>{s.running ? 'no ar' : 'parada'}</span>
-              </div>
-              <p className="muted ellipsis">
-                {s.live ? `🎙 ${s.live.name} ao vivo` : s.nowPlaying ? `♪ ${s.nowPlaying.artist ? `${s.nowPlaying.artist} — ` : ''}${s.nowPlaying.title}` : 'Sem histórico ainda'}
-              </p>
-              <div className="station-meta">
-                <span><Icon name="users" size={14} /> {s.listeners} {s.listeners === 1 ? 'ouvinte' : 'ouvintes'}</span>
-                <span>{s.streams[0]?.format.toUpperCase()} {s.streams[0]?.bitrate}k</span>
-              </div>
-            </Link>
+            <article key={s.id} className={`scard ${s.running ? 'live' : ''}`}>
+              <Link to={`/stations/${s.id}`} className="scard-link">
+                <div className="scard-banner" style={s.coverUrl ? { backgroundImage: `linear-gradient(180deg, rgba(15,23,42,.15), rgba(15,23,42,.65)), url(${s.coverUrl})` } : undefined}>
+                  <span className={`badge ${s.running ? 'on' : 'off'}`}>{s.running ? 'no ar' : 'parada'}</span>
+                  {s.live && <span className="tag accent" style={{ marginLeft: 6 }}><Icon name="mic" size={12} /> ao vivo</span>}
+                </div>
+                <div className="scard-body">
+                  <div className="scard-logo"><Cover url={s.nowPlaying?.coverUrl ?? s.coverUrl} size={64} /></div>
+                  <h3 className="ellipsis">{s.name}</h3>
+                  {s.description && <p className="muted small-text ellipsis" style={{ margin: 0 }}>{s.description}</p>}
+                  <p className="scard-np ellipsis">
+                    <Icon name={s.live ? 'mic' : 'music'} size={14} />{' '}
+                    {s.live ? `${s.live.name} ao vivo` : s.nowPlaying ? `${s.nowPlaying.artist ? `${s.nowPlaying.artist} — ` : ''}${s.nowPlaying.title}` : 'Sem histórico ainda'}
+                  </p>
+                  <div className="station-meta">
+                    <span><Icon name="users" size={14} /> {s.listeners} {s.listeners === 1 ? 'ouvinte' : 'ouvintes'}</span>
+                    <span>{s.streams[0]?.format.toUpperCase()} {s.streams[0]?.bitrate}k</span>
+                  </div>
+                </div>
+              </Link>
+              <footer className="scard-ft">
+                <Link to={`/stations/${s.id}`} className="button small"><Icon name="radio" size={14} /> Abrir painel</Link>
+                <a href={`/listen/${s.slug}`} target="_blank" rel="noreferrer" className="button ghost small"><Icon name="link" size={14} /> Player</a>
+              </footer>
+            </article>
           ))}
         </div>
       )}
