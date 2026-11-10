@@ -74,40 +74,70 @@ export default function Listen({ embed = false }: { embed?: boolean }) {
   if (!info) return <p className="center muted">Estação não encontrada.</p>;
   // Capa da música; sem ela, a capa da rádio; sem nenhuma, o ícone.
   const shownCover = info.nowPlaying?.coverUrl ?? info.coverUrl ?? null;
+  const vol = muted ? 0 : volume;
+  const title = info.nowPlaying?.title ?? (info.online ? 'Sem informação da música' : 'Rádio offline');
 
   return (
-    <div className={embed ? 'listen-wrap embed' : 'listen-wrap'}>
-      <div className="listen">
-        <div className="card player">
-          <div className="cover" style={shownCover ? { background: `center/cover url(${shownCover})` } : undefined}>{shownCover ? null : '📻'}</div>
-          <h1>{info.name}</h1>
-          {info.description && <p className="muted">{info.description}</p>}
-          <span className={`badge ${info.online ? 'on' : 'off'}`}>{info.online ? 'no ar' : 'offline'}</span>
-          {info.online && info.live && <div><span className="live-tag">Ao vivo com {info.live.name}</span></div>}
-          <p className="now">{info.nowPlaying?.title ?? '—'}</p>
-          <p className="muted">{info.nowPlaying?.artist}</p>
-          <button className="play" onClick={toggle} disabled={!info.online}>
-            {playing ? '⏸ Pausar' : '▶ Ouvir'}
-            {playing && <span className="eq" aria-hidden="true"><i /><i /><i /><i /></span>}
-          </button>
-          {info.streams.length > 1 && !playing && (
-            <select value={quality} onChange={(e) => setQuality(Number(e.target.value))}>
-              {info.streams.map((s, i) => (
-                <option key={s.mount} value={i}>{s.format.toUpperCase()} {s.bitrate}k</option>
-              ))}
-            </select>
-          )}
-          <div className="volume">
-            <button type="button" className="icon-btn" onClick={() => setMuted((m) => !m)} aria-label={muted || volume === 0 ? 'Ativar o som' : 'Silenciar'} title={muted || volume === 0 ? 'Ativar o som' : 'Silenciar'}>
-              <Icon name={muted || volume === 0 ? 'mute' : 'volume'} />
-            </button>
-            <input type="range" min={0} max={1} step={0.01} value={muted ? 0 : volume} aria-label="Volume" onChange={(e) => { const v = Number(e.target.value); setVolume(v); setMuted(false); }} />
+    <div className={`pl-page${embed ? ' embed' : ''}${playing ? ' is-playing' : ''}`}>
+      <div className="pl-bg" style={shownCover ? { backgroundImage: `url(${shownCover})` } : undefined} aria-hidden="true" />
+      <div className="pl-shell">
+        {!embed && (
+          <header className="pl-top">
+            <div className="pl-brand">
+              {info.coverUrl ? <img src={info.coverUrl} alt="" /> : <span className="pl-brand-ico">📻</span>}
+              <div>
+                <strong>{info.name}</strong>
+                {info.description && <small>{info.description}</small>}
+              </div>
+            </div>
+            <span className="pl-listeners"><Icon name="users" size={15} /> {info.listeners} {info.listeners === 1 ? 'ouvinte' : 'ouvintes'}</span>
+          </header>
+        )}
+
+        <section className="pl-card">
+          <div className="pl-art">
+            {shownCover ? <img src={shownCover} alt="" /> : <span className="pl-art-ph">📻</span>}
           </div>
-          <p className="muted">👥 {info.listeners} ouvintes</p>
-          {msg && <p className="muted">{msg}</p>}
-          <audio ref={audio} />
-        </div>
+          <div className="pl-info">
+            <span className={`pl-kicker ${info.online ? (info.live ? 'live' : 'on') : 'off'}`}>
+              <i /> {info.online ? (info.live ? `AO VIVO · ${info.live.name}` : 'NO AR AGORA') : 'OFFLINE'}
+            </span>
+            {embed && <span className="pl-embed-name">{info.name}</span>}
+            <h2 className="pl-title" title={title}>{title}</h2>
+            <p className="pl-artist">{info.nowPlaying?.artist || (info.online ? info.name : '')}</p>
+
+            <div className="pl-eq" aria-hidden="true">
+              {Array.from({ length: 28 }, (_, i) => <i key={i} style={{ animationDelay: `${(i * 83) % 700}ms` }} />)}
+            </div>
+
+            <div className="pl-controls">
+              <button type="button" className="pl-play" onClick={toggle} disabled={!info.online} aria-label={playing ? 'Pausar' : 'Ouvir'}>
+                {playing ? (
+                  <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor"><rect x="6" y="5" width="4.2" height="14" rx="1.2" /><rect x="13.8" y="5" width="4.2" height="14" rx="1.2" /></svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor"><path d="M8 5.2v13.6a1 1 0 0 0 1.5.86l11-6.8a1 1 0 0 0 0-1.72l-11-6.8A1 1 0 0 0 8 5.2z" /></svg>
+                )}
+              </button>
+              <div className="pl-vol">
+                <button type="button" onClick={() => setMuted((m) => !m)} aria-label={muted || volume === 0 ? 'Ativar o som' : 'Silenciar'} title={muted || volume === 0 ? 'Ativar o som' : 'Silenciar'}>
+                  <Icon name={muted || volume === 0 ? 'mute' : 'volume'} size={20} />
+                </button>
+                <input type="range" min={0} max={1} step={0.01} value={vol} aria-label="Volume" style={{ ['--v' as string]: `${Math.round(vol * 100)}%` }} onChange={(e) => { const v = Number(e.target.value); setVolume(v); setMuted(false); }} />
+              </div>
+              {info.streams.length > 1 && !playing && (
+                <select className="pl-quality" value={quality} onChange={(e) => setQuality(Number(e.target.value))} aria-label="Qualidade">
+                  {info.streams.map((st, i) => (
+                    <option key={st.mount} value={i}>{st.format.toUpperCase()} {st.bitrate}k</option>
+                  ))}
+                </select>
+              )}
+            </div>
+            {msg && <p className="pl-msg">{msg}</p>}
+            {embed && <span className="pl-listeners small"><Icon name="users" size={14} /> {info.listeners} {info.listeners === 1 ? 'ouvinte' : 'ouvintes'}</span>}
+          </div>
+        </section>
       </div>
+      <audio ref={audio} />
     </div>
   );
 }
