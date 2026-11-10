@@ -15,6 +15,7 @@ export default function Stations() {
   // Endereço curto (URL): acompanha o nome enquanto a pessoa não mexer nele.
   const [slug, setSlug] = useState('');
   const [slugEdited, setSlugEdited] = useState(false);
+  const [port, setPort] = useState('');
   const toSlug = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, 40);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -31,13 +32,14 @@ export default function Stations() {
     setBusy(true);
     setError('');
     try {
-      await api('/api/stations', { method: 'POST', body: { name, description, mount, slug: slug.replace(/-+$/, '') || undefined } });
+      await api('/api/stations', { method: 'POST', body: { name, description, mount, slug: slug.replace(/-+$/, '') || undefined, port: port.trim() ? Number(port) : undefined } });
       setOpen(false);
       setName('');
       setDescription('');
       setMount('radio.mp3');
       setSlug('');
       setSlugEdited(false);
+      setPort('');
       toast('Estação criada');
       load();
     } catch (err) {
@@ -147,6 +149,11 @@ export default function Stations() {
             <span>Nome do stream</span>
             <input value={mount} onChange={(e) => setMount(e.target.value.replace(/[^a-zA-Z0-9._-]/g, ''))} placeholder="radio.mp3" maxLength={40} required />
             <small className="hint">É o final do endereço de escuta. Padrão: radio.mp3 — dá para mudar depois em Editar estação.</small>
+          </label>
+          <label className="field">
+            <span>Porta da estação <em className="hint">(opcional)</em></span>
+            <input type="number" min={1024} max={65000} value={port} onChange={(e) => setPort(e.target.value.replace(/[^0-9]/g, ''))} placeholder="Automática" />
+            <small className="hint">Deixe em branco para o painel escolher uma porta livre. Se preencher, ela precisa estar liberada no servidor (a estação usa 10 portas seguidas a partir dela: o DJ ao vivo fica na porta +5).</small>
           </label>
           {error && <p className="error">{error}</p>}
         </form>

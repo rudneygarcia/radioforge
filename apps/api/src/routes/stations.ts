@@ -82,6 +82,8 @@ const settings = z.object({
   stereoKey: z.string().max(300).optional(),
   /** Endereço curto da estação (URL do player e do stream). Opcional: sem ele, vem do nome. */
   slug: z.string().max(40).optional(),
+  /** Porta do stream (só ao criar). Em branco = automática. A estação usa 10 portas a partir dela (DJ ao vivo = +5, console = +6). */
+  port: z.number().int().optional(),
   /** Não repetir o mesmo artista por N minutos (0 = desligado). */
   noRepeatArtistMinutes: z.number().int().min(0).max(1440).default(0),
   /** Não repetir o mesmo artista por N minutos (0 = desligado). */
@@ -204,6 +206,16 @@ export async function stationView(st: StationRow) {
   };
 }
 
+/** Porta pedida pela pessoa: dentro da faixa e sem invadir as 10 portas de outra estação. */
+function customPort(port: number): number {
+  const lo = config.engine.streamPortStart;
+  const hi = config.engine.streamPortEnd - 9;
+  if (port < lo || port > hi) throw new HttpError(400, `Porta fora da faixa permitida (${lo} a ${hi}).`);
+  const clash = get<{ stream_port: number; name: string }>('SELECT stream_port, name FROM stations WHERE stream_port > ? AND stream_port < ? ORDER BY stream_port LIMIT 1', port - 10, port + 10);
+  if (clash) throw new HttpError(409, `A porta ${port} conflita com a estação "${clash.name}" (porta ${clash.stream_port}). Cada estação usa 10 portas seguidas: escolha uma porta com pelo menos 10 de diferença.`);
+  return port;
+}
+
 function nextPort(): number {
   const row = get<{ p: number | null }>('SELECT MAX(stream_port) AS p FROM stations');
   const port = row?.p ? row.p + 10 : config.engine.streamPortStart;
@@ -242,7 +254,7 @@ export async function stationRoutes(app: FastifyInstance) {
       body.name,
       slug,
       body.description,
-      nextPort(),
+      body.port !== undefined ? customPort(body.port) : nextPort(),
       body.mount ?? `/radio.${body.format}`,
       body.format,
       body.bitrate,
