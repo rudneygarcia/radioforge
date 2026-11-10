@@ -17,7 +17,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # NÃO instalar o pacote "ffmpeg" aqui: ele troca as bibliotecas libav* da imagem do Liquidsoap por
 # outra versão e o Liquidsoap morre ao iniciar ("Could not find OCaml value ... recompile the ffmpeg binding").
 RUN apt-get update \
- && apt-get install -y --no-install-recommends icecast2 ca-certificates \
+ && apt-get install -y --no-install-recommends icecast2 ca-certificates tzdata \
  && rm -rf /var/lib/apt/lists/*
 # Voz da "hora certa" (espeak-ng, português do Brasil). Instalação à parte e protegida: se falhar, ou se quebrar o
 # Liquidsoap (teste abaixo), o espeak-ng é removido e a imagem continua sem a voz, em vez de derrubar o build/rádio.
@@ -40,6 +40,8 @@ COPY --from=build --chown=radio:radio /src/apps/web/dist ./apps/web/dist
 COPY --from=build --chown=radio:radio /src/BUILD_INFO.json ./BUILD_INFO.json
 
 USER radio
+# Fuso dos logs do servidor (troque pela variável TZ no Velix, se precisar).
+ENV TZ=America/Sao_Paulo
 ENV NODE_ENV=production DATA_DIR=/data WEB_DIR=/app/apps/web/dist PORT=3000
 EXPOSE 3000 8000-8499
 VOLUME /data

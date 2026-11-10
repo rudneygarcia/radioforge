@@ -29,7 +29,17 @@ import { publicRoutes } from './routes/public.js';
 import { stationRoutes } from './routes/stations.js';
 import { userRoutes } from './routes/users.js';
 
-const app = Fastify({ logger: true, trustProxy: true });
+// Logs do painel com a hora local (fuso do servidor: variável TZ, padrão America/Sao_Paulo) em vez de milissegundos UTC.
+const logTz = process.env.TZ || 'America/Sao_Paulo';
+const logTime = () => {
+  try {
+    const t = new Intl.DateTimeFormat('sv-SE', { timeZone: logTz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date());
+    return `,"time":"${t}"`;
+  } catch {
+    return `,"time":"${new Date().toISOString()}"`;
+  }
+};
+const app = Fastify({ logger: { timestamp: logTime }, trustProxy: true });
 
 // Guarda o host da requisição para montar os links de stream quando PUBLIC_HOST não está definido.
 app.addHook('onRequest', (req, _reply, done) => {

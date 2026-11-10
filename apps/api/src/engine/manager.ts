@@ -25,6 +25,7 @@ class Supervised {
     private bin: string,
     private args: string[],
     private logFile: string,
+    private env: NodeJS.ProcessEnv = {},
   ) {}
 
   get running() {
@@ -35,7 +36,7 @@ class Supervised {
     this.stopping = false;
     const log = fs.openSync(this.logFile, 'a');
     const startedAt = Date.now();
-    const child = spawn(this.bin, this.args, { stdio: ['ignore', log, log] });
+    const child = spawn(this.bin, this.args, { stdio: ['ignore', log, log], env: { ...process.env, ...this.env } });
     this.child = child;
     child.on('error', (err) => console.error(`[${this.label}] falha ao iniciar ${this.bin}: ${err.message}`));
     child.on('exit', (code) => {
@@ -261,17 +262,21 @@ export async function startStation(st: StationRow, skipStereo = false) {
   if (notes.length) audioWarnings.set(st.id, maskKey(`${notes.join('\n')}\n${firstError}`));
   if (audioWarnings.has(st.id)) console.warn(`[engine] ${st.slug}: ${audioWarnings.get(st.id)}`);
 
+  // Horas dos logs do Icecast/Liquidsoap no fuso da estação (o servidor roda em UTC): bate com o relógio de quem lê.
+  const logTz = st.timezone || process.env.TZ || 'America/Sao_Paulo';
   const icecast = new Supervised(
     `icecast:${st.slug}`,
     config.engine.icecastBin,
     ['-c', path.join(base, 'config', 'icecast.xml')],
     path.join(base, 'logs', 'icecast.out.log'),
+    { TZ: logTz },
   );
   const liquidsoap = new Supervised(
     `liquidsoap:${st.slug}`,
     config.engine.liquidsoapBin,
     [path.join(base, 'config', 'radio.liq')],
     path.join(base, 'logs', 'liquidsoap.out.log'),
+    { TZ: logTz },
   );
   procs.set(st.id, { icecast, liquidsoap });
   icecast.start();
