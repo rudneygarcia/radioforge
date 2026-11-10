@@ -209,3 +209,7 @@ O painel passou a escolher a próxima faixa de cada playlist (o Liquidsoap pergu
 ### Blocos comerciais
 
 Menu **Comerciais**: crie uma pasta na Biblioteca com os comerciais e programe um bloco com **horários** (no fuso da estação), **dias da semana**, quantos comerciais por bloco e a ordem (em ordem ou aleatória). No horário o bloco entra na fila do AutoDJ e toca ao fim da música atual, sem aparecer em "Tocando agora" nem no histórico. Cada comercial colocado no ar fica em **Veiculações recentes** (data, hora e arquivo), como comprovante. Há **Disparar agora** para testar. Blocos não disparam com DJ ao vivo (ficam registrados como "Pulado") nem em estações sem AutoDJ. Não deixe a pasta dos comerciais dentro de uma playlist, senão eles também tocam na programação normal.
+
+### Esqueci minha senha (e-mail)
+
+A tela de login tem **Esqueci minha senha**: o usuário informa o e-mail e recebe um link (válido por 1 hora, uso único) para criar uma nova senha. O envio usa SMTP: configure em **Sistema → E-mail** (servidor, porta, usuário, senha, remetente e botão de teste) ou pelas variáveis `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `SMTP_SECURE` (têm prioridade). A resposta do painel é a mesma exista o e-mail ou não, e há limite de 5 pedidos por hora por IP e por e-mail.

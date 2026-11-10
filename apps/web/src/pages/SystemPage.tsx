@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Icon, PageHeader, useUi } from '../ui';
+import SmtpCard from './SmtpCard';
 
 interface Info {
   version: string;
@@ -105,6 +106,7 @@ export default function SystemPage() {
           )}
         </div>
       </div>
+      <SmtpCard />
     </>
   );
 }

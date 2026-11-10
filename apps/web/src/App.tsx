@@ -1,6 +1,8 @@
 import { Link, NavLink, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth';
 import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Listen from './pages/Listen';
 import Stations from './pages/Stations';
 import StationLayout from './pages/StationLayout';
@@ -59,6 +61,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot" element={<ForgotPassword />} />
+      <Route path="/reset" element={<ResetPassword />} />
       <Route path="/listen/:slug" element={<Listen />} />
       <Route path="/widget/:slug/:type" element={<Widget />} />
       <Route element={<Protected />}>

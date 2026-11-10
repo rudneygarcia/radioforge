@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { api, type User } from '../api';
 import { useAuth } from '../auth';
+import AuthShell from './AuthShell';
 
 export default function Login() {
   const { user, login } = useAuth();
@@ -10,6 +11,8 @@ export default function Login() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -21,6 +24,7 @@ export default function Login() {
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError('');
+    setBusy(true);
     try {
       const r = await api<{ token: string; user: User }>(needsSetup ? '/api/setup' : '/api/auth/login', {
         method: 'POST',
@@ -30,20 +34,39 @@ export default function Login() {
       nav('/');
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
-    <div className="auth-wrap">
-    <form className="card auth" onSubmit={submit}>
-      <h1><span className="brand-mark">📻</span> RadioForge</h1>
-      <p className="muted">{needsSetup ? 'Crie a conta de administrador para começar' : 'Entre para gerenciar suas rádios'}</p>
-      {needsSetup && <input placeholder="Nome" value={name} onChange={(e) => setName(e.target.value)} required />}
-      <input type="email" placeholder="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} required />
-      <input type="password" placeholder="Senha (mín. 8 caracteres)" value={password} onChange={(e) => setPassword(e.target.value)} required />
-      {error && <p className="error">{error}</p>}
-      <button>{needsSetup ? 'Criar administrador' : 'Entrar'}</button>
-    </form>
-    </div>
+    <AuthShell title={needsSetup ? 'Criar administrador' : 'Bem-vindo de volta'} subtitle={needsSetup ? 'Crie a conta de administrador para começar' : 'Entre para gerenciar suas rádios'}>
+      <form className="login-form" onSubmit={submit}>
+        {needsSetup && (
+          <label className="field">
+            <span>Nome</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required />
+          </label>
+        )}
+        <label className="field">
+          <span>E-mail</span>
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" placeholder="voce@exemplo.com" required />
+        </label>
+        <label className="field">
+          <span>Senha</span>
+          <div className="pw-wrap">
+            <input type={show ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={needsSetup ? 'new-password' : 'current-password'} placeholder={needsSetup ? 'Mínimo de 8 caracteres' : 'Sua senha'} required />
+            <button type="button" className="pw-toggle" onClick={() => setShow((v) => !v)} aria-label={show ? 'Ocultar a senha' : 'Mostrar a senha'}>{show ? 'Ocultar' : 'Mostrar'}</button>
+          </div>
+        </label>
+        {!needsSetup && (
+          <div className="login-links">
+            <Link to="/forgot">Esqueci minha senha</Link>
+          </div>
+        )}
+        {error && <p className="error">{error}</p>}
+        <button className="login-submit" disabled={busy}>{busy ? 'Entrando…' : needsSetup ? 'Criar administrador' : 'Entrar'}</button>
+      </form>
+    </AuthShell>
   );
 }

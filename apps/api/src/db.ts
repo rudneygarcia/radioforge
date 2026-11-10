@@ -220,6 +220,20 @@ addColumn('stations', 'no_repeat_artist_minutes', 'INTEGER NOT NULL DEFAULT 0');
 // AutoDJ ligado (1) ou só transmissão ao vivo (0): sem AutoDJ roda apenas o Icecast (o DJ conecta direto nele) e o Liquidsoap fica desligado.
 addColumn('stations', 'autodj', 'INTEGER NOT NULL DEFAULT 1');
 
+// Configurações gerais (ex.: e-mail SMTP) e pedidos de recuperação de senha (só o hash do código é guardado).
+db.exec(`
+CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '');
+CREATE TABLE IF NOT EXISTS password_resets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  used INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_pwreset_hash ON password_resets(token_hash);
+`);
+
 // Blocos comerciais (comerciais de uma pasta da Biblioteca nos horários programados) e o comprovante de veiculação.
 db.exec(`
 CREATE TABLE IF NOT EXISTS ad_blocks (
