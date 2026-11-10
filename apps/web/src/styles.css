@@ -606,3 +606,56 @@ body:has(.pl-page) { background: #07090f; }
 
 .pl-page.embed .pl-art-ph { font-size: 52px; }
 @media (max-width: 820px) { .pl-art-ph { font-size: 72px; } .pl-page.embed .pl-art-ph { font-size: 44px; } }
+
+/* ===== Player: ajustes para telas pequenas (nada é cortado) ===== */
+.pl-page { min-height: 100vh; min-height: 100dvh; overflow-x: hidden; overflow-y: visible; }
+.pl-bg { overflow: hidden; }
+.pl-page.embed { min-height: 0; overflow: hidden; }
+.pl-card { align-content: start; }
+.pl-brand > div { min-width: 0; }
+.pl-brand strong, .pl-brand small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-top { flex-wrap: wrap; }
+.pl-controls { max-width: 100%; }
+@media (max-width: 480px) {
+  .pl-shell { padding: 18px 16px 28px; gap: 18px; }
+  .pl-brand img, .pl-brand-ico { width: 38px; height: 38px; }
+  .pl-brand strong { font-size: 16px; }
+  .pl-art { max-width: min(72vw, 300px); border-radius: 22px; }
+  .pl-title { font-size: clamp(24px, 8vw, 34px); }
+  .pl-eq { height: 34px; margin: 14px 0 2px; }
+  .pl-eq i:nth-child(n+19) { display: none; }
+  .pl-play { width: 68px; height: 68px; }
+  .pl-controls { gap: 14px; }
+  .pl-vol { padding: 8px 14px 8px 8px; }
+  .pl-vol input[type=range] { width: clamp(90px, 34vw, 160px); }
+}
+@media (max-width: 340px) {
+  .pl-top { gap: 8px; }
+  .pl-listeners { padding: 6px 10px; font-size: 12.5px; }
+  .pl-vol input[type=range] { width: 84px; }
+}
+/* telas baixas (celular deitado): compacta para caber sem rolar demais */
+@media (max-height: 560px) and (min-width: 560px) {
+  .pl-shell { padding-top: 14px; padding-bottom: 14px; gap: 12px; }
+  .pl-card { grid-template-columns: minmax(150px, 260px) minmax(0, 1fr); gap: 28px; text-align: left; justify-items: stretch; }
+  .pl-art { max-width: 260px; }
+  .pl-info { align-items: flex-start; }
+  .pl-controls { justify-content: flex-start; }
+  .pl-eq { height: 26px; margin: 8px 0 0; }
+  .pl-play { width: 60px; height: 60px; }
+  .pl-title { font-size: clamp(22px, 4vw, 34px); -webkit-line-clamp: 2; }
+}
+/* widget compacto em larguras pequenas */
+@media (max-width: 360px) {
+  .pl-page.embed .pl-shell { padding: 12px; }
+  .pl-page.embed .pl-title { font-size: 19px; }
+  .pl-page.embed .pl-vol input[type=range] { width: 90px; }
+}
+@media (max-width: 820px) {
+  .pl-page:not(.embed) .pl-art { max-width: min(78vw, 380px, 38vh); }
+  .pl-page:not(.embed) .pl-shell { gap: clamp(12px, 3vh, 28px); }
+}
+@media (max-width: 480px) {
+  .pl-page:not(.embed) .pl-art { max-width: min(72vw, 300px, 36vh); }
+  .pl-page:not(.embed) .pl-eq { height: 28px; margin: 8px 0 0; }
+}
