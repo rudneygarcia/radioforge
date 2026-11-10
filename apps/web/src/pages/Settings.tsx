@@ -52,6 +52,7 @@ export default function Settings() {
     requestDelay: station.requestDelay,
     stereoEnabled: station.stereoEnabled,
     stereoPreset: station.stereoPreset,
+    noRepeatArtistMinutes: station.noRepeatArtistMinutes,
     timezone: station.timezone,
     historyLimit: station.historyLimit,
     liveEnabled: station.liveEnabled,
@@ -366,6 +367,11 @@ export default function Settings() {
             <span>Não repetir a mesma música por (minutos)</span>
             <input type="number" min={0} max={1440} value={f.noRepeatMinutes} onChange={(e) => setF({ ...f, noRepeatMinutes: Math.max(0, Math.min(1440, Number(e.target.value) || 0)) })} disabled={!isAdmin} />
             <small className="hint">Uma música que tocou só volta depois desse tempo (0 = desligado; 60 = 1 hora). Se a biblioteca for pequena e todas já tiverem tocado, a rádio continua tocando (nunca fica sem música). Vinhetas não entram na regra.</small>
+          </label>
+          <label className="field" style={{ maxWidth: 340 }}>
+            <span>Não repetir o mesmo artista por (minutos)</span>
+            <input type="number" min={0} max={1440} value={f.noRepeatArtistMinutes} onChange={(e) => setF({ ...f, noRepeatArtistMinutes: Math.max(0, Math.min(1440, Number(e.target.value) || 0)) })} disabled={!isAdmin} />
+            <small className="hint">Depois que um artista toca, outra música dele só entra depois desse tempo (0 = desligado; 30 = meia hora). Feats e participações contam como o artista principal. Se não houver outra opção, a rádio relaxa a regra em vez de ficar muda.</small>
           </label>
           <label className="field" style={{ maxWidth: 260 }}>
             <span>Músicas recentes no player público</span>

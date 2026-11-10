@@ -7,7 +7,8 @@ import { z } from 'zod';
 import { HttpError } from '../auth.js';
 import { config } from '../config.js';
 import { all, get, mountsFor, recentMedia, requestableMedia, run, type MediaRow, type StationRow } from '../db.js';
-import { isRunning, pushRequest, writePlaylists } from '../engine/manager.js';
+import { isRunning, pushRequest, usesDynamic, writePlaylists } from '../engine/manager.js';
+import { nextUri, notePick } from '../engine/rotation.js';
 import { isHiddenTrack } from '../engine/hide.js';
 import { PROXY_MARK, registerProxyConn } from '../engine/listeners.js';
 import { coverFile, coverMime, historyView, nowPlayingView, stationCoverPath, stationCoverUrl } from '../engine/covers.js';
@@ -187,6 +188,7 @@ export async function publicRoutes(app: FastifyInstance) {
     }
     // Sem atraso: entra na fila do AutoDJ agora. Com atraso: fica agendado e o servidor coloca na fila no horário (timed.ts).
     const delay = st.request_delay;
+    notePick(st.id, m); // conta para a regra de não repetir música/artista
     if (delay === 0) await pushRequest(st.id, path.join(config.dataDir, m.path), false, 0, isHiddenTrack(st, m));
     run(
       "INSERT INTO song_requests (station_id, media_id, ip, due_at, pushed) VALUES (?, ?, ?, datetime('now', ?), ?)",
@@ -231,6 +233,18 @@ export async function publicRoutes(app: FastifyInstance) {
   });
 
   // Chamado pelo Liquidsoap a cada faixa; protegido por token compartilhado.
+  // O Liquidsoap pergunta aqui qual é a próxima faixa de cada playlist (resposta: o caminho/URI, em texto puro).
+  app.get('/internal/stations/:id/next/:pid', async (req, reply) => {
+    const token = String(req.headers['x-internal-token'] ?? '');
+    if (!safeEqual(token, config.internalToken)) throw new HttpError(401, 'Token inválido');
+    const { id, pid } = z.object({ id: z.coerce.number().int(), pid: z.coerce.number().int() }).parse(req.params);
+    const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', id);
+    if (!st) throw new HttpError(404, 'Estação não encontrada');
+    const uri = nextUri(st, pid);
+    if (!uri) return reply.code(404).send('');
+    return reply.header('Content-Type', 'text/plain; charset=utf-8').send(uri);
+  });
+
   app.post('/internal/stations/:id/track', async (req) => {
     const token = String(req.headers['x-internal-token'] ?? '');
     if (!safeEqual(token, config.internalToken)) throw new HttpError(401, 'Token inválido');
@@ -246,7 +260,8 @@ export async function publicRoutes(app: FastifyInstance) {
     recordTrack(id, b.artist, title, media?.id ?? null);
     // A faixa que acabou de tocar sai das playlists por um tempo (o Liquidsoap recarrega o arquivo).
     const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', id);
-    if (st && st.no_repeat_minutes > 0) writePlaylists(id);
+    // Rotação pela API não precisa regravar as playlists (a regra é aplicada na hora de escolher a próxima faixa).
+    if (st && st.no_repeat_minutes > 0 && !usesDynamic(id)) writePlaylists(id);
     return { ok: true };
   });
 }

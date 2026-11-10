@@ -201,3 +201,7 @@ Em *Configurações → Ocultar nomes*, liste palavras (uma por linha). Faixas c
 ### Stereo Tool
 
 Em *Configurações → Stereo Tool*: envie o ZIP do plugin do Stereo Tool (uma vez para o servidor; vale para todas as estações), o preset `.sts` de cada estação, cole a **sua** chave de licença (uma só, vale para todas as estações) e ligue. O Liquidsoap carrega a biblioteca (`stereotool(library_file, license_key, preset, ...)`) no lugar do processador interno. A chave fica só no servidor e nunca volta para o navegador. Se o Liquidsoap recusar o script (por exemplo, build sem suporte a Stereo Tool), a rádio sobe com o processador interno e o painel avisa. O Stereo Tool consome bastante CPU: ligue só onde precisar.
+
+### Rotação pela API e não repetir música/artista
+
+O painel passou a escolher a próxima faixa de cada playlist (o Liquidsoap pergunta por HTTP, `request.dynamic`). Assim valem, de verdade: **não repetir a mesma música por N minutos** e **não repetir o mesmo artista por N minutos** (feats/participações contam como o artista principal), inclusive para faixas ocultas, pedidos e playlists por tempo, e as playlists `.m3u` deixam de ser regravadas a cada música (isso recarregava o Liquidsoap e refazia a análise do AutoCue). Se não houver faixa que obedeça às regras, o painel relaxa primeiro o artista e depois a música, nunca deixa a rádio muda. Se o Liquidsoap recusar o script ou não pedir faixas ao subir, a estação volta sozinha às playlists comuns e o painel avisa.

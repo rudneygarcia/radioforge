@@ -2,7 +2,8 @@ import path from 'node:path';
 import { config } from '../config.js';
 import { all, avoidRecent, get, playlistMedia, recentMedia, run, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
 import { tickAnnouncements } from './announce.js';
-import { isRunning, pushRequest, writePlaylists } from './manager.js';
+import { isRunning, pushRequest, usesDynamic, writePlaylists } from './manager.js';
+import { notePick } from './rotation.js';
 import { getLive } from './nowplaying.js';
 import { isHiddenTrack } from './hide.js';
 
@@ -17,7 +18,7 @@ const seq = new Map<number, number>();
 export function tickTimedPlaylists(now = Date.now()) {
   for (const st of all<StationRow>('SELECT * FROM stations')) {
     // Músicas que já passaram do tempo de "não repetir" voltam para as playlists.
-    if (st.no_repeat_minutes > 0 && isRunning(st.id)) {
+    if (st.no_repeat_minutes > 0 && isRunning(st.id) && !usesDynamic(st.id)) {
       try {
         writePlaylists(st.id);
       } catch (e) {
@@ -43,6 +44,7 @@ export function tickTimedPlaylists(now = Date.now()) {
       } else {
         m = media[Math.floor(Math.random() * media.length)];
       }
+      if (!p.is_jingle) notePick(st.id, m);
       pushRequest(st.id, path.join(config.dataDir, m.path), !!p.is_jingle, m.duration, isHiddenTrack(st, m)).catch((e) =>
         console.error(`[timed] falha ao enfileirar "${m.title}" na estação ${st.slug}:`, (e as Error).message),
       );

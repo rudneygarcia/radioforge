@@ -12,6 +12,7 @@ import { nativeEnqueue, nativeRunning, startNative, stopNative } from './native.
 import { buildLiquidsoapScript, telnetPort, type LiqPlaylist } from './liquidsoap.js';
 import { isHiddenTrack } from './hide.js';
 import { getLicenseKey, libraryInfo, listPresets } from './stereotool.js';
+import { lastNextCall } from './dynstate.js';
 
 /** Mantém um processo vivo, reiniciando com backoff se cair. */
 class Supervised {
@@ -105,7 +106,7 @@ export function ensureStationDirs(id: number) {
  * URI de uma vinheta para o Liquidsoap: rf_jingle faz o aviso ao servidor ser ignorado e título/artista são
  * trocados pelo nome da estação, para o Icecast e os players não exibirem as tags do arquivo.
  */
-function jingleUri(st: StationRow, abs: string, duration = 0) {
+export function jingleUri(st: StationRow, abs: string, duration = 0) {
   const label = st.jingle_hide_name ? '' : st.name.replace(/["\\\r\n,]/g, ' ').trim();
   // Com AutoCue: cue exato (começa em 0 e vai até o fim real, sem a análise cortar o meio), sem pular silêncio,
   // sobreposição própria (padrão 0: vinheta→vinheta não se atropelam) e ganho opcional.
@@ -117,7 +118,7 @@ function jingleUri(st: StationRow, abs: string, duration = 0) {
 }
 
 /** Faixa oculta: toca normalmente, mas sem título/artista (nada é enviado ao servidor nem ao Icecast, nem o nome da estação). */
-function hiddenUri(abs: string) {
+export function hiddenUri(abs: string) {
   return `annotate:rf_jingle="1",rf_hide="1",title="",artist="",album="":${abs}`;
 }
 
@@ -161,12 +162,15 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
 }
 
 /** Versão do script que vale por estação: processador (0 completo, 1 só padrões, 2 desligado) e AutoDJ em segundo plano. */
-type Variant = { audio: 0 | 1 | 2; keepAlive: boolean; autocue: boolean; tuned: boolean; stereo?: boolean };
+type Variant = { audio: 0 | 1 | 2; keepAlive: boolean; autocue: boolean; tuned: boolean; stereo?: boolean; dyn?: boolean };
 const variantOf = new Map<number, Variant>();
 const audioWarnings = new Map<number, string>();
+/** A estação roda com a próxima faixa escolhida pela API (não pelas playlists .m3u)? */
+export const usesDynamic = (stationId: number) => !!variantOf.get(stationId)?.dyn;
 /** Aviso para o painel quando o processador ou o "AutoDJ em segundo plano" precisaram ser reduzidos/desligados por erro no script. */
 export const audioWarningFor = (stationId: number): string | null => audioWarnings.get(stationId) ?? null;
 
+/** Grava radio.liq/icecast.xml; devolve quantas playlists entram na rotação. */
 function writeConfigs(st: StationRow, variant: Variant = variantOf.get(st.id) ?? { audio: 0, keepAlive: !!st.live_continue && !!st.live_enabled, autocue: !!st.autocue, tuned: !!st.autocue && !!st.autocue_custom }) {
   ensureStationDirs(st.id);
   const base = stationDir(st.id);
@@ -176,6 +180,7 @@ function writeConfigs(st: StationRow, variant: Variant = variantOf.get(st.id) ??
     path.join(base, 'config', 'radio.liq'),
     buildLiquidsoapScript(st, playlists, mountsFor(st.id), djsFor(st.id), path.join(base, 'recordings'), variant),
   );
+  return playlists.length;
 }
 
 export function isRunning(stationId: number) {
@@ -190,7 +195,8 @@ const maskKey = (s: string) => {
   return k.length >= 6 ? s.split(k).join('<chave oculta>') : s;
 };
 
-export async function startStation(st: StationRow, skipStereo = false) {
+export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn?: boolean } = {}) {
+  const skipStereo = !!skip.stereo;
   if (!config.engine.enabled) throw new Error('Engine desativada (ENGINE_ENABLED=false)');
   if (engineMode() === 'native') {
     await startNative(st);
@@ -233,12 +239,18 @@ export async function startStation(st: StationRow, skipStereo = false) {
     const seen = new Set<string>();
     attempts.unshift(...stereoAttempts.filter((v) => !seen.has(JSON.stringify(v)) && seen.add(JSON.stringify(v))));
   }
+  // Rotação pela API (regras de repetição exatas) primeiro; se o Liquidsoap recusar, volta às playlists .m3u.
+  if (!skip.dyn) {
+    const expanded = [...attempts.map((v) => ({ ...v, dyn: true })), ...attempts.map((v) => ({ ...v, dyn: false }))];
+    attempts.splice(0, attempts.length, ...expanded);
+  }
   audioWarnings.delete(st.id);
   let firstError = '';
   let lastOut = '';
   let chosen: Variant | null = null;
+  let dynPlaylists = 0;
   for (const v of attempts) {
-    writeConfigs(st, v);
+    dynPlaylists = writeConfigs(st, v);
     const check = runCheck();
     if (check.error) throw startError(`Não foi possível executar o Liquidsoap: ${check.error.message}`);
     if (check.status === 0) {
@@ -254,6 +266,7 @@ export async function startStation(st: StationRow, skipStereo = false) {
   const notes: string[] = [];
   if (stereoProblem) notes.push(stereoProblem + ' Usando o processador interno.');
   if (wantsStereo && !chosen.stereo) notes.push('O Stereo Tool NÃO foi carregado (o Liquidsoap recusou o script: verifique se esta versão do Liquidsoap tem o suporte a Stereo Tool). Usando o processador interno.');
+  if (!skip.dyn && !chosen.dyn) notes.push('A rotação pela API (regras exatas de não repetir música/artista) não foi aceita pelo Liquidsoap: usando as playlists comuns.');
   if (wantsChain && !chosen.stereo && chosen.audio === 1) notes.push(`O processador de áudio roda só com valores padrão (os ajustes finos não foram aceitos pelo Liquidsoap).`);
   if (wantsChain && !chosen.stereo && chosen.audio === 2) notes.push(`O processador de áudio foi DESLIGADO porque o Liquidsoap recusou o script.`);
   if (wantsAutocue && chosen.autocue && !chosen.tuned && st.autocue_custom) notes.push(`O AutoCue roda com a configuração padrão (os valores personalizados de duração/fade não foram aceitos pelo Liquidsoap).`);
@@ -299,11 +312,24 @@ export async function startStation(st: StationRow, skipStereo = false) {
     if (dead === 'liquidsoap' && chosen.stereo && !skipStereo) {
       const reason = maskKey(tail(log));
       console.warn(`[engine] ${st.slug}: Stereo Tool recusado, subindo sem ele:\n${reason}`);
-      await startStation(st, true);
+      await startStation(st, { ...skip, stereo: true });
       audioWarnings.set(st.id, `O Stereo Tool NÃO carregou e a rádio subiu com o processador interno. Motivo informado pelo Liquidsoap:\n${reason}`);
       return;
     }
     throw startError(`${dead === 'icecast' ? 'Icecast' : 'Liquidsoap'} não ficou no ar:\n${tail(log) || '(sem saída no log)'}`);
+  }
+  // Rotação pela API: o Liquidsoap precisa pedir a primeira faixa logo ao subir. Se não pedir em ~25 s, a rádio ficaria muda:
+  // sobe de novo com as playlists comuns.
+  if (chosen.dyn && dynPlaylists > 0) {
+    const since = Date.now() - 5000;
+    for (let i = 0; i < 25 && lastNextCall(st.id) < since; i++) await new Promise((r) => setTimeout(r, 1000));
+    if (lastNextCall(st.id) < since) {
+      console.warn(`[engine] ${st.slug}: o Liquidsoap não pediu faixas à API; voltando às playlists comuns`);
+      await stopStation(st.id);
+      await startStation(st, { ...skip, dyn: true });
+      audioWarnings.set(st.id, `A rotação pela API não respondeu e a rádio subiu com as playlists comuns (regra de artista indisponível).\n${audioWarnings.get(st.id) ?? ''}`.trim());
+      return;
+    }
   }
   dispatch(st.id, 'station_start', {});
 }

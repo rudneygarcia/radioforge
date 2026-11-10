@@ -215,6 +215,9 @@ addColumn('stations', 'request_delay', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('stations', 'stereo_enabled', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('stations', 'stereo_key', "TEXT NOT NULL DEFAULT ''");
 addColumn('stations', 'stereo_preset', "TEXT NOT NULL DEFAULT ''");
+// Não repetir o mesmo artista por N minutos (0 = desligado).
+addColumn('stations', 'no_repeat_artist_minutes', 'INTEGER NOT NULL DEFAULT 0');
+// Não repetir o mesmo artista por N minutos (0 = desligado).
 addColumn('song_requests', 'due_at', "TEXT NOT NULL DEFAULT ''");
 addColumn('song_requests', 'pushed', 'INTEGER NOT NULL DEFAULT 1');
 addColumn('stations', 'cover', 'TEXT'); // capa/logo da rádio (arquivo dentro da pasta da estação); usada quando a música não tem capa
@@ -407,6 +410,7 @@ export interface StationRow {
   stereo_enabled: number;
   stereo_key: string;
   stereo_preset: string;
+  no_repeat_artist_minutes: number;
   timezone: string;
   cover: string | null;
   created_at: string;

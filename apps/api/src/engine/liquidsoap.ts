@@ -90,6 +90,8 @@ export function buildLiquidsoapScript(
     tuned?: boolean;
     /** Stereo Tool no lugar do processador interno (precisa da biblioteca enviada). */
     stereo?: boolean;
+    /** Próxima faixa escolhida pela API (request.dynamic) em vez das playlists .m3u. */
+    dyn?: boolean;
   } = {},
 ): string {
   const lines: string[] = [];
@@ -132,9 +134,21 @@ export function buildLiquidsoapScript(
     else if (hasDefault) role = p.isDefault ? 'rotation' : p.everySongs > 0 ? 'insert' : 'skip';
     else role = p.everySongs > 0 ? 'insert' : 'rotation';
     if (role === 'skip') continue;
-    lines.push(
-      `${n} = playlist(id = ${q(n)}, mode = ${q(p.mode === 'shuffle' ? 'randomize' : 'normal')}, reload_mode = "watch", ${q(p.m3uPath)})`,
-    );
+    if (opts.dyn) {
+      // O painel escolhe a faixa (regras de não repetir música/artista); o Liquidsoap só pergunta e toca.
+      lines.push(
+        `def next_${n}() =`,
+        `  r = http.get(headers = [("X-Internal-Token", ${q(config.internalToken)})], timeout = 10., ${q(`${config.apiInternalUrl}/internal/stations/${st.id}/next/${p.id}`)})`,
+        `  uri = string.trim("#{r}")`,
+        `  if r.status_code == 200 and uri != "" then request.create(uri) else null() end`,
+        `end`,
+        `${n} = request.dynamic(id = ${q(n)}, retry_delay = 3., next_${n})`,
+      );
+    } else {
+      lines.push(
+        `${n} = playlist(id = ${q(n)}, mode = ${q(p.mode === 'shuffle' ? 'randomize' : 'normal')}, reload_mode = "watch", ${q(p.m3uPath)})`,
+      );
+    }
     if (role === 'scheduled') scheduled.push(`(${schedulePredicate(p.schedule!)}, ${n})`);
     else if (role === 'insert') inserts.push({ n, every: p.everySongs });
     else {
