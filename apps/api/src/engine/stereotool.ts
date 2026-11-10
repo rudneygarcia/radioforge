@@ -13,6 +13,22 @@ export const stereoLibDir = () => path.join(config.dataDir, 'stereotool');
 export const stereoLibPath = () => path.join(stereoLibDir(), 'libStereoTool.so');
 export const presetsDir = (stationId: number) => path.join(stationDir(stationId), 'stereotool', 'presets');
 
+/** Chave de licença do servidor (vale para todas as estações), guardada só em arquivo no servidor. */
+const licensePath = () => path.join(stereoLibDir(), 'license.key');
+export const getLicenseKey = (): string => {
+  try {
+    return fs.readFileSync(licensePath(), 'utf8').trim();
+  } catch {
+    return '';
+  }
+};
+export function setLicenseKey(key: string) {
+  const k = key.trim();
+  if (!k) return fs.rmSync(licensePath(), { force: true });
+  fs.mkdirSync(stereoLibDir(), { recursive: true });
+  fs.writeFileSync(licensePath(), k, { mode: 0o600 });
+}
+
 export const libraryInfo = () => {
   try {
     const s = fs.statSync(stereoLibPath());

@@ -1,6 +1,6 @@
 import type { DjRow, MountRow, StationRow } from '../db.js';
 import { config } from '../config.js';
-import { presetPath, stereoLibPath } from './stereotool.js';
+import { getLicenseKey, presetPath, stereoLibPath } from './stereotool.js';
 
 /** Literal de string seguro para Liquidsoap (JSON é compatível com as escapes dele). */
 const q = (s: string) => JSON.stringify(s);
@@ -231,7 +231,8 @@ export function buildLiquidsoapScript(
   if (opts.stereo) {
     // Stereo Tool: biblioteca do servidor + preset (.sts) da estação + licença. Substitui o processador interno.
     const args = [`library_file = ${q(stereoLibPath())}`];
-    if (st.stereo_key) args.push(`license_key = ${q(st.stereo_key)}`);
+    const licenseKey = getLicenseKey(); // chave única do servidor
+    if (licenseKey) args.push(`license_key = ${q(licenseKey)}`);
     if (st.stereo_preset) args.push(`preset = ${q(presetPath(st.id, st.stereo_preset))}`);
     lines.push(`radio = stereotool(${args.join(', ')}, radio)`);
   } else if (audioVariant === 0 || audioVariant === 1) lines.push(...audioChain(st.audio_preset, st.audio_gain, audioVariant));

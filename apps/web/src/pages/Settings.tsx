@@ -63,8 +63,6 @@ export default function Settings() {
   });
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
-  // Chave do Stereo Tool: só vai ao servidor se for digitada (o servidor nunca devolve a chave salva).
-  const [stereoKey, setStereoKey] = useState('');
   const close = () => setOpen(null);
   const [coverBusy, setCoverBusy] = useState(false);
   const isAdmin = user?.role === 'admin';
@@ -75,8 +73,7 @@ export default function Settings() {
     e.preventDefault();
     setBusy(true);
     try {
-      await api(`/api/stations/${station.id}`, { method: 'PUT', body: { ...f, ...(stereoKey ? { stereoKey: stereoKey.trim() } : {}) } });
-      setStereoKey('');
+      await api(`/api/stations/${station.id}`, { method: 'PUT', body: f });
       await reload();
       toast('Configurações salvas');
     } catch (err) {
@@ -308,7 +305,7 @@ export default function Settings() {
       </Modal>
 
       <Modal open={open === 'stereo'} title="Stereo Tool" onClose={close} size="lg" footer={<button type="button" onClick={close}>Concluído</button>}>
-        <StereoTool stationId={station.id} isAdmin={isAdmin} keySet={station.stereoKeySet} enabled={f.stereoEnabled} preset={f.stereoPreset} onEnabled={(v) => setF({ ...f, stereoEnabled: v })} onPreset={(v) => setF({ ...f, stereoPreset: v })} onKey={setStereoKey} />
+        <StereoTool stationId={station.id} isAdmin={isAdmin} enabled={f.stereoEnabled} preset={f.stereoPreset} onEnabled={(v) => setF({ ...f, stereoEnabled: v })} onPreset={(v) => setF({ ...f, stereoPreset: v })} />
       </Modal>
 
       <Modal open={open === 'hora'} title="Hora certa" onClose={close} size="lg" footer={<button type="button" onClick={close}>Concluído</button>}>
