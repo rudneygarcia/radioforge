@@ -221,7 +221,7 @@ export async function stationRoutes(app: FastifyInstance) {
     const r = run(
       `INSERT INTO stations (name, slug, description, stream_port, mount, format, bitrate,
          source_password, admin_password, live_enabled, requests_enabled, autostart, crossfade_seconds, normalize, record_live, history_limit, audio_preset, audio_gain, no_repeat_minutes, live_timeout, live_continue, time_announce, timezone, time_announce_voice, time_voice, autocue, autocue_custom, autocue_duration, autocue_fade_in, autocue_fade_out, jingle_overlap, jingle_gain, autocue_level, hidden_words, jingle_hide_name, request_interval, request_delay)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       body.name,
       slug,
       body.description,
