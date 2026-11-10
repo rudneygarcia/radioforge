@@ -45,6 +45,8 @@ function MiniPlayer({ slug, online }: { slug: string; online: boolean }) {
     if (playing) {
       a.pause(); a.removeAttribute('src'); a.load(); setPlaying(false);
     } else {
+      a.volume = volume;
+      a.muted = muted;
       a.src = `/api/public/stations/${slug}/stream/0?t=${Date.now()}`;
       a.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
     }

@@ -33,7 +33,7 @@ export default function Listen({ embed = false }: { embed?: boolean }) {
   useEffect(() => {
     if (audio.current) { audio.current.volume = volume; audio.current.muted = muted; }
     try { localStorage.setItem('rf_volume', String(volume)); } catch { /* sem armazenamento */ }
-  }, [volume, muted]);
+  }, [volume, muted, info !== null]);
 
   useEffect(() => {
     const load = () => api<Pub>(`/api/public/stations/${slug}`).then(setInfo).catch(() => setInfo(null));
@@ -66,6 +66,8 @@ export default function Listen({ embed = false }: { embed?: boolean }) {
       // Recarrega o stream a cada play para pegar o ao vivo, não o buffer antigo.
       // Passa pelo servidor do painel (mesma origem/HTTPS) em vez de http://host:porta, que o navegador bloqueia.
       const idx = info.streams[quality] ? quality : 0;
+      a.volume = volume;
+      a.muted = muted;
       a.src = `/api/public/stations/${slug}/stream/${idx}?t=${Date.now()}`;
       a.play().then(() => { setPlaying(true); setMsg(''); }).catch(() => setMsg('Não foi possível iniciar o áudio.'));
     }
