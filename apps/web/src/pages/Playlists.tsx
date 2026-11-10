@@ -10,7 +10,7 @@ const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 function summary(p: Playlist, hasDefault: boolean): string[] {
   const out: string[] = [p.mode === 'shuffle' ? 'Aleatória' : 'Sequencial'];
   if (p.isDefault) return [...out, 'Toca sempre (base da programação)'];
-  if (p.jingle) out.push('Vinheta');
+  if (p.jingle) out.push('Jingle');
   if (p.requestable) out.push('Permite pedidos');
   if (p.scheduleEnabled) out.push(`${p.startTime}–${p.endTime} · ${p.days.length === 7 ? 'todos os dias' : p.days.map((d) => DAYS[d]).join(', ')}`);
   else if (p.everyMinutes > 0) out.push(`1 faixa a cada ${p.everyMinutes} min`);
@@ -196,7 +196,7 @@ export default function Playlists() {
               <div className="fields">
                 <label className="check-line">
                   <input type="checkbox" checked={editing.jingle} onChange={(e) => patch({ jingle: e.target.checked, requestable: e.target.checked ? false : editing.requestable, isDefault: e.target.checked ? false : editing.isDefault })} />
-                  <span>Vinheta <small>Toca normalmente, mas o nome do arquivo não é enviado ao servidor: não aparece em “Tocando agora”, no histórico nem nos webhooks.</small></span>
+                  <span>Jingle (vinheta) <small>Marque para jingles, vinhetas e avisos: o nome do arquivo não é enviado ao servidor (não aparece em “Tocando agora”, no histórico, nos webhooks nem no stream). O Liquidsoap toca o jingle inteiro, sem cortar, com o volume ajustado e sem sobrepor outro jingle. Não pode ser pedido pelos ouvintes.</small></span>
                 </label>
                 <label className="check-line" style={{ opacity: editing.jingle ? 0.55 : 1 }}>
                   <input type="checkbox" checked={editing.requestable && !editing.jingle} disabled={editing.jingle} onChange={(e) => patch({ requestable: e.target.checked })} />
