@@ -127,7 +127,7 @@ export function streamUrl(st: StationRow, mount = st.mount) {
 
 /** Link que passa pelo painel (mesma origem/HTTPS): funciona atrás de proxy/Cloudflare, sem abrir portas. */
 export function proxyUrl(st: StationRow, mount = st.mount) {
-  return `${config.publicOrigin}/stream/${st.slug}${mount}`;
+  return `${config.publicOrigin}/listen/${st.slug}${mount}`;
 }
 
 /** Todos os streams da estação (principal primeiro). */

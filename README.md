@@ -125,7 +125,7 @@ Em cada estação, aba **Integrações**. Eventos: troca de música, estação i
 
 ## Cloudflare e proxies, AAC e processador de áudio
 
-- **Atrás de proxy/Cloudflare:** o painel mostra, para cada stream, um link que passa pelo próprio painel (`https://seu-dominio/stream/<estação>/<nome>`, ex.: `/stream/minha-radio/radio.mp3`). Ele usa só a porta do site, então funciona com o domínio proxied pelo Cloudflare, sem abrir as portas 8000+. O player público também usa esse caminho. O "link direto" (`dominio:porta`) só funciona com a porta aberta e DNS sem proxy (nuvem cinza). O Cloudflare não guarda o stream (`Cache-Control: no-store`).
+- **Atrás de proxy/Cloudflare:** o painel mostra, para cada stream, um link que passa pelo próprio painel (`https://seu-dominio/listen/<estação>/<nome>`, ex.: `/listen/minha-radio/radio.mp3`; o endereço antigo `/stream/...` continua funcionando). Ele usa só a porta do site, então funciona com o domínio proxied pelo Cloudflare, sem abrir as portas 8000+. O player público também usa esse caminho. O "link direto" (`dominio:porta`) só funciona com a porta aberta e DNS sem proxy (nuvem cinza). O Cloudflare não guarda o stream (`Cache-Control: no-store`).
 - **DJ ao vivo** conecta direto na porta do Liquidsoap (não passa pelo proxy): use o IP do servidor ou um subdomínio "somente DNS", ou defina `PUBLIC_HOST` para esse endereço.
 - **Formatos:** MP3, **AAC** (AAC-LC via FFmpeg do Liquidsoap, mountpoint padrão `/radio.aac`) e OGG. AAC e OGG só no modo Liquidsoap; o modo simples (Node) serve só MP3. Gravações de DJ em AAC são salvas em MP3. **O encoder AAC ainda não foi executado num Liquidsoap real**: se der erro ao iniciar, o painel mostra a mensagem.
 - **Processador de áudio** (Configurações): `Equilibrado` (compressão leve + limitador) e `Forte, estilo FM` (normaliza + compressão firme + limitador). Vale para tudo que vai ao ar (músicas e DJ), só no modo Liquidsoap. Os parâmetros ainda não foram validados num Liquidsoap real; padrão desligado.
@@ -152,7 +152,7 @@ Marque uma playlist como **padrão** (a primeira playlist de uma estação já n
 
 ## Metadados e capas
 
-- **Metadados no stream:** o Liquidsoap envia título/artista de cada faixa ao Icecast (ICY), então VLC e apps de rádio mostram "Artista - Música". Pelo link do painel (`/stream/<estação>/<nome>`, que funciona atrás do Cloudflare) os metadados ICY também passam quando o player os pede (`Icy-MetaData: 1`). Vinhetas saem com o **nome da estação** no lugar das tags do arquivo (e sem avisar o servidor). O motor simples (Node) não envia ICY.
+- **Metadados no stream:** o Liquidsoap envia título/artista de cada faixa ao Icecast (ICY), então VLC e apps de rádio mostram "Artista - Música". Pelo link do painel (`/listen/<estação>/<nome>`, que funciona atrás do Cloudflare) os metadados ICY também passam quando o player os pede (`Icy-MetaData: 1`). Vinhetas saem com o **nome da estação** no lugar das tags do arquivo (e sem avisar o servidor). O motor simples (Node) não envia ICY.
 - **Capas:** a capa embutida nas tags do arquivo (ID3/MP4/FLAC) é extraída no envio (e nas músicas já enviadas, em segundo plano ao iniciar a API) e aparece no "Tocando agora" do painel e do player público, nos históricos e na biblioteca; no celular também na tela de bloqueio (Media Session). Link público: `/api/public/stations/<slug>/cover/<id>`. Músicas sem capa embutida mostram um ícone.
 - **Icecast:** está instalado na imagem Docker (`icecast2`); `GET /api/health` mostra `engineMode: liquidsoap` quando Icecast + Liquidsoap estão em uso.
 

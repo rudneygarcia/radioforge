@@ -120,14 +120,17 @@ export async function publicRoutes(app: FastifyInstance) {
     return proxyStream(req, reply, st, mount);
   });
 
-  // Link amigável para players externos (VLC, apps): https://dominio/stream/<estação>/radio.mp3
-  app.get('/stream/:slug/:name', async (req, reply) => {
+  // Link amigável para players externos (VLC, apps): https://dominio/listen/<estação>/radio.mp3
+  // (/stream/<estação>/... continua funcionando para quem já usa o endereço antigo).
+  const friendlyStream = async (req: FastifyRequest, reply: FastifyReply) => {
     const { slug, name } = z.object({ slug: z.string(), name: z.string() }).parse(req.params);
     const st = stationBySlug(slug);
     const wanted = '/' + name;
     const mount = [st.mount, ...mountsFor(st.id).map((m) => m.mount)].find((m) => m === wanted);
     return proxyStream(req, reply, st, mount);
-  });
+  };
+  app.get('/listen/:slug/:name', friendlyStream);
+  app.get('/stream/:slug/:name', friendlyStream);
 
   // Capa (logo) da rádio.
   app.get('/api/public/stations/:slug/station-cover', async (req, reply) => {
