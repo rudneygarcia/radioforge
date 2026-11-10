@@ -10,6 +10,8 @@ import Playlists from './pages/Playlists';
 import DjsPage from './pages/DjsPage';
 import ReportsPage from './pages/ReportsPage';
 import ListenersPage from './pages/ListenersPage';
+import Widget from './pages/Widget';
+import WidgetsPage from './pages/WidgetsPage';
 import RequestsPage from './pages/RequestsPage';
 import IntegrationsPage from './pages/IntegrationsPage';
 import AccountPage from './pages/AccountPage';
@@ -57,6 +59,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/listen/:slug" element={<Listen />} />
+      <Route path="/widget/:slug/:type" element={<Widget />} />
       <Route element={<Protected />}>
         <Route path="/" element={<Stations />} />
         <Route path="/users" element={<Users />} />
@@ -70,6 +73,7 @@ export default function App() {
           <Route path="djs" element={<DjsPage />} />
           <Route path="listeners" element={<ListenersPage />} />
           <Route path="requests" element={<RequestsPage />} />
+          <Route path="widgets" element={<WidgetsPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="edit" element={<EditStation />} />
