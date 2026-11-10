@@ -80,6 +80,8 @@ const settings = z.object({
   stereoEnabled: z.boolean().default(false),
   stereoPreset: z.string().max(100).default(''),
   stereoKey: z.string().max(300).optional(),
+  /** Endereço curto da estação (URL do player e do stream). Opcional: sem ele, vem do nome. */
+  slug: z.string().max(40).optional(),
   /** Fuso horário (IANA) usado na hora certa e nos horários da estação. */
   timezone: z.string().max(64).refine(isValidTimezone, 'Fuso horário inválido').default('America/Sao_Paulo'),
   /** Mountpoint principal. Na criação, o padrão é /radio.mp3 (ou /radio.ogg); na edição, vazio mantém o atual. */
@@ -223,8 +225,12 @@ export async function stationRoutes(app: FastifyInstance) {
   app.post('/api/stations', async (req, reply) => {
     requireAdmin(req);
     const body = settings.parse(req.body);
-    let slug = slugify(body.name);
-    if (get('SELECT 1 AS ok FROM stations WHERE slug = ?', slug)) slug += '-' + crypto.randomBytes(2).toString('hex');
+    let slug = slugify(body.slug?.trim() ? body.slug : body.name);
+    if (get('SELECT 1 AS ok FROM stations WHERE slug = ?', slug)) {
+      // Endereço escolhido pela pessoa: não troca por outro sem avisar.
+      if (body.slug?.trim()) throw new HttpError(409, `O endereço "${slug}" já está em uso por outra estação. Escolha outro.`);
+      slug += '-' + crypto.randomBytes(2).toString('hex');
+    }
     const r = run(
       `INSERT INTO stations (name, slug, description, stream_port, mount, format, bitrate,
          source_password, admin_password, live_enabled, requests_enabled, autostart, crossfade_seconds, normalize, record_live, history_limit, audio_preset, audio_gain, no_repeat_minutes, live_timeout, live_continue, time_announce, timezone, time_announce_voice, time_voice, autocue, autocue_custom, autocue_duration, autocue_fade_in, autocue_fade_out, jingle_overlap, jingle_gain, autocue_level, hidden_words, jingle_hide_name, request_interval, request_delay, stereo_enabled, stereo_key, stereo_preset)
@@ -291,6 +297,14 @@ export async function stationRoutes(app: FastifyInstance) {
     requireAdmin(req);
     const b = settings.parse(req.body);
     const newMount = b.mount ?? st.mount;
+    // Endereço curto: muda os links (player e stream) — quem usa o antigo precisa trocar.
+    if (b.slug?.trim()) {
+      const newSlug = slugify(b.slug);
+      if (newSlug !== st.slug) {
+        if (get('SELECT 1 AS ok FROM stations WHERE slug = ? AND id <> ?', newSlug, st.id)) throw new HttpError(409, `O endereço "${newSlug}" já está em uso por outra estação. Escolha outro.`);
+        run('UPDATE stations SET slug = ? WHERE id = ?', newSlug, st.id);
+      }
+    }
     // Valida antes de gravar: o nome principal não pode repetir um stream extra.
     if (b.mounts.some((m) => m.mount === newMount)) throw new HttpError(400, `O nome ${newMount} já é usado por um stream extra`);
     run(

@@ -25,6 +25,7 @@ export default function Settings() {
   const nav = useNavigate();
   const [f, setF] = useState({
     name: station.name,
+    slug: station.slug,
     description: station.description,
     mount: station.mount,
     format: station.format,
@@ -150,6 +151,14 @@ export default function Settings() {
         <div className="section-title"><h3>Geral</h3></div>
         <div className="fields">
           <label className="field"><span>Nome</span><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} disabled={!isAdmin} required /></label>
+          <label className="field">
+            <span>Endereço curto <em className="hint">(URL do player e do stream)</em></span>
+            <div className="input-prefix">
+              <span>{location.host}/listen/</span>
+              <input value={f.slug} onChange={(e) => setF({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 40) })} disabled={!isAdmin} maxLength={40} required />
+            </div>
+            <small className="hint">Mudar o endereço muda os links: quem já usa o antigo (players, apps, o site) precisa trocar.</small>
+          </label>
           <label className="field"><span>Descrição</span><input value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} disabled={!isAdmin} /></label>
           <label className="field">
             <span>Nome do stream <em className="hint">(endereço de escuta)</em></span>

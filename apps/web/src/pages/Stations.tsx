@@ -12,6 +12,10 @@ export default function Stations() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [mount, setMount] = useState('radio.mp3');
+  // Endereço curto (URL): acompanha o nome enquanto a pessoa não mexer nele.
+  const [slug, setSlug] = useState('');
+  const [slugEdited, setSlugEdited] = useState(false);
+  const toSlug = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, 40);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -27,11 +31,13 @@ export default function Stations() {
     setBusy(true);
     setError('');
     try {
-      await api('/api/stations', { method: 'POST', body: { name, description, mount } });
+      await api('/api/stations', { method: 'POST', body: { name, description, mount, slug: slug.replace(/-+$/, '') || undefined } });
       setOpen(false);
       setName('');
       setDescription('');
       setMount('radio.mp3');
+      setSlug('');
+      setSlugEdited(false);
       toast('Estação criada');
       load();
     } catch (err) {
@@ -103,7 +109,15 @@ export default function Stations() {
         <form id="new-station" className="fields" onSubmit={create}>
           <label className="field">
             <span>Nome</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Rádio Garcia" required />
+            <input value={name} onChange={(e) => { setName(e.target.value); if (!slugEdited) setSlug(toSlug(e.target.value)); }} placeholder="Ex.: Rádio Garcia" required />
+          </label>
+          <label className="field">
+            <span>Endereço curto <em className="hint">(URL)</em></span>
+            <div className="input-prefix">
+              <span>{location.host}/listen/</span>
+              <input value={slug} onChange={(e) => { setSlugEdited(true); setSlug(toSlug(e.target.value)); }} placeholder="radio-garcia" maxLength={40} />
+            </div>
+            <small className="hint">Vira o link do player e do stream: {location.host}/listen/<strong>{slug.replace(/-+$/, '') || 'radio-garcia'}</strong>/{mount || 'radio.mp3'}. Só letras minúsculas, números e hífen. Dá para mudar depois nas Configurações.</small>
           </label>
           <label className="field">
             <span>Descrição <em className="hint">(opcional)</em></span>
