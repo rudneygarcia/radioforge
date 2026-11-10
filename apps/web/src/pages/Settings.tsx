@@ -185,7 +185,7 @@ export default function Settings() {
         </button>
         <button type="button" className="setting-card" onClick={() => setOpen('proc')}>
           <strong>Processador de áudio</strong>
-          <span>{f.audioPreset === 'off' ? 'Desligado' : `${f.audioPreset === 'loud' ? 'Forte (FM)' : 'Equilibrado'}${f.audioGain ? ` · +${f.audioGain} dB` : ''}`}</span>
+          <span>{f.stereoEnabled ? 'Desativado: o Stereo Tool está em uso' : f.audioPreset === 'off' ? 'Desligado' : `${f.audioPreset === 'loud' ? 'Forte (FM)' : 'Equilibrado'}${f.audioGain ? ` · +${f.audioGain} dB` : ''}`}</span>
         </button>
         <button type="button" className="setting-card" onClick={() => setOpen('stereo')}>
           <strong>Stereo Tool</strong>
@@ -285,11 +285,12 @@ export default function Settings() {
 
       <Modal open={open === 'proc'} title="Processador de áudio" onClose={close} size="md" footer={<button type="button" onClick={close}>Concluído</button>}>
         <p className="muted" style={{ marginTop: -4 }}>Nivela o volume entre músicas e DJ, deixa o som mais alto e cheio e evita estouros (distorção), no estilo de rádio FM.</p>
+        {f.stereoEnabled && <div className="card notice"><strong>Stereo Tool ligado:</strong> o processador interno fica desativado e só o Stereo Tool processa o áudio. Para voltar a usar este, desligue o Stereo Tool.</div>}
         {station.audioWarning && <div className="card notice" style={{ whiteSpace: 'pre-wrap' }}><strong>Atenção:</strong> {station.audioWarning}</div>}
         <div className="fields">
           <label className="field">
             <span>Predefinição</span>
-            <select value={f.audioPreset} onChange={(e) => setF({ ...f, audioPreset: e.target.value as typeof f.audioPreset })} disabled={!isAdmin}>
+            <select value={f.audioPreset} onChange={(e) => setF({ ...f, audioPreset: e.target.value as typeof f.audioPreset })} disabled={!isAdmin || f.stereoEnabled}>
               <option value="off">Desligado (áudio original, sem nivelar)</option>
               <option value="balanced">Equilibrado (normaliza + compressão + limitador) — recomendado</option>
               <option value="loud">Forte, estilo FM (normaliza + compressão firme + limitador)</option>
@@ -298,7 +299,7 @@ export default function Settings() {
           </label>
           <label className="field">
             <span>Volume extra: {f.audioGain === 0 ? 'sem ganho' : `+${f.audioGain} dB`}</span>
-            <input type="range" min={0} max={12} step={1} value={f.audioGain} onChange={(e) => setF({ ...f, audioGain: Number(e.target.value) })} disabled={!isAdmin} style={{ padding: 0 }} />
+            <input type="range" min={0} max={12} step={1} value={f.audioGain} onChange={(e) => setF({ ...f, audioGain: Number(e.target.value) })} disabled={!isAdmin || f.stereoEnabled} style={{ padding: 0 }} />
             <small className="hint">Se ainda estiver baixo, suba de 2 em 2 dB. Acima de uns +8 dB o som pode ficar “espremido”; o limitador evita o estouro, mas escute antes de deixar fixo.</small>
           </label>
         </div>
