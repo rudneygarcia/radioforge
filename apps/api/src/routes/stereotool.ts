@@ -4,7 +4,8 @@ import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authenticate, HttpError, requireAdmin, stationFor } from '../auth.js';
-import { extractLibraryFromZip, getLicenseKey, inspectLibrary, libraryInfo, setLibraryName, setLicenseKey, listPresets, presetPath, presetsDir, safePresetName, stereoLibDir, stereoLibPath } from '../engine/stereotool.js';
+import crypto from 'node:crypto';
+import { extractLibraryFromZip, getLicenseKey, inspectLibrary, installLibrary, libraryInfo, uploadsDir, setLibraryName, setLicenseKey, listPresets, presetPath, presetsDir, safePresetName, stereoLibDir, stereoLibPath } from '../engine/stereotool.js';
 
 const idParam = z.object({ id: z.coerce.number().int() });
 const MAX_LIB = 400 * 1024 * 1024; // o ZIP do plugin traz as bibliotecas de várias plataformas
@@ -15,6 +16,51 @@ export async function stereoToolRoutes(app: FastifyInstance) {
 
   // Biblioteca do Stereo Tool (do servidor inteiro).
   app.get('/api/stereotool', async () => ({ library: libraryInfo(), keySet: !!getLicenseKey() }));
+
+  // Envio em partes (o ZIP do plugin passa de 300 MB e proxies/Cloudflare recusam requisições grandes): o navegador manda
+  // pedaços de ~40 MB; no fim o servidor monta o arquivo, tira todas as bibliotecas e testa uma por uma.
+  app.addContentTypeParser('application/octet-stream', { parseAs: 'buffer', bodyLimit: 64 * 1024 * 1024 }, (_req, body, done) => done(null, body));
+  const idOk = (id: string) => /^[a-f0-9-]{36}$/.test(id);
+  const upFile = (id: string) => path.join(uploadsDir(), `${id}.part`);
+
+  app.post('/api/stereotool/upload', async (req) => {
+    requireAdmin(req);
+    const body = z.object({ name: z.string().max(200), size: z.number().int().positive().max(1024 * 1024 * 1024) }).parse(req.body);
+    fs.mkdirSync(uploadsDir(), { recursive: true });
+    for (const f of fs.readdirSync(uploadsDir())) {
+      // limpa envios abandonados há mais de 1 hora
+      const p = path.join(uploadsDir(), f);
+      if (Date.now() - fs.statSync(p).mtimeMs > 3600_000) fs.rmSync(p, { recursive: true, force: true });
+    }
+    const id = crypto.randomUUID();
+    fs.writeFileSync(upFile(id), '');
+    fs.writeFileSync(`${upFile(id)}.name`, body.name);
+    return { id };
+  });
+
+  app.put('/api/stereotool/upload/:id', async (req) => {
+    requireAdmin(req);
+    const { id } = z.object({ id: z.string() }).parse(req.params);
+    if (!idOk(id) || !fs.existsSync(upFile(id))) throw new HttpError(404, 'Envio não encontrado (recomece)');
+    if (!Buffer.isBuffer(req.body)) throw new HttpError(400, 'Parte inválida');
+    fs.appendFileSync(upFile(id), req.body);
+    return { received: fs.statSync(upFile(id)).size };
+  });
+
+  app.post('/api/stereotool/upload/:id/finish', async (req) => {
+    requireAdmin(req);
+    const { id } = z.object({ id: z.string() }).parse(req.params);
+    if (!idOk(id) || !fs.existsSync(upFile(id))) throw new HttpError(404, 'Envio não encontrado (recomece)');
+    const name = fs.readFileSync(`${upFile(id)}.name`, 'utf8');
+    try {
+      return { ...(await installLibrary(upFile(id), name)), library: libraryInfo() };
+    } catch (e) {
+      throw new HttpError(400, (e as Error).message);
+    } finally {
+      fs.rmSync(upFile(id), { force: true });
+      fs.rmSync(`${upFile(id)}.name`, { force: true });
+    }
+  });
 
   // Diagnóstico da biblioteca (arquitetura, dependências, funções exportadas) para entender "Invalid stereotool library".
   app.get('/api/stereotool/inspect', async (req) => {

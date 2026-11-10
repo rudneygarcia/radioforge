@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, uploadForm } from '../api';
+import { api, getToken, uploadForm } from '../api';
 import { Icon, useUi } from '../ui';
-import { extractZipLib, listZipLibs, type ZipLib } from '../zipLib';
 
 interface Lib {
   present: boolean;
@@ -32,8 +31,8 @@ export default function StereoTool({
   const [busy, setBusy] = useState(false);
   // Andamento do envio: mostra a barra, o "processando" no servidor e o resultado (ou o erro) na tela.
   const [up, setUp] = useState<{ name: string; pct: number; stage: 'sending' | 'processing' | 'done' | 'error'; msg: string } | null>(null);
-  // ZIP do plugin aberto: bibliotecas .so encontradas dentro dele para a pessoa escolher a certa.
-  const [pick, setPick] = useState<{ file: File; libs: ZipLib[]; chosen: string } | null>(null);
+  // Resultado da escolha automática: cada biblioteca do ZIP e se carregou ou por que não.
+  const [tries, setTries] = useState<{ name: string; ok: boolean; note: string }[] | null>(null);
   const [diag, setDiag] = useState<string | null>(null);
   const inspect = async () => {
     setDiag('Analisando…');
@@ -68,18 +67,8 @@ export default function StereoTool({
 
   async function send(path: string, file: File | undefined, done: string) {
     if (!file) return;
+    if (path.endsWith('/library')) return sendLibrary(file);
     setBusy(true);
-    // ZIP do plugin (traz todas as plataformas, +300 MB): lê o ZIP aqui no navegador e envia só a biblioteca Linux escolhida.
-    if (path.endsWith('/library') && /\.zip$/i.test(file.name)) {
-      setUp({ name: `${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`, pct: 0, stage: 'processing', msg: 'Lendo o ZIP aqui no seu computador…' });
-      const libs = await listZipLibs(file);
-      if (libs && libs.length > 0) {
-        setUp(null);
-        setBusy(false);
-        setPick({ file, libs, chosen: libs[0].name });
-        return;
-      }
-    }
     const mb = (file.size / 1024 / 1024).toFixed(1);
     setUp({ name: `${file.name} (${mb} MB)`, pct: 0, stage: 'sending', msg: 'Enviando…' });
     try {
@@ -101,21 +90,44 @@ export default function StereoTool({
     }
   }
 
-  async function sendPicked() {
-    if (!pick) return;
-    const lib = pick.libs.find((l) => l.name === pick.chosen);
-    const zip = pick.file;
-    setPick(null);
-    if (!lib) return;
+  /** Envia o ZIP/.so em partes de 40 MB (cada requisição é pequena para o proxy) e deixa o servidor escolher a biblioteca certa. */
+  async function sendLibrary(file: File) {
     setBusy(true);
-    setUp({ name: lib.name, pct: 0, stage: 'processing', msg: 'Extraindo a biblioteca do ZIP…' });
-    const file = await extractZipLib(zip, lib);
-    if (!file) {
+    setTries(null);
+    const CH = 40 * 1024 * 1024;
+    const headers: Record<string, string> = getToken() ? { Authorization: `Bearer ${getToken()}` } : {};
+    const label = `${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`;
+    const fail = (msg: string) => {
+      setUp({ name: label, pct: 100, stage: 'error', msg });
+      toast(msg, 'error');
+    };
+    try {
+      setUp({ name: label, pct: 0, stage: 'sending', msg: 'Preparando o envio…' });
+      const start = await api<{ id: string }>('/api/stereotool/upload', { method: 'POST', body: { name: file.name, size: file.size } });
+      for (let off = 0, i = 0; off < file.size; off += CH, i++) {
+        const piece = file.slice(off, off + CH);
+        const pct = Math.round((off / file.size) * 100);
+        setUp({ name: label, pct, stage: 'sending', msg: `Enviando… ${pct}% (parte ${i + 1} de ${Math.ceil(file.size / CH)})` });
+        let ok = false;
+        for (let attempt = 0; attempt < 3 && !ok; attempt++) {
+          const res = await fetch(`/api/stereotool/upload/${start.id}`, { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/octet-stream' }, body: piece }).catch(() => null);
+          ok = !!res && res.ok;
+          if (!ok && attempt === 2) return fail(`Falha ao enviar a parte ${i + 1} (${res ? `erro ${res.status}` : 'sem conexão'}).`);
+        }
+      }
+      setUp({ name: label, pct: 100, stage: 'processing', msg: 'Enviado. O servidor está extraindo as bibliotecas e testando uma por uma no Liquidsoap (pode levar um minuto)…' });
+      const r = await api<{ chosen: string | null; results: { name: string; ok: boolean; note: string }[] }>(`/api/stereotool/upload/${start.id}/finish`, { method: 'POST' });
+      setTries(r.results);
+      if (r.chosen) {
+        setUp({ name: label, pct: 100, stage: 'done', msg: `Pronto: o servidor escolheu ${r.chosen}.` });
+        toast('Biblioteca instalada');
+      } else fail('Nenhuma das bibliotecas do arquivo carregou no Liquidsoap (veja abaixo o motivo de cada uma).');
+      load();
+    } catch (e) {
+      fail((e as Error).message);
+    } finally {
       setBusy(false);
-      setUp({ name: lib.name, pct: 100, stage: 'error', msg: 'Não foi possível extrair essa biblioteca do ZIP.' });
-      return;
     }
-    await send('/api/stereotool/library', file, 'Biblioteca enviada');
   }
 
   async function saveKey(k: string) {
@@ -164,20 +176,14 @@ export default function StereoTool({
         </div>
       )}
 
-      {pick && (
+      {tries && (
         <div className="card" style={{ padding: 14 }}>
-          <strong>Qual biblioteca usar? (achei {pick.libs.length} no ZIP)</strong>
-          <p className="muted small-text" style={{ margin: '4px 0 8px' }}>Para o servidor Linux de 64 bits, normalmente é a <code>…intel64…so</code> / <code>x86_64</code> / <code>x64</code>, sem “x11” ou “gui” no nome. A mais provável já vem marcada.</p>
-          {pick.libs.map((l) => (
-            <label key={l.name} className="check-line" style={{ marginBottom: 6 }}>
-              <input type="radio" name="zip-lib" checked={pick.chosen === l.name} onChange={() => setPick({ ...pick, chosen: l.name })} />
-              <span style={{ wordBreak: 'break-all' }}>{l.name}<small>{(l.size / 1024 / 1024).toFixed(1)} MB</small></span>
-            </label>
+          <strong>Bibliotecas encontradas no arquivo</strong>
+          {tries.map((t) => (
+            <p key={t.name} className="small-text" style={{ margin: '6px 0 0', color: t.ok ? 'var(--ok, #16a34a)' : undefined }}>
+              {t.ok ? '✔' : '✖'} <strong>{t.name}</strong> — {t.note}
+            </p>
           ))}
-          <div className="row" style={{ margin: '10px 0 0' }}>
-            <button type="button" onClick={sendPicked}>Enviar a biblioteca escolhida</button>
-            <button type="button" className="ghost" onClick={() => setPick(null)}>Cancelar</button>
-          </div>
         </div>
       )}
 
@@ -189,7 +195,7 @@ export default function StereoTool({
         {isAdmin && (
           <div className="row" style={{ margin: 0 }}>
             <label className="button ghost small">
-              {busy ? 'Enviando…' : lib?.present ? 'Trocar biblioteca' : 'Enviar o ZIP do plugin'}
+              {busy ? 'Enviando…' : lib?.present ? 'Trocar biblioteca' : 'Enviar o ZIP do plugin (inteiro)'}
               <input type="file" hidden accept=".zip,.so" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; void send('/api/stereotool/library', f, 'Biblioteca enviada'); }} />
             </label>
             {lib?.present && <button type="button" className="ghost small" onClick={inspect}><Icon name="info" size={13} /> Testar biblioteca</button>}

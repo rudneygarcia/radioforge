@@ -123,6 +123,118 @@ export function inspectLibrary() {
   return { present: true as const, arch, class64, size: buf.length, missing, ldd: lddOut.slice(0, 3000), symbols: [...names].sort() };
 }
 
+export const uploadsDir = () => path.join(stereoLibDir(), '.uploads');
+
+export interface LibTry {
+  name: string;
+  ok: boolean;
+  note: string;
+}
+
+const isElf = (f: string) => {
+  const fd = fs.openSync(f, 'r');
+  const h = Buffer.alloc(20);
+  fs.readSync(fd, h, 0, 20, 0);
+  fs.closeSync(fd);
+  return { elf: h[0] === 0x7f && h[1] === 0x45 && h[2] === 0x4c && h[3] === 0x46, machine: h.readUInt16LE(18) };
+};
+
+/** Extrai TODAS as bibliotecas .so do ZIP para `destDir` (limites contra ZIP malicioso). */
+function extractAllLibs(zipFile: string, destDir: string): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    yauzl.open(zipFile, { lazyEntries: true, autoClose: true }, (err, zip) => {
+      if (err || !zip) return reject(new Error('Não foi possível abrir o ZIP (arquivo corrompido?).'));
+      if (zip.entryCount > 5000) return reject(new Error('ZIP com arquivos demais para ser o plugin do Stereo Tool.'));
+      const out: string[] = [];
+      let n = 0;
+      zip.on('error', reject);
+      zip.on('end', () => resolve(out));
+      zip.on('entry', (entry: yauzl.Entry) => {
+        const name = entry.fileName;
+        if (/\/$/.test(name) || !/\.so(\.\d+)*$/i.test(name) || /__macosx|\/\._/i.test(name) || entry.uncompressedSize > 250 * 1024 * 1024 || n >= 40) return zip.readEntry();
+        zip.openReadStream(entry, (e, stream) => {
+          if (e || !stream) return zip.readEntry();
+          const dest = path.join(destDir, `${n++}__${path.basename(name).replace(/[^A-Za-z0-9._-]/g, '_')}`);
+          pipeline(stream, fs.createWriteStream(dest)).then(
+            () => {
+              out.push(dest);
+              zip.readEntry();
+            },
+            reject,
+          );
+        });
+      });
+      zip.readEntry();
+    });
+  });
+}
+
+/** Carrega a biblioteca num Liquidsoap de teste: devolve '' se funcionou ou o motivo. */
+function tryLibrary(lib: string, workDir: string): string {
+  const script = path.join(workDir, 'test.liq');
+  fs.writeFileSync(script, `x = stereotool(library_file = ${JSON.stringify(lib)}, blank())\nprint("RF_STEREO_OK")\nshutdown()\n`);
+  const r = spawnSync(config.engine.liquidsoapBin, [script], { encoding: 'utf8', timeout: 40_000 });
+  const out = `${r.stdout ?? ''}\n${r.stderr ?? ''}`;
+  if (/RF_STEREO_OK/.test(out) && !/Invalid stereotool/i.test(out)) return '';
+  const msg = out.split('\n').filter((l) => /invalid|error|not found|cannot|undefined symbol|stereotool/i.test(l)).slice(-3).join(' | ');
+  const ldd = spawnSync('ldd', [lib], { encoding: 'utf8', timeout: 10_000 });
+  const missing = `${ldd.stdout ?? ''}`.split('\n').filter((l) => /not found/i.test(l)).map((l) => l.trim().split(' ')[0]);
+  return (missing.length ? `faltam no servidor: ${missing.join(', ')}. ` : '') + (msg || 'o Liquidsoap não aceitou o arquivo');
+}
+
+/**
+ * Recebe o arquivo enviado (ZIP do plugin ou .so solto), tira todas as bibliotecas e TESTA uma por uma no Liquidsoap:
+ * a primeira que carregar vira a biblioteca do servidor.
+ */
+export async function installLibrary(file: string, originalName: string): Promise<{ chosen: string | null; results: LibTry[] }> {
+  const work = path.join(uploadsDir(), `work-${Date.now()}`);
+  fs.mkdirSync(work, { recursive: true });
+  try {
+    let candidates: string[];
+    const head = Buffer.alloc(4);
+    const fd = fs.openSync(file, 'r');
+    fs.readSync(fd, head, 0, 4, 0);
+    fs.closeSync(fd);
+    if (head[0] === 0x50 && head[1] === 0x4b) candidates = await extractAllLibs(file, work);
+    else {
+      const single = path.join(work, `0__${path.basename(originalName).replace(/[^A-Za-z0-9._-]/g, '_') || 'lib.so'}`);
+      fs.copyFileSync(file, single);
+      candidates = [single];
+    }
+    if (candidates.length === 0) throw new Error('Não achei nenhuma biblioteca (.so) dentro do arquivo enviado.');
+    const base = (f: string) => path.basename(f).replace(/^\d+__/, '');
+    candidates.sort((a, b) => libScore(base(b)) - libScore(base(a)));
+    const results: LibTry[] = [];
+    for (const c of candidates) {
+      const name = base(c);
+      const { elf, machine } = isElf(c);
+      if (!elf) {
+        results.push({ name, ok: false, note: 'não é uma biblioteca Linux' });
+        continue;
+      }
+      if (machine !== 0x3e) {
+        results.push({ name, ok: false, note: machine === 0xb7 ? 'é para ARM 64 bits (este servidor é x86-64)' : 'arquitetura diferente do servidor (precisa ser x86-64)' });
+        continue;
+      }
+      fs.chmodSync(c, 0o755);
+      const why = tryLibrary(c, work);
+      if (why) {
+        results.push({ name, ok: false, note: why });
+        continue;
+      }
+      fs.mkdirSync(stereoLibDir(), { recursive: true });
+      fs.copyFileSync(c, stereoLibPath());
+      fs.chmodSync(stereoLibPath(), 0o755);
+      setLibraryName(name);
+      results.push({ name, ok: true, note: 'carregou no Liquidsoap — em uso' });
+      return { chosen: name, results };
+    }
+    return { chosen: null, results };
+  } finally {
+    fs.rmSync(work, { recursive: true, force: true });
+  }
+}
+
 /** Nome de arquivo seguro para o preset (sem pastas, só letras/números/ponto/hífen/sublinhado). */
 export function safePresetName(raw: string): string | null {
   const base = path.basename(raw).replace(/[^a-zA-Z0-9._ -]/g, '_').trim();
