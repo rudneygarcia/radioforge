@@ -210,7 +210,9 @@ export async function publicRoutes(app: FastifyInstance) {
        WHERE r.station_id = ? ORDER BY r.id DESC LIMIT 15`,
       st.id,
     );
-    return rows.map((r) => ({
+    // Pedido perdido (45 min na fila sem tocar) não aparece mais para o público.
+    const live = rows.filter((r) => Date.now() - new Date(r.created_at.replace(' ', 'T') + 'Z').getTime() < 45 * 60_000 || !!get('SELECT 1 AS ok FROM history WHERE station_id = ? AND title = ? AND artist = ? AND played_at >= ? LIMIT 1', st.id, r.title, r.artist, r.created_at));
+    return live.map((r) => ({
       id: r.id,
       title: r.title,
       artist: r.artist,

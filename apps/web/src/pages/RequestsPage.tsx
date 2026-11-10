@@ -5,7 +5,7 @@ import { useAuth } from '../auth';
 import { Empty, Icon, useUi } from '../ui';
 import type { StationCtx } from './StationLayout';
 
-type Status = 'waiting' | 'queued' | 'played';
+type Status = 'waiting' | 'queued' | 'played' | 'expired';
 interface Item {
   id: number;
   title: string;
@@ -21,7 +21,7 @@ interface Data {
   items: Item[];
 }
 
-const LABEL: Record<Status, string> = { waiting: 'Agendado', queued: 'Na fila', played: 'Tocou' };
+const LABEL: Record<Status, string> = { waiting: 'Agendado', queued: 'Na fila', played: 'Tocou', expired: 'Não tocou' };
 const when = (s: string) => new Date(s.replace(' ', 'T') + 'Z').toLocaleString();
 
 export default function RequestsPage() {
@@ -88,7 +88,7 @@ export default function RequestsPage() {
         <div className="row" style={{ marginTop: 0 }}>
           <input type="search" placeholder="Buscar por música, artista ou IP…" value={q} onChange={(e) => { setQ(e.target.value); setLimit(30); }} style={{ flex: 1, minWidth: 200 }} />
           <div className="fchips">
-            {(['all', 'waiting', 'queued', 'played'] as const).map((s) => (
+            {(['all', 'waiting', 'queued', 'played', 'expired'] as const).map((s) => (
               <button key={s} type="button" className={`fchip${status === s ? ' active' : ''}`} onClick={() => { setStatus(s); setLimit(30); }}>
                 {s === 'all' ? 'Todos' : LABEL[s]}
               </button>

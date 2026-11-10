@@ -220,6 +220,8 @@ addColumn('stations', 'no_repeat_artist_minutes', 'INTEGER NOT NULL DEFAULT 0');
 // Não repetir o mesmo artista por N minutos (0 = desligado).
 addColumn('song_requests', 'due_at', "TEXT NOT NULL DEFAULT ''");
 addColumn('song_requests', 'pushed', 'INTEGER NOT NULL DEFAULT 1');
+// 1 = o painel já reenviou o pedido à fila (quando o Liquidsoap perdeu o primeiro envio).
+addColumn('song_requests', 'retried', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('stations', 'cover', 'TEXT'); // capa/logo da rádio (arquivo dentro da pasta da estação); usada quando a música não tem capa
 addColumn('stations', 'no_repeat_minutes', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('history', 'media_id', 'INTEGER'); // música tocada (para a regra de não repetir); null em vinhetas/antigos

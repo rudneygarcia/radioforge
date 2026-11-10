@@ -11,7 +11,7 @@ interface Req {
   artist: string;
   ip: string;
   createdAt: string;
-  status: 'waiting' | 'queued' | 'played';
+  status: 'waiting' | 'queued' | 'played' | 'expired';
 }
 
 interface Hist {
@@ -200,10 +200,10 @@ export default function Dashboard() {
       {station.requestsEnabled && (
         <div className="card section">
           <div className="section-title"><h3>Pedidos dos ouvintes</h3></div>
-          {reqs.length === 0 ? (
-            <p className="muted" style={{ margin: 0 }}>Nenhum pedido ainda.</p>
+          {reqs.filter((r) => r.status === 'waiting' || r.status === 'queued').length === 0 ? (
+            <p className="muted" style={{ margin: 0 }}>Nenhum pedido pendente. <Link to="requests">Ver todos os pedidos →</Link></p>
           ) : (
-            reqs.slice(0, 15).map((r) => (
+            reqs.filter((r) => r.status === 'waiting' || r.status === 'queued').slice(0, 15).map((r) => (
               <div key={r.id} className="req-item" style={{ marginBottom: 6 }}>
                 <span className="req-ico"><Icon name="music" size={16} /></span>
                 <span className="req-txt">

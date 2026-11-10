@@ -2,7 +2,7 @@ import path from 'node:path';
 import { config } from '../config.js';
 import { all, avoidRecent, get, playlistMedia, recentMedia, run, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
 import { tickAnnouncements } from './announce.js';
-import { isRunning, pushRequest, usesDynamic, writePlaylists } from './manager.js';
+import { isRunning, pushRequest, telnetRun, usesDynamic, writePlaylists } from './manager.js';
 import { notePick } from './rotation.js';
 import { getLive } from './nowplaying.js';
 import { isHiddenTrack } from './hide.js';
@@ -70,6 +70,38 @@ export function tickScheduledRequests() {
   }
 }
 
+/**
+ * Pedido que o painel enviou mas o Liquidsoap perdeu (prazo da análise, queda…): se passaram 8 min sem tocar e a fila
+ * de pedidos do Liquidsoap está vazia, reenvia UMA vez. Depois de 45 min sem tocar ele sai da lista como "Não tocou".
+ */
+let retrying = false;
+export async function retryLostRequests() {
+  if (retrying) return;
+  retrying = true;
+  try {
+    const lost = all<{ id: number; station_id: number; path: string; title: string; artist: string }>(
+      `SELECT r.id, r.station_id, m.path, m.title, m.artist FROM song_requests r JOIN media m ON m.id = r.media_id
+       WHERE r.pushed = 1 AND r.retried = 0 AND r.created_at < datetime('now', '-8 minutes') AND r.created_at >= datetime('now', '-45 minutes')
+         AND NOT EXISTS (SELECT 1 FROM history h WHERE h.station_id = r.station_id AND h.title = m.title AND h.artist = m.artist AND h.played_at >= r.created_at)
+       ORDER BY r.id LIMIT 10`,
+    );
+    for (const r of lost) {
+      const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', r.station_id);
+      if (!st || !isRunning(st.id) || (st.live_continue && getLive(st.id))) continue;
+      const queue = (await telnetRun(st.id, 'requests.queue')).replace(/\bEND\b/g, '').trim();
+      if (/\d/.test(queue)) continue; // ainda há pedidos na fila do Liquidsoap: pode estar só esperando a vez
+      run('UPDATE song_requests SET retried = 1 WHERE id = ?', r.id);
+      const m = get<MediaRow>('SELECT * FROM media WHERE station_id = ? AND path = ?', st.id, r.path);
+      console.warn(`[pedidos] reenviando o pedido ${r.id} (${r.artist} - ${r.title}): não tocou e a fila do Liquidsoap está vazia`);
+      await pushRequest(st.id, path.join(config.dataDir, r.path), false, 0, m ? isHiddenTrack(st, m) : false).catch((e) =>
+        console.error(`[pedidos] falha ao reenviar o pedido ${r.id}:`, (e as Error).message),
+      );
+    }
+  } finally {
+    retrying = false;
+  }
+}
+
 export function startTimedPlaylists() {
   tickTimedPlaylists();
   void tickAnnouncements();
@@ -78,6 +110,7 @@ export function startTimedPlaylists() {
     try {
       tickTimedPlaylists();
       tickScheduledRequests();
+      void retryLostRequests().catch((e) => console.error('[pedidos] reenvio falhou:', e));
     } catch (e) {
       console.error('[timed] falhou:', e);
     }
