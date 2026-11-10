@@ -30,15 +30,6 @@ export default function StationLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { pathname } = useLocation();
   useEffect(() => setMenuOpen(false), [pathname]);
-  // Menu lateral recolhido (só ícones); lembrado neste navegador.
-  const [collapsed, setCollapsed] = useState(() => {
-    try { return localStorage.getItem('rf_nav_collapsed') === '1'; } catch { return false; }
-  });
-  const toggleNav = () => setCollapsed((c) => {
-    try { localStorage.setItem('rf_nav_collapsed', c ? '0' : '1'); } catch { /* sem armazenamento */ }
-    return !c;
-  });
-
   const reload = useCallback(async () => {
     try {
       setStation(await api<Station>(`/api/stations/${id}`));
@@ -74,7 +65,7 @@ export default function StationLayout() {
           </a>
         }
       />
-      <div className={`station-shell${collapsed ? ' collapsed' : ''}${menuOpen ? ' menu-open' : ''}`}>
+      <div className={`station-shell${menuOpen ? ' menu-open' : ''}`}>
       <button type="button" className="menu-btn" onClick={() => setMenuOpen((o) => !o)} aria-expanded={menuOpen}>
         <Icon name="menu" size={18} />
         <span>{NAV.find((n) => (n.to === '.' ? pathname.replace(/\/$/, '').split('/').length <= 3 : pathname.split('/')[3] === n.to))?.label ?? 'Menu'}</span>
@@ -94,10 +85,7 @@ export default function StationLayout() {
             <span className="nav-label">{n.label}</span>
           </NavLink>
         ))}
-        <button type="button" className="nav-toggle" onClick={toggleNav} title={collapsed ? 'Expandir menu' : 'Recolher menu'} aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}>
-          <Icon name="panelleft" size={18} />
-          <span className="nav-label">Recolher menu</span>
-        </button>
+
         <a className="nav-foot" href={`/listen/${station.slug}`} target="_blank" rel="noreferrer" title="Abrir o player público">
           <span className="nav-label">Ver player público</span> <Icon name="link" size={14} />
         </a>

@@ -474,3 +474,16 @@ tr.picked td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
   .station-shell.collapsed .nav-foot { justify-content: center; padding-left: 0; padding-right: 0; }
   .station-shell.collapsed .nav-foot .nav-label { display: none; }
 }
+
+/* Menu lateral: completo em telas largas; sozinho vira só ícones em telas médias (900–1199 px); abaixo disso fica atrás do botão. */
+@media (min-width: 900px) and (max-width: 1199px) {
+  .container:has(.station-shell) { padding-left: 100px; }
+  .station-shell .tabs { width: 76px; }
+  .station-shell .tabs .nav-label { display: none; }
+  .station-shell .tabs a { justify-content: center; padding-left: 0; padding-right: 0; }
+  .station-shell .nav-head { justify-content: center; padding-left: 0; padding-right: 0; }
+  .station-shell .nav-head-txt { display: none; }
+  .station-shell .nav-foot { justify-content: center; padding-left: 0; padding-right: 0; margin-top: auto; }
+  .station-shell .nav-foot .nav-label { display: none; }
+}
+@media (min-width: 1200px) { .station-shell .nav-foot { margin-top: auto; } }
