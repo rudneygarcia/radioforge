@@ -1,3 +1,4 @@
+import LogoMark from './Logo';
 import { Link, NavLink, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth';
 import Login from './pages/Login';
@@ -31,7 +32,7 @@ function Protected() {
     <>
       <header className="topbar">
         <Link to="/" className="brand">
-          <span className="brand-mark">📻</span>
+          <LogoMark size={32} />
           RadioForge
         </Link>
         <nav>

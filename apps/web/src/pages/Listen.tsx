@@ -1,3 +1,4 @@
+import LogoMark from '../Logo';
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api, type NowPlaying, type StreamInfo } from '../api';
@@ -86,7 +87,7 @@ export default function Listen({ embed = false }: { embed?: boolean }) {
         {!embed && (
           <header className="pl-top">
             <div className="pl-brand">
-              {info.coverUrl ? <img src={info.coverUrl} alt="" /> : <span className="pl-brand-ico">📻</span>}
+              {info.coverUrl ? <img src={info.coverUrl} alt="" /> : <span className="pl-brand-ico"><LogoMark size={44} /></span>}
               <div>
                 <strong>{info.name}</strong>
                 {info.description && <small>{info.description}</small>}
@@ -98,7 +99,7 @@ export default function Listen({ embed = false }: { embed?: boolean }) {
 
         <section className="pl-card">
           <div className="pl-art">
-            {shownCover ? <img src={shownCover} alt="" /> : <span className="pl-art-ph">📻</span>}
+            {shownCover ? <img src={shownCover} alt="" /> : <span className="pl-art-ph"><LogoMark size={110} /></span>}
           </div>
           <div className="pl-info">
             <span className={`pl-kicker ${info.online ? (info.live ? 'live' : 'on') : 'off'}`}>
