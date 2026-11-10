@@ -64,6 +64,20 @@ function MiniPlayer({ slug, online }: { slug: string; online: boolean }) {
   );
 }
 
+/** Cartão do painel no estilo "visão geral": cabeçalho colorido, corpo e rodapé de ações. */
+function PCard({ title, badge, tone, children, footer }: { title: string; badge?: string; tone?: 'on' | 'off'; children: React.ReactNode; footer?: React.ReactNode }) {
+  return (
+    <section className="pcard">
+      <header className="pcard-hd">
+        <h3>{title}</h3>
+        {badge && <span className={`pcard-badge ${tone ?? ''}`}>{badge}</span>}
+      </header>
+      <div className="pcard-bd">{children}</div>
+      {footer && <footer className="pcard-ft">{footer}</footer>}
+    </section>
+  );
+}
+
 export default function Dashboard() {
   const { station, reload } = useOutletContext<StationCtx>();
   const { toast, confirm } = useUi();
@@ -72,6 +86,7 @@ export default function Dashboard() {
   const [reqs, setReqs] = useState<Req[]>([]);
   const { user } = useAuth();
   const [logOpen, setLogOpen] = useState(false);
+  const [showCreds, setShowCreds] = useState(false);
   const [log, setLog] = useState('');
   const [queue, setQueue] = useState('');
   const showLog = async () => {
@@ -139,6 +154,9 @@ export default function Dashboard() {
     }
   }
 
+  const pending = reqs.filter((r) => r.status === 'waiting' || r.status === 'queued');
+  const publicUrl = `${location.origin}/listen/${station.slug}`;
+
   return (
     <>
       {station.engine === 'native' && (
@@ -154,133 +172,179 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="stat-grid">
-        <div className="card">
-          <div className="stat-label"><Icon name="radio" /> Status</div>
-          <div style={{ margin: '10px 0 14px' }}>
-            <span className={`badge ${station.running ? 'on' : 'off'}`}>{station.running ? 'no ar' : 'parada'}</span>
-            {station.running && station.live && (
-              <span className="tag accent" style={{ marginLeft: 8 }}>
-                <Icon name="mic" size={13} /> {station.live.name} ao vivo
-              </span>
-            )}
-            {station.running && station.live && (
-              <button className="ghost small" style={{ marginLeft: 8 }} onClick={kick} disabled={busy}>Voltar ao AutoDJ</button>
-            )}
-          </div>
-          <div className="row" style={{ marginBottom: 0 }}>
-            <button disabled={busy || station.running} onClick={() => action('start')}><Icon name="play" /> Iniciar</button>
-            <button disabled={busy || !station.running} onClick={() => action('restart')} className="ghost"><Icon name="refresh" /> Reiniciar</button>
-            <button disabled={busy || !station.running} onClick={() => action('stop')} className="danger"><Icon name="stop" /> Parar</button>
-            {user?.role === 'admin' && <button type="button" className="ghost" onClick={showLog} title="Log do Liquidsoap"><Icon name="info" /> Log</button>}
-          </div>
-        </div>
-        <div className="card">
-          <div className="stat-label"><Icon name="users" /> Ouvintes agora</div>
-          <p className="big">{station.listeners}</p>
-          <Link to="listeners" className="small-text">Ver quem está ouvindo →</Link>
-        </div>
-        <div className="card">
-          <div className="stat-label"><Icon name="music" /> Tocando agora</div>
-          {station.nowPlaying ? (
-            <div className="np">
-              <Cover url={station.nowPlaying.coverUrl} size={64} />
-              <div style={{ minWidth: 0 }}>
-                <p className="big small">{station.nowPlaying.title}</p>
-                <p className="muted">{station.nowPlaying.artist || '—'}</p>
+      <div className="dash">
+        <div className="dash-col">
+          <PCard
+            title={station.running ? 'No ar' : 'Parada'}
+            badge={`${station.listeners} ouvinte${station.listeners === 1 ? '' : 's'}`}
+            footer={
+              <>
+                <button type="button" className="ghost small" disabled={busy || station.running} onClick={() => action('start')}><Icon name="play" size={14} /> Iniciar</button>
+                <button type="button" className="ghost small" disabled={busy || !station.running} onClick={() => action('restart')}><Icon name="refresh" size={14} /> Reiniciar</button>
+                <button type="button" className="ghost small danger-text" disabled={busy || !station.running} onClick={() => action('stop')}><Icon name="stop" size={14} /> Parar</button>
+                <Link to="listeners" className="button ghost small"><Icon name="users" size={14} /> Ouvintes</Link>
+                {user?.role === 'admin' && <button type="button" className="ghost small" onClick={showLog} title="Log do Liquidsoap"><Icon name="info" size={14} /> Log</button>}
+              </>
+            }
+          >
+            <div className="np-label"><Icon name="music" size={15} /> Tocando agora</div>
+            {station.nowPlaying ? (
+              <div className="np np-big">
+                <Cover url={station.nowPlaying.coverUrl} size={84} />
+                <div style={{ minWidth: 0 }}>
+                  <p className="big small">{station.nowPlaying.title}</p>
+                  <p className="muted">{station.nowPlaying.artist || '—'}</p>
+                  <MiniPlayer slug={station.slug} online={station.running} />
+                </div>
               </div>
+            ) : (
+              <>
+                <p className="muted" style={{ margin: '8px 0 0' }}>Nada tocando.</p>
+                <MiniPlayer slug={station.slug} online={station.running} />
+              </>
+            )}
+            {station.running && station.live && (
+              <p style={{ margin: '14px 0 0' }}>
+                <span className="tag accent"><Icon name="mic" size={13} /> {station.live.name} ao vivo</span>{' '}
+                <button type="button" className="ghost small" onClick={kick} disabled={busy}>Voltar ao AutoDJ</button>
+              </p>
+            )}
+          </PCard>
+
+          <PCard title="Transmissões" footer={<Link to="settings" className="button ghost small"><Icon name="cog" size={14} /> Configurar streams</Link>}>
+            {station.streams.map((s) => (
+              <div key={s.mount} className="stream-row">
+                <div className="stream-meta">
+                  <strong>{s.format.toUpperCase()} {s.bitrate}k</strong>
+                  <span className="muted small-text">{s.mount}</span>
+                </div>
+                <div className="copy-row" style={{ margin: 0 }}>
+                  <code>{s.proxyUrl}</code>
+                  <CopyButton text={s.proxyUrl} />
+                </div>
+                <div className="copy-row" style={{ margin: 0 }}>
+                  <span className="lbl small-text">link direto</span>
+                  <code className="muted" style={{ fontSize: 12 }}>{s.url}</code>
+                  <CopyButton text={s.url} label="" />
+                </div>
+              </div>
+            ))}
+            <p className="muted small-text" style={{ margin: '10px 0 0' }}>O primeiro link de cada stream passa pelo painel (HTTPS, mesma porta do site): funciona atrás do Cloudflare ou de outro proxy, sem abrir portas. O link direto usa a porta do stream e só funciona se ela estiver aberta e o endereço não passar pelo proxy.</p>
+          </PCard>
+
+          <PCard title="Páginas públicas" badge="Habilitado" tone="on">
+            <div className="copy-row" style={{ margin: 0 }}>
+              <span className="lbl">Player público</span>
+              <code>{publicUrl}</code>
+              <CopyButton text={publicUrl} />
+              <a className="button ghost small" href={publicUrl} target="_blank" rel="noreferrer"><Icon name="link" size={14} /> Abrir</a>
             </div>
-          ) : (
-            <p className="muted" style={{ marginTop: 10 }}>Nada tocando.</p>
-          )}
-          <MiniPlayer slug={station.slug} online={station.running} />
+          </PCard>
+
+          <section className="pcard">
+            <header className="pcard-hd">
+              <h3>Últimas músicas</h3>
+              <label className="row" style={{ margin: 0, gap: 8 }}>
+                <span className="small-text" style={{ opacity: 0.85 }}>Mostrar</span>
+                <select value={shown} onChange={(e) => changeShown(Number(e.target.value))}>
+                  {[5, 10, 20, 50].map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </label>
+            </header>
+            {history.length === 0 ? (
+              <Empty icon="music" title="Nada tocou ainda" text="Quando a estação entrar no ar, o histórico aparece aqui." />
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <tbody>
+                    {history.slice(0, shown).map((h, i) => (
+                      <tr key={i}>
+                        <td><span className="row" style={{ margin: 0, flexWrap: 'nowrap' }}><Cover url={h.coverUrl} size={36} />{h.artist ? <span className="muted">{h.artist} — </span> : null}{h.title}</span></td>
+                        <td className="muted" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{new Date(h.played_at + 'Z').toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </div>
+
+        <div className="dash-col">
+          <PCard
+            title="Pedidos de músicas"
+            badge={station.requestsEnabled ? 'Habilitado' : 'Desabilitado'}
+            tone={station.requestsEnabled ? 'on' : 'off'}
+            footer={
+              <>
+                <Link to="requests" className="button ghost small"><Icon name="heart" size={14} /> Ver pedidos</Link>
+                <Link to="settings" className="button ghost small"><Icon name="cog" size={14} /> {station.requestsEnabled ? 'Configurar' : 'Habilitar'}</Link>
+              </>
+            }
+          >
+            {!station.requestsEnabled ? (
+              <p className="muted" style={{ margin: 0 }}>Os ouvintes não podem pedir músicas. Habilite em Configurações.</p>
+            ) : pending.length === 0 ? (
+              <p className="muted" style={{ margin: 0 }}>Nenhum pedido pendente.</p>
+            ) : (
+              pending.slice(0, 5).map((r) => (
+                <div key={r.id} className="req-item" style={{ marginBottom: 6 }}>
+                  <span className="req-ico"><Icon name="music" size={16} /></span>
+                  <span className="req-txt">
+                    <strong>{r.title}</strong>
+                    <small>{r.artist || '—'} · {new Date(r.createdAt.replace(' ', 'T') + 'Z').toLocaleTimeString()}</small>
+                  </span>
+                  <span className="req-state queued">{r.status === 'waiting' ? 'Agendado' : 'Na fila'}</span>
+                </div>
+              ))
+            )}
+          </PCard>
+
+          <PCard
+            title="Streamers/DJs"
+            badge={station.liveEnabled ? 'Habilitado' : 'Desabilitado'}
+            tone={station.liveEnabled ? 'on' : 'off'}
+            footer={
+              <>
+                <Link to="djs" className="button ghost small"><Icon name="mic" size={14} /> Gerenciar</Link>
+                {station.live && <button type="button" className="ghost small" onClick={kick} disabled={busy}>Voltar ao AutoDJ</button>}
+              </>
+            }
+          >
+            <p style={{ margin: 0 }}>
+              {station.live ? <><span className="tag accent"><Icon name="mic" size={13} /> {station.live.name} ao vivo</span></> : <span className="muted">AutoDJ no ar. Nenhum DJ transmitindo agora.</span>}
+            </p>
+          </PCard>
+
+          <PCard
+            title="Serviço de transmissão"
+            badge={station.running ? 'Executando' : 'Parado'}
+            tone={station.running ? 'on' : 'off'}
+            footer={
+              <>
+                <button type="button" className="ghost small" onClick={() => setShowCreds((v) => !v)}>{showCreds ? 'Ocultar credenciais' : 'Mostrar credenciais'}</button>
+                <button type="button" className="ghost small" disabled={busy || !station.running} onClick={() => action('restart')}><Icon name="refresh" size={14} /> Reiniciar</button>
+                <button type="button" className="ghost small danger-text" disabled={busy || !station.running} onClick={() => action('stop')}><Icon name="stop" size={14} /> Parar</button>
+              </>
+            }
+          >
+            {station.dj ? (
+              <div className="kv">
+                <div><span>DJ ao vivo (direto)</span><span><code>{station.dj.host}:{station.dj.port}{station.dj.mount}</code> <CopyButton text={`${station.dj.host}:${station.dj.port}${station.dj.mount}`} label="" /></span></div>
+                <div><span>Usuário</span><span><code>{station.dj.username}</code></span></div>
+                <div><span>Senha</span><span><code>{showCreds ? station.dj.password : '••••••••'}</code> <CopyButton text={station.dj.password} label="" /></span></div>
+              </div>
+            ) : (
+              <p className="muted" style={{ margin: 0 }}>Sem DJ ao vivo configurado.</p>
+            )}
+            <p className="muted small-text" style={{ margin: '10px 0 0' }}>A conexão do DJ vai direto na porta do Liquidsoap (não passa pelo proxy). Com Cloudflare, use o IP do servidor ou um subdomínio “somente DNS”, ou defina <code>PUBLIC_HOST</code> no servidor.</p>
+          </PCard>
         </div>
       </div>
-
-      {station.requestsEnabled && (
-        <div className="card section">
-          <div className="section-title"><h3>Pedidos dos ouvintes</h3></div>
-          {reqs.filter((r) => r.status === 'waiting' || r.status === 'queued').length === 0 ? (
-            <p className="muted" style={{ margin: 0 }}>Nenhum pedido pendente. <Link to="requests">Ver todos os pedidos →</Link></p>
-          ) : (
-            reqs.filter((r) => r.status === 'waiting' || r.status === 'queued').slice(0, 15).map((r) => (
-              <div key={r.id} className="req-item" style={{ marginBottom: 6 }}>
-                <span className="req-ico"><Icon name="music" size={16} /></span>
-                <span className="req-txt">
-                  <strong>{r.title}</strong>
-                  <small>{r.artist || '—'} · {new Date(r.createdAt.replace(' ', 'T') + 'Z').toLocaleString()} · {r.ip}</small>
-                </span>
-                <span className={`req-state ${r.status === 'played' ? 'played' : 'queued'}`}>{r.status === 'played' ? 'Tocou' : r.status === 'waiting' ? 'Agendado' : 'Na fila'}</span>
-              </div>
-            ))
-          )}
-        </div>
-      )}
 
       <Modal open={logOpen} title="Log do Liquidsoap" onClose={() => setLogOpen(false)} size="lg" footer={<button type="button" onClick={showLog}>Atualizar</button>}>
         <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: 12, maxHeight: '60vh', overflow: 'auto', margin: 0 }}>{`Fila de pedidos do Liquidsoap (requests.queue): ${queue.trim() || '(vazia)'}\n\n${log}`}</pre>
       </Modal>
-
-      <div className="card section">
-        <div className="section-title"><h3>Links de transmissão</h3></div>
-        {station.streams.map((s) => (
-          <div key={s.mount} style={{ marginBottom: 10 }}>
-            <div className="copy-row" style={{ marginBottom: 2 }}>
-              <span className="lbl">{s.format.toUpperCase()} {s.bitrate}k</span>
-              <code>{s.proxyUrl}</code>
-              <CopyButton text={s.proxyUrl} />
-            </div>
-            <div className="copy-row" style={{ margin: 0 }}>
-              <span className="lbl small-text">link direto</span>
-              <code className="muted" style={{ fontSize: 12 }}>{s.url}</code>
-              <CopyButton text={s.url} label="" />
-            </div>
-          </div>
-        ))}
-        <p className="muted small-text">O primeiro link de cada stream passa pelo painel (HTTPS, mesma porta do site): funciona com domínio atrás do Cloudflare ou outro proxy, sem abrir portas. O link direto usa a porta do stream e só funciona se ela estiver aberta e o endereço não passar pelo proxy (no Cloudflare, use um subdomínio “somente DNS”, nuvem cinza).</p>
-        {station.dj && (
-          <>
-            <div className="copy-row">
-              <span className="lbl">DJ ao vivo (direto)</span>
-              <code>{station.dj.host}:{station.dj.port}{station.dj.mount}</code>
-              <CopyButton text={`${station.dj.host}:${station.dj.port}${station.dj.mount}`} />
-            </div>
-            <div className="copy-row">
-              <span className="lbl">Usuário / senha</span>
-              <code>{station.dj.username}</code>
-              <code>{station.dj.password}</code>
-              <CopyButton text={station.dj.password} label="Copiar senha" />
-            </div>
-            <p className="muted small-text">A conexão do DJ vai direto na porta do Liquidsoap (não passa pelo proxy). Com Cloudflare, o DJ deve usar o IP do servidor ou um subdomínio “somente DNS”; ou defina <code>PUBLIC_HOST</code> no servidor para mostrar esse endereço aqui.</p>
-          </>
-        )}
-      </div>
-
-      <div className="card tight">
-        <div className="section-title" style={{ padding: '18px 20px 6px', margin: 0 }}>
-          <h3>Últimas músicas</h3>
-          <label className="row" style={{ margin: 0, gap: 8 }}>
-            <span className="muted small-text">Mostrar</span>
-            <select value={shown} onChange={(e) => changeShown(Number(e.target.value))}>
-              {[5, 10, 20, 50].map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </label>
-        </div>
-        {history.length === 0 ? (
-          <Empty icon="music" title="Nada tocou ainda" text="Quando a estação entrar no ar, o histórico aparece aqui." />
-        ) : (
-          <table>
-            <tbody>
-              {history.slice(0, shown).map((h, i) => (
-                <tr key={i}>
-                  <td><span className="row" style={{ margin: 0, flexWrap: 'nowrap' }}><Cover url={h.coverUrl} size={36} />{h.artist ? <span className="muted">{h.artist} — </span> : null}{h.title}</span></td>
-                  <td className="muted" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{new Date(h.played_at + 'Z').toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
     </>
   );
 }
