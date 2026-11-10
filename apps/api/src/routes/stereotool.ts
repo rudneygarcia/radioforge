@@ -4,7 +4,7 @@ import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authenticate, HttpError, requireAdmin, stationFor } from '../auth.js';
-import { extractLibraryFromZip, getLicenseKey, libraryInfo, setLibraryName, setLicenseKey, listPresets, presetPath, presetsDir, safePresetName, stereoLibDir, stereoLibPath } from '../engine/stereotool.js';
+import { extractLibraryFromZip, getLicenseKey, inspectLibrary, libraryInfo, setLibraryName, setLicenseKey, listPresets, presetPath, presetsDir, safePresetName, stereoLibDir, stereoLibPath } from '../engine/stereotool.js';
 
 const idParam = z.object({ id: z.coerce.number().int() });
 const MAX_LIB = 400 * 1024 * 1024; // o ZIP do plugin traz as bibliotecas de várias plataformas
@@ -15,6 +15,12 @@ export async function stereoToolRoutes(app: FastifyInstance) {
 
   // Biblioteca do Stereo Tool (do servidor inteiro).
   app.get('/api/stereotool', async () => ({ library: libraryInfo(), keySet: !!getLicenseKey() }));
+
+  // Diagnóstico da biblioteca (arquitetura, dependências, funções exportadas) para entender "Invalid stereotool library".
+  app.get('/api/stereotool/inspect', async (req) => {
+    requireAdmin(req);
+    return inspectLibrary();
+  });
 
   // Chave de licença do servidor (uma só, vale para todas as estações). Nunca é devolvida.
   app.put('/api/stereotool/license', async (req) => {

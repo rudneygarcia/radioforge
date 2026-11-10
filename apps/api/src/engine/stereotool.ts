@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { pipeline } from 'node:stream/promises';
 import yauzl from 'yauzl';
 import { config, stationDir } from '../config.js';
@@ -99,6 +100,27 @@ export function extractLibraryFromZip(zipFile: string, dest: string): Promise<st
       zip.readEntry();
     });
   });
+}
+
+/** Diagnóstico da biblioteca enviada: arquitetura, dependências que faltam (ldd) e nomes de funções exportadas. */
+export function inspectLibrary() {
+  const file = stereoLibPath();
+  if (!fs.existsSync(file)) return { present: false as const };
+  const buf = fs.readFileSync(file);
+  const machine = buf.length > 20 ? buf.readUInt16LE(18) : 0;
+  const arch = ({ 0x3e: 'x86-64 (correto)', 0xb7: 'ARM 64 bits (aarch64): NÃO serve neste servidor se ele for x86', 0x28: 'ARM 32 bits: não serve', 0x03: 'x86 32 bits: não serve' } as Record<number, string>)[machine] ?? `desconhecida (${machine})`;
+  const class64 = buf[4] === 2;
+  const ldd = spawnSync('ldd', [file], { encoding: 'utf8', timeout: 10_000 });
+  const lddOut = `${ldd.stdout ?? ''}${ldd.stderr ?? ''}`.trim() || (ldd.error ? `ldd indisponível: ${ldd.error.message}` : '');
+  // Nomes em texto dentro do arquivo (tabela de símbolos dinâmicos): mostra o que a biblioteca exporta com "stereo" no nome.
+  const text = buf.toString('latin1');
+  const names = new Set<string>();
+  for (const m of text.matchAll(/[A-Za-z_][A-Za-z0-9_]{3,60}/g)) {
+    if (/stereo/i.test(m[0]) && !/^_?_?cxa/.test(m[0])) names.add(m[0]);
+    if (names.size >= 60) break;
+  }
+  const missing = lddOut.split('\n').filter((l) => /not found/i.test(l));
+  return { present: true as const, arch, class64, size: buf.length, missing, ldd: lddOut.slice(0, 3000), symbols: [...names].sort() };
 }
 
 /** Nome de arquivo seguro para o preset (sem pastas, só letras/números/ponto/hífen/sublinhado). */

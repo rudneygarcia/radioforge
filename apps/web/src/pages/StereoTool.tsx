@@ -34,6 +34,29 @@ export default function StereoTool({
   const [up, setUp] = useState<{ name: string; pct: number; stage: 'sending' | 'processing' | 'done' | 'error'; msg: string } | null>(null);
   // ZIP do plugin aberto: bibliotecas .so encontradas dentro dele para a pessoa escolher a certa.
   const [pick, setPick] = useState<{ file: File; libs: ZipLib[]; chosen: string } | null>(null);
+  const [diag, setDiag] = useState<string | null>(null);
+  const inspect = async () => {
+    setDiag('Analisando…');
+    try {
+      const r = await api<{ present: boolean; arch?: string; size?: number; missing?: string[]; ldd?: string; symbols?: string[] }>('/api/stereotool/inspect');
+      if (!r.present) return setDiag('Biblioteca não enviada.');
+      setDiag(
+        [
+          `Arquitetura: ${r.arch}`,
+          `Tamanho: ${((r.size ?? 0) / 1024 / 1024).toFixed(1)} MB`,
+          `Dependências que faltam: ${r.missing && r.missing.length ? r.missing.join(' | ') : 'nenhuma'}`,
+          '',
+          'Funções com “stereo” no nome:',
+          ...(r.symbols && r.symbols.length ? r.symbols : ['(nenhuma encontrada — provavelmente não é a biblioteca de plugin)']),
+          '',
+          'ldd:',
+          r.ldd ?? '',
+        ].join('\n'),
+      );
+    } catch (e) {
+      setDiag((e as Error).message);
+    }
+  };
   const [key, setKey] = useState('');
   const [keySet, setKeySet] = useState(false);
 
@@ -169,9 +192,11 @@ export default function StereoTool({
               {busy ? 'Enviando…' : lib?.present ? 'Trocar biblioteca' : 'Enviar o ZIP do plugin'}
               <input type="file" hidden accept=".zip,.so" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; void send('/api/stereotool/library', f, 'Biblioteca enviada'); }} />
             </label>
+            {lib?.present && <button type="button" className="ghost small" onClick={inspect}><Icon name="info" size={13} /> Testar biblioteca</button>}
             {lib?.present && <button type="button" className="ghost small" onClick={removeLib}><Icon name="trash" size={13} /> Remover</button>}
           </div>
         )}
+        {diag && <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: 12, maxHeight: 260, overflow: 'auto', margin: '10px 0 0' }}>{diag}</pre>}
         <label className="field" style={{ marginTop: 12 }}>
           <span>Chave de licença {keySet && <em className="hint">(já salva)</em>}</span>
           <div className="row" style={{ margin: 0 }}>
