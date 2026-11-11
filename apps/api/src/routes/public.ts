@@ -127,8 +127,11 @@ export async function publicRoutes(app: FastifyInstance) {
   const friendlyStream = async (req: FastifyRequest, reply: FastifyReply) => {
     const { slug, name } = z.object({ slug: z.string(), name: z.string() }).parse(req.params);
     const st = stationBySlug(slug);
-    const wanted = '/' + name;
-    const mount = [st.mount, ...mountsFor(st.id).map((m) => m.mount)].find((m) => m === wanted);
+    // Migração (ex.: do AzuraCast): clientes antigos pedem nomes como /radio.mp3 ou /stream.mp3. Se o nome não bater exato,
+    // aceita o mesmo nome sem a extensão e, por fim, entrega o stream principal em vez de dar erro.
+    const mounts = [st.mount, ...mountsFor(st.id).map((m) => m.mount)];
+    const bare = (s: string) => s.replace(/^\//, '').replace(/\.[a-z0-9]{2,4}$/i, '').toLowerCase();
+    const mount = mounts.find((m) => m === '/' + name) ?? mounts.find((m) => bare(m) === bare(name)) ?? st.mount;
     return proxyStream(req, reply, st, mount);
   };
   app.get('/listen/:slug/:name', friendlyStream);

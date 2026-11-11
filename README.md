@@ -213,3 +213,7 @@ Menu **Comerciais**: crie uma pasta na Biblioteca com os comerciais e programe u
 ### Esqueci minha senha (e-mail)
 
 A tela de login tem **Esqueci minha senha**: o usuário informa o e-mail e recebe um link (válido por 1 hora, uso único) para criar uma nova senha. O envio usa SMTP: configure em **Sistema → E-mail** (servidor, porta, usuário, senha, remetente e botão de teste) ou pelas variáveis `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `SMTP_SECURE` (têm prioridade). A resposta do painel é a mesma exista o e-mail ou não, e há limite de 5 pedidos por hora por IP e por e-mail.
+
+### Migração do AzuraCast: links de stream
+
+Os links `https://seu-dominio/listen/<estação>/<mount>` seguem o mesmo formato do AzuraCast. Para que os links antigos dos clientes toquem no painel novo: (1) crie a estação com o **mesmo endereço curto** (ex.: `up80`) e o **mesmo nome de stream** que o cliente usa; (2) no Velix, adicione o domínio antigo (ex.: `stm.seudominio.com.br`) ao serviço do painel e aponte o DNS (registro A) para o IP do servidor, com o proxy do Cloudflare ligado (nuvem laranja) ou desligado (nuvem cinza): o painel responde nos dois casos. Se o nome do arquivo no link não bater (ex.: `/radio.mp3` em vez de `/stream`), o painel entrega o stream principal da estação em vez de dar erro. Defina `PUBLIC_ORIGIN=https://stm.seudominio.com.br` para os links mostrados no painel usarem esse endereço. Links diretos por IP:porta (`http://IP:8010/stream`) também funcionam enquanto a porta da estação estiver liberada no firewall.

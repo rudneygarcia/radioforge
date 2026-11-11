@@ -36,7 +36,8 @@ export const config = {
   },
   /** Origem (https://dominio) pela qual o painel foi aberto; usada nos links de stream que passam pelo painel (funcionam atrás de proxy/Cloudflare). */
   get publicOrigin(): string {
-    return hostContext.getStore()?.origin || `http://localhost:${process.env.PORT ?? 3000}`;
+    // PUBLIC_ORIGIN (ex.: https://stm.seudominio.com.br) fixa o endereço dos links mostrados, qualquer que seja o endereço pelo qual o painel foi aberto.
+    return (process.env.PUBLIC_ORIGIN || '').replace(/\/+$/, '') || hostContext.getStore()?.origin || `http://localhost:${process.env.PORT ?? 3000}`;
   },
   apiInternalUrl: process.env.API_INTERNAL_URL ?? `http://127.0.0.1:${process.env.PORT ?? 3000}`,
   engine: {
