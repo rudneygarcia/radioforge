@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { api, uploadForm, type Folder, type Media } from '../api';
+import { useCan } from '../auth';
 import { Cover, Empty, Icon, Modal, useUi } from '../ui';
 import type { StationCtx } from './StationLayout';
 
@@ -37,6 +38,8 @@ export default function MediaPage() {
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [folderModal, setFolderModal] = useState<{ id?: number; name: string } | null>(null);
   const [moveOpen, setMoveOpen] = useState(false);
+  const canEdit = useCan()('media');
+  const [editMedia, setEditMedia] = useState<{ id: number; title: string; artist: string; album: string; originalName: string } | null>(null);
   const [moveTo, setMoveTo] = useState<string>('none');
   const [error, setError] = useState('');
   const input = useRef<HTMLInputElement>(null);
@@ -144,6 +147,20 @@ export default function MediaPage() {
     }
   }
 
+  async function saveMedia(e: FormEvent) {
+    e.preventDefault();
+    if (!editMedia) return;
+    setError('');
+    try {
+      await api(`${base}/media/${editMedia.id}`, { method: 'PUT', body: { title: editMedia.title.trim(), artist: editMedia.artist.trim(), album: editMedia.album.trim() } });
+      toast('Música atualizada');
+      setEditMedia(null);
+      load();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
   async function saveFolder(e: FormEvent) {
     e.preventDefault();
     if (!folderModal) return;
@@ -241,7 +258,7 @@ export default function MediaPage() {
               <td className="muted">{m.artist || '—'}</td>
               {searching && <td className="hide-sm">{folderName(m.folderId) ? <span className="tag"><Icon name="folder" size={12} /> {folderName(m.folderId)}</span> : <span className="muted">sem pasta</span>}</td>}
               <td className="muted">{fmt(m.duration)}</td>
-              <td><div className="table-actions"><button className="icon-btn" title="Excluir" onClick={() => removeMedia(m)}><Icon name="trash" /></button></div></td>
+              <td><div className="table-actions">{canEdit && <button className="icon-btn" title="Editar nome" onClick={() => { setError(''); setEditMedia({ id: m.id, title: m.title, artist: m.artist, album: m.album, originalName: m.originalName }); }}><Icon name="edit" /></button>}<button className="icon-btn" title="Excluir" onClick={() => removeMedia(m)}><Icon name="trash" /></button></div></td>
             </tr>
           ))}
         </tbody>
@@ -392,6 +409,24 @@ export default function MediaPage() {
           </div>
         </>
       )}
+
+      <Modal
+        open={!!editMedia}
+        size="sm"
+        title="Editar música"
+        onClose={() => setEditMedia(null)}
+        footer={<><button className="ghost" type="button" onClick={() => setEditMedia(null)}>Cancelar</button><button form="media-form">Salvar</button></>}
+      >
+        {editMedia && (
+          <form id="media-form" className="fields" onSubmit={saveMedia}>
+            <label className="field"><span>Título</span><input value={editMedia.title} onChange={(e) => setEditMedia({ ...editMedia, title: e.target.value })} maxLength={200} required autoFocus /></label>
+            <label className="field"><span>Artista</span><input value={editMedia.artist} onChange={(e) => setEditMedia({ ...editMedia, artist: e.target.value })} maxLength={200} /></label>
+            <label className="field"><span>Álbum</span><input value={editMedia.album} onChange={(e) => setEditMedia({ ...editMedia, album: e.target.value })} maxLength={200} /></label>
+            <small className="hint">Arquivo enviado: {editMedia.originalName}. O nome aqui é o que aparece no player, no histórico e no Icecast; vale a partir da próxima vez que a música tocar.</small>
+            {error && <p className="error">{error}</p>}
+          </form>
+        )}
+      </Modal>
 
       <Modal
         open={!!folderModal}
