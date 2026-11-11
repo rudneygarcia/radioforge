@@ -92,6 +92,8 @@ export function buildLiquidsoapScript(
     stereo?: boolean;
     /** Próxima faixa escolhida pela API (request.dynamic) em vez das playlists .m3u. */
     dyn?: boolean;
+    /** Também aceita encoders no mount "/" (padrão do AzuraCast) além de /live. */
+    root?: boolean;
   } = {},
 ): string {
   const lines: string[] = [];
@@ -205,25 +207,29 @@ export function buildLiquidsoapScript(
   if (st.live_enabled) {
     // Credenciais aceitas: o usuário "source" (senha da estação) + cada DJ ativo. DJ com horário
     // só autentica dentro da janela (o predicado de tempo é avaliado a cada tentativa de conexão).
-    const clauses = [`(login.user == ${q('source')} and login.password == ${q(st.source_password)})`];
+    // Cada item: condição de login + o nome que aparece como DJ ao vivo.
+    const clauses: { cond: string; user: string }[] = [{ cond: `(login.user == ${q('source')} and login.password == ${q(st.source_password)})`, user: 'source' }];
     for (const d of djs.filter((x) => x.enabled)) {
-      let clause = `login.user == ${q(d.username)} and login.password == ${q(d.password)}`;
+      let window = '';
       if (d.schedule_enabled) {
         const win = `dj_window_${d.id}`;
         lines.push(
           `${win} = ${schedulePredicate({ days: d.days.split(',').filter(Boolean).map(Number), start: d.start_time, end: d.end_time })}`,
         );
-        clause += ` and ${win}()`;
+        window = ` and ${win}()`;
       }
-      clauses.push(`(${clause})`);
+      clauses.push({ cond: `(login.user == ${q(d.username)} and login.password == ${q(d.password)}${window})`, user: d.username });
+      // Formato do AzuraCast/Shoutcast: o encoder manda a senha como "usuario:senha" (com qualquer usuário no login).
+      clauses.push({ cond: `(login.password == ${q(`${d.username}:${d.password}`)}${window})`, user: d.username });
     }
     lines.push(
       // Guarda quem autenticou por último para avisar a API quem entrou no ar.
       `dj_user = ref("")`,
       `def dj_auth(login) =`,
-      `  ok = ${clauses.join(' or ')}`,
-      `  if ok then dj_user := login.user end`,
-      `  ok`,
+      // Com `root` (compatível com o AzuraCast) aceita também a senha no formato "usuario:senha"; sem ele, só login + senha.
+      ...(opts.root
+        ? [...clauses.flatMap((c, i) => [`  ${i === 0 ? 'if' : 'elsif'} ${c.cond} then`, `    dj_user := ${q(c.user)}`, `    true`]), `  else`, `    false`, `  end`]
+        : [`  ok = ${clauses.filter((_, i) => i === 0 || i % 2 === 1).map((c) => c.cond).join(' or ')}`, `  if ok then dj_user := login.user end`, `  ok`]),
       `end`,
       `def notify_live(event) =`,
       `  payload = json.stringify({event = event, user = dj_user()})`,
@@ -231,6 +237,13 @@ export function buildLiquidsoapScript(
       `end`,
       `live = input.harbor("live", port = ${harborPort(st)}, auth = dj_auth, on_connect = fun (_) -> notify_live("connect"), on_disconnect = fun () -> notify_live("disconnect"))`,
     );
+    if (opts.root) {
+      // Encoders do AzuraCast usam o mount "/" na porta do DJ: aceita os dois (cada um é uma fonte; vale quem estiver conectado).
+      lines.push(
+        `live_root = input.harbor("/", port = ${harborPort(st)}, auth = dj_auth, on_connect = fun (_) -> notify_live("connect"), on_disconnect = fun () -> notify_live("disconnect"))`,
+        `live = fallback(id = "live_inputs", track_sensitive = false, [live, live_root])`,
+      );
+    }
     if (st.record_live && recordingsDir) {
       // Grava só enquanto houver DJ conectado (fonte "fallible").
       const ext = st.format === 'ogg' ? 'ogg' : 'mp3'; // AAC é gravado em MP3 (arquivo mais universal)

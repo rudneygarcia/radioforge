@@ -163,7 +163,7 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
 }
 
 /** Versão do script que vale por estação: processador (0 completo, 1 só padrões, 2 desligado) e AutoDJ em segundo plano. */
-type Variant = { audio: 0 | 1 | 2; keepAlive: boolean; autocue: boolean; tuned: boolean; stereo?: boolean; dyn?: boolean };
+type Variant = { audio: 0 | 1 | 2; keepAlive: boolean; autocue: boolean; tuned: boolean; stereo?: boolean; dyn?: boolean; root?: boolean };
 const variantOf = new Map<number, Variant>();
 const audioWarnings = new Map<number, string>();
 /** A estação roda com a próxima faixa escolhida pela API (não pelas playlists .m3u)? */
@@ -196,7 +196,7 @@ const maskKey = (s: string) => {
   return k.length >= 6 ? s.split(k).join('<chave oculta>') : s;
 };
 
-export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn?: boolean } = {}) {
+export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn?: boolean; root?: boolean } = {}) {
   const skipStereo = !!skip.stereo;
   if (!config.engine.enabled) throw new Error('Engine desativada (ENGINE_ENABLED=false)');
   if (engineMode() === 'native') {
@@ -268,6 +268,11 @@ export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn
     const expanded = [...attempts.map((v) => ({ ...v, dyn: true })), ...attempts.map((v) => ({ ...v, dyn: false }))];
     attempts.splice(0, attempts.length, ...expanded);
   }
+  // Mount "/" do DJ (compatível com encoders do AzuraCast): aplicado a todas as tentativas; se o Liquidsoap não subir com ele, volta sem.
+  if (!skip.root) {
+    const withRoot = [...attempts.map((v) => ({ ...v, root: true })), ...attempts.map((v) => ({ ...v, root: false }))];
+    attempts.splice(0, attempts.length, ...withRoot);
+  }
   audioWarnings.delete(st.id);
   let firstError = '';
   let lastOut = '';
@@ -338,6 +343,11 @@ export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn
       console.warn(`[engine] ${st.slug}: Stereo Tool recusado, subindo sem ele:\n${reason}`);
       await startStation(st, { ...skip, stereo: true });
       audioWarnings.set(st.id, `O Stereo Tool NÃO carregou e a rádio subiu com o processador interno. Motivo informado pelo Liquidsoap:\n${reason}`);
+      return;
+    }
+    if (dead === 'liquidsoap' && chosen.root && !skip.root) {
+      console.warn(`[engine] ${st.slug}: mount "/" do DJ recusado, subindo sem ele:\n${maskKey(tail(log))}`);
+      await startStation(st, { ...skip, root: true });
       return;
     }
     throw startError(`${dead === 'icecast' ? 'Icecast' : 'Liquidsoap'} não ficou no ar:\n${tail(log) || '(sem saída no log)'}`);

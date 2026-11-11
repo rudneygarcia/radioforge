@@ -221,3 +221,7 @@ Os links `https://seu-dominio/listen/<estação>/<mount>` seguem o mesmo formato
 ### API compatível com o AzuraCast
 
 Para sites, apps e widgets que já consumiam o AzuraCast continuarem funcionando: `GET /api/nowplaying` (todas as estações), `GET /api/nowplaying/<estação>` e `GET /api/nowplaying_static/<estação>.json` (a estação pode ser o endereço curto ou o número) devolvem `station`, `listeners`, `live`, `now_playing` (com `song`, `duration`, `elapsed`, `remaining`), `playing_next`, `song_history` e `is_online` no mesmo formato; `GET /api/station/<estação>` traz os dados e os mounts; `/public/<estação>` abre o player; `/public/<estação>/playlist.pls` e `.m3u` baixam a playlist do stream. São públicas e com CORS liberado. Diferenças: `playing_next` vem vazio (o painel ainda não prevê a próxima faixa) e `/api/stations` continua sendo a lista autenticada do painel.
+
+### Encoders vindos do AzuraCast (DJ ao vivo)
+
+A porta do DJ é a **porta da estação + 5** (como no AzuraCast; ajuste a porta em *Editar estação* para ficar igual à antiga). O painel aceita o mount `/live` **e também `/`** (padrão do AzuraCast), e as senhas no formato `usuário:senha` (senha do encoder) além de usuário + senha normais. Os DJs/streamers precisam ser recriados em **DJs** (as senhas não são importadas). Se o Liquidsoap recusar o mount `/`, a estação sobe só com `/live` e o painel avisa no log.
