@@ -61,7 +61,6 @@ export async function timeClipRoutes(app: FastifyInstance) {
    * Devolve um relatório por arquivo (aceito ou o motivo da recusa). Para muitos arquivos, use o ZIP.
    */
   app.post('/api/stations/:id/time-clips', async (req) => {
-    requireAdmin(req);
     const { id } = idParam.parse(req.params);
     const st = stationFor(req, id);
     const q = z.object({ voice: z.string().max(40).optional(), hour: z.coerce.number().int().min(0).max(23).optional(), minute: z.coerce.number().int().min(0).max(59).optional() }).parse(req.query);
@@ -93,7 +92,6 @@ export async function timeClipRoutes(app: FastifyInstance) {
 
   /** Envia UM ZIP com todos os áudios (pode ter pastas e várias vozes). O processamento roda em segundo plano. */
   app.post('/api/stations/:id/time-clips/zip', async (req, reply) => {
-    requireAdmin(req);
     const { id } = idParam.parse(req.params);
     const st = stationFor(req, id);
     if (runningJobFor(st.id)) throw new HttpError(409, 'Já existe um ZIP sendo processado para esta estação. Aguarde terminar.');
@@ -134,7 +132,6 @@ export async function timeClipRoutes(app: FastifyInstance) {
   });
 
   app.delete('/api/stations/:id/time-clips/:voice/:hour/:minute', async (req) => {
-    requireAdmin(req);
     const { id, voice, hour, minute } = slotParams.parse(req.params);
     const st = stationFor(req, id);
     if (!deleteClip(st.id, voice, hour, minute)) throw new HttpError(404, 'Sem arquivo para esse horário');
@@ -143,7 +140,6 @@ export async function timeClipRoutes(app: FastifyInstance) {
 
   /** Apaga uma voz inteira (todos os horários dela). */
   app.delete('/api/stations/:id/time-clips/:voice', async (req) => {
-    requireAdmin(req);
     const { id, voice } = z.object({ id: z.coerce.number().int(), voice: z.string().max(40) }).parse(req.params);
     const st = stationFor(req, id);
     return { ok: true, removed: deleteVoice(st.id, voice) };

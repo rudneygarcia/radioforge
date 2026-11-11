@@ -160,6 +160,8 @@ function allowAacFormat() {
   }
 }
 allowAacFormat();
+// Permissões do operador (lista JSON de chaves). NULL = padrão (o que operadores já podiam antes).
+addColumn('users', 'permissions', 'TEXT');
 addColumn('stations', 'history_limit', 'INTEGER NOT NULL DEFAULT 5'); // quantas músicas recentes o player público mostra
 addColumn('stations', 'audio_preset', "TEXT NOT NULL DEFAULT 'off'"); // off | balanced | loud (Liquidsoap)
 // Não repetir a mesma música por N minutos (0 = desligado).
@@ -414,6 +416,7 @@ export interface UserRow {
   name: string;
   password_hash: string;
   role: 'admin' | 'user';
+  permissions: string | null;
   created_at: string;
 }
 export interface StationRow {

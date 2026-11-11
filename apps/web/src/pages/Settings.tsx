@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { api, getToken, uploadForm, type MountCfg, type Station } from '../api';
-import { useAuth } from '../auth';
+import { useCan } from '../auth';
 import { Cover, Icon, Modal, useUi } from '../ui';
 import TimeClips from './TimeClips';
 import StereoTool from './StereoTool';
@@ -27,7 +27,7 @@ const CARDS = {
 function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
   const show = (id: string) => (CARDS[view] as readonly string[]).includes(id);
   const { station, reload } = useOutletContext<StationCtx>();
-  const { user } = useAuth();
+  const can = useCan();
   const { confirm, toast } = useUi();
   const nav = useNavigate();
   const [f, setF] = useState({
@@ -78,7 +78,8 @@ function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
   const [secret, setSecret] = useState('');
   const close = () => setOpen(null);
   const [coverBusy, setCoverBusy] = useState(false);
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = can('edit_station');
+  const canAdvanced = can('advanced');
   const setMount = (i: number, change: Partial<MountCfg>) =>
     setF((cur) => ({ ...cur, mounts: cur.mounts.map((m, j) => (j === i ? { ...m, ...change } : m)) }));
 
@@ -158,7 +159,7 @@ function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
   const onOff = (v: boolean) => (v ? 'ligado' : 'desligado');
   return (
     <form onSubmit={save}>
-      {!isAdmin && <div className="card notice">Só administradores podem alterar as configurações.</div>}
+      {!isAdmin && <div className="card notice">Você não tem permissão para alterar as configurações desta estação.</div>}
 
       {view === 'edit' && (
       <div className="card section">
@@ -362,7 +363,7 @@ function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
       </Modal>
 
       <Modal open={open === 'stereo'} title="Stereo Tool" onClose={close} size="lg" footer={<button type="button" onClick={close}>Concluído</button>}>
-        <StereoTool stationId={station.id} isAdmin={isAdmin} enabled={f.stereoEnabled} preset={f.stereoPreset} onEnabled={(v) => setF({ ...f, stereoEnabled: v })} onPreset={(v) => setF({ ...f, stereoPreset: v })} />
+        <StereoTool stationId={station.id} isAdmin={isAdmin} canPresets={canAdvanced} isSystem={can('system')} enabled={f.stereoEnabled} preset={f.stereoPreset} onEnabled={(v) => setF({ ...f, stereoEnabled: v })} onPreset={(v) => setF({ ...f, stereoPreset: v })} />
       </Modal>
 
       <Modal open={open === 'hora'} title="Hora certa" onClose={close} size="lg" footer={<button type="button" onClick={close}>Concluído</button>}>
@@ -391,12 +392,12 @@ function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
           </div>
           <div className="row" style={{ margin: 0 }}>
             <button type="button" className="ghost small" onClick={previewTime} disabled={coverBusy}><Icon name="play" size={13} /> Ouvir exemplo (hora atual)</button>
-            {isAdmin && station.running && <button type="button" className="ghost small" onClick={announceNowClick}><Icon name="mic" size={13} /> Tocar agora na rádio</button>}
+            {can('control') && station.running && <button type="button" className="ghost small" onClick={announceNowClick}><Icon name="mic" size={13} /> Tocar agora na rádio</button>}
           </div>
           <Toggle checked={f.timeAnnounceVoice} onChange={(v) => setF({ ...f, timeAnnounceVoice: v })} disabled={!isAdmin} title="Usar a voz sintética quando não houver arquivo para o horário" hint="Desligue se você enviar os seus próprios áudios: nos horários sem arquivo a rádio simplesmente não avisa." />
           <small className="hint">Salve as configurações para valer a mudança. Só funciona no modo completo. A hora usa o fuso escolhido acima (o servidor costuma estar em UTC).</small>
         </div>
-        <TimeClips station={station} isAdmin={isAdmin} voiceFallback={f.timeAnnounceVoice} voice={f.timeVoice} onVoice={(v) => setF({ ...f, timeVoice: v })} />
+        <TimeClips station={station} isAdmin={canAdvanced} voiceFallback={f.timeAnnounceVoice} voice={f.timeVoice} onVoice={(v) => setF({ ...f, timeVoice: v })} />
       </Modal>
 
       <Modal open={open === 'dj'} title="AutoDJ, ao vivo e pedidos" onClose={close} size="md" footer={<button type="button" onClick={close}>Concluído</button>}>

@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { authenticate, HttpError } from '../auth.js';
+import { authenticate, HttpError, userPermissions } from '../auth.js';
 import { config } from '../config.js';
 import { get, run, type UserRow } from '../db.js';
 import { sendMail, smtpConfigured } from '../mailer.js';
@@ -38,7 +38,7 @@ function throttleForgot(key: string) {
 const sha = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-const publicUser =(u: UserRow) => ({ id: u.id, email: u.email, name: u.name, role: u.role });
+const publicUser = (u: UserRow) => ({ id: u.id, email: u.email, name: u.name, role: u.role, permissions: userPermissions(u.id, u.role) });
 
 export async function authRoutes(app: FastifyInstance) {
   // Primeiro acesso: indica se ainda é preciso criar o administrador.

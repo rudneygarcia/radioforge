@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { api } from '../api';
-import { useAuth } from '../auth';
+import { useCan } from '../auth';
 import { Empty, Icon, useUi } from '../ui';
 import type { StationCtx } from './StationLayout';
 
@@ -26,13 +26,13 @@ const when = (s: string) => new Date(s.replace(' ', 'T') + 'Z').toLocaleString()
 
 export default function RequestsPage() {
   const { station } = useOutletContext<StationCtx>();
-  const { user } = useAuth();
+  const can = useCan();
   const { confirm, toast } = useUi();
   const [data, setData] = useState<Data | null>(null);
   const [status, setStatus] = useState<'all' | Status>('all');
   const [q, setQ] = useState('');
   const [limit, setLimit] = useState(30);
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = can('requests');
 
   const load = useCallback(() => {
     const qs = new URLSearchParams({ status, q, limit: String(limit) });

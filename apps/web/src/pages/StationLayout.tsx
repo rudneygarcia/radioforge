@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { NavLink, Outlet, useLocation, useParams } from 'react-router-dom';
 import { api, type Station } from '../api';
+import { useCan } from '../auth';
 import { Cover, Icon, PageHeader } from '../ui';
 
 export interface StationCtx {
@@ -9,22 +10,23 @@ export interface StationCtx {
   reload: () => Promise<void>;
 }
 
-const NAV = [
+const NAV: { to: string; label: string; icon: string; perm?: string[] }[] = [
   { to: '.', label: 'Painel', icon: 'home' },
   { to: 'media', label: 'Biblioteca', icon: 'music' },
   { to: 'playlists', label: 'Playlists', icon: 'list' },
-  { to: 'ads', label: 'Comerciais', icon: 'megaphone' },
+  { to: 'ads', label: 'Comerciais', icon: 'megaphone', perm: ['ads'] },
   { to: 'requests', label: 'Pedidos', icon: 'heart' },
-  { to: 'djs', label: 'DJs', icon: 'mic' },
+  { to: 'djs', label: 'DJs', icon: 'mic', perm: ['djs'] },
   { to: 'listeners', label: 'Ouvintes', icon: 'users' },
-  { to: 'reports', label: 'Relatórios', icon: 'chart' },
+  { to: 'reports', label: 'Relatórios', icon: 'chart', perm: ['reports'] },
   { to: 'widgets', label: 'Widgets', icon: 'code' },
   { to: 'integrations', label: 'Integrações', icon: 'plug' },
-  { to: 'edit', label: 'Editar estação', icon: 'edit' },
-  { to: 'settings', label: 'Configurações', icon: 'cog' },
+  { to: 'edit', label: 'Editar estação', icon: 'edit', perm: ['edit_station'] },
+  { to: 'settings', label: 'Configurações', icon: 'cog', perm: ['edit_station', 'advanced'] },
 ];
 
 export default function StationLayout() {
+  const can = useCan();
   const { id } = useParams();
   const [station, setStation] = useState<Station | null>(null);
   const [error, setError] = useState('');
@@ -81,7 +83,7 @@ export default function StationLayout() {
             <small>Painel da estação</small>
           </div>
         </div>
-        {NAV.map((n) => (
+        {NAV.filter((n) => !n.perm || n.perm.some((p) => can(p))).map((n) => (
           <NavLink key={n.to} end={n.to === '.'} to={n.to} title={n.label}>
             <Icon name={n.icon} size={18} />
             <span className="nav-label">{n.label}</span>

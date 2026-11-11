@@ -54,6 +54,8 @@ export interface User {
   email: string;
   name: string;
   role: 'admin' | 'user';
+  /** O que o usuário pode fazer nas estações (administrador: tudo). */
+  permissions: string[];
 }
 export interface NowPlaying {
   title: string;

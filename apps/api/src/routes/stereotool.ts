@@ -133,7 +133,6 @@ export async function stereoToolRoutes(app: FastifyInstance) {
   });
 
   app.post('/api/stations/:id/stereotool/presets', async (req) => {
-    requireAdmin(req);
     const { id } = idParam.parse(req.params);
     const st = stationFor(req, id);
     const part = await req.file({ limits: { fileSize: MAX_PRESET } });
@@ -154,7 +153,6 @@ export async function stereoToolRoutes(app: FastifyInstance) {
   });
 
   app.delete('/api/stations/:id/stereotool/presets/:name', async (req) => {
-    requireAdmin(req);
     const { id, name } = z.object({ id: z.coerce.number().int(), name: z.string().max(100) }).parse(req.params);
     const st = stationFor(req, id);
     const safe = safePresetName(name);

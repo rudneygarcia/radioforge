@@ -340,7 +340,6 @@ export async function stationRoutes(app: FastifyInstance) {
   app.put('/api/stations/:id', async (req) => {
     const { id } = idParam.parse(req.params);
     const st = stationFor(req, id);
-    requireAdmin(req);
     const b = settings.parse(req.body);
     const newMount = b.mount ?? st.mount;
     // Senha da transmissão ao vivo: só troca se uma nova for informada; a estação reinicia ao salvar.
@@ -454,7 +453,6 @@ export async function stationRoutes(app: FastifyInstance) {
 
   // Capa (logo) da rádio: entra no lugar da capa das músicas que não têm.
   app.post('/api/stations/:id/cover', async (req) => {
-    requireAdmin(req);
     const { id } = idParam.parse(req.params);
     const st = stationFor(req, id);
     const file = await req.file({ limits: { fileSize: 4 * 1024 * 1024 } });
@@ -468,7 +466,6 @@ export async function stationRoutes(app: FastifyInstance) {
   });
 
   app.delete('/api/stations/:id/cover', async (req) => {
-    requireAdmin(req);
     const { id } = idParam.parse(req.params);
     const st = stationFor(req, id);
     removeStationCover(st);
@@ -588,7 +585,6 @@ export async function stationRoutes(app: FastifyInstance) {
 
   // Log do Liquidsoap (só administradores): ajuda a diagnosticar problemas de áudio/fila.
   app.get('/api/stations/:id/engine-log', async (req) => {
-    requireAdmin(req);
     const { id } = idParam.parse(req.params);
     const st = stationFor(req, id);
     // Fila de pedidos do Liquidsoap (RIDs ainda não tocados) e o que está tocando agora, para ver se o pedido realmente entrou.
@@ -599,7 +595,6 @@ export async function stationRoutes(app: FastifyInstance) {
   // Cancela um pedido ainda agendado (que não entrou na fila do AutoDJ).
   app.delete('/api/stations/:id/requests/:rid', async (req) => {
     const { id, rid } = z.object({ id: z.coerce.number().int(), rid: z.coerce.number().int() }).parse(req.params);
-    requireAdmin(req);
     const st = stationFor(req, id);
     const r = run('DELETE FROM song_requests WHERE id = ? AND station_id = ? AND pushed = 0', rid, st.id);
     if (!r.changes) throw new HttpError(409, 'Esse pedido já entrou na fila do AutoDJ e não pode ser cancelado.');

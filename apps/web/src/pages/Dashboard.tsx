@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { api } from '../api';
 import { CopyButton, Cover, Empty, Icon, Modal, useUi } from '../ui';
-import { useAuth } from '../auth';
+import { useCan } from '../auth';
 import type { StationCtx } from './StationLayout';
 
 interface Req {
@@ -86,7 +86,7 @@ export default function Dashboard() {
   const [history, setHistory] = useState<Hist[]>([]);
   const [busy, setBusy] = useState(false);
   const [reqs, setReqs] = useState<Req[]>([]);
-  const { user } = useAuth();
+  const can = useCan();
   const [logOpen, setLogOpen] = useState(false);
   const [showCreds, setShowCreds] = useState(false);
   const [log, setLog] = useState('');
@@ -187,11 +187,11 @@ export default function Dashboard() {
             badge={`${station.listeners} ouvinte${station.listeners === 1 ? '' : 's'}`}
             footer={
               <>
-                <button type="button" className="ghost small" disabled={busy || station.running} onClick={() => action('start')}><Icon name="play" size={14} /> Iniciar</button>
-                <button type="button" className="ghost small" disabled={busy || !station.running} onClick={() => action('restart')}><Icon name="refresh" size={14} /> Reiniciar</button>
-                <button type="button" className="ghost small danger-text" disabled={busy || !station.running} onClick={() => action('stop')}><Icon name="stop" size={14} /> Parar</button>
+                {can('control') && <button type="button" className="ghost small" disabled={busy || station.running} onClick={() => action('start')}><Icon name="play" size={14} /> Iniciar</button>}
+                {can('control') && <button type="button" className="ghost small" disabled={busy || !station.running} onClick={() => action('restart')}><Icon name="refresh" size={14} /> Reiniciar</button>}
+                {can('control') && <button type="button" className="ghost small danger-text" disabled={busy || !station.running} onClick={() => action('stop')}><Icon name="stop" size={14} /> Parar</button>}
                 <Link to="listeners" className="button ghost small"><Icon name="users" size={14} /> Ouvintes</Link>
-                {user?.role === 'admin' && <button type="button" className="ghost small" onClick={showLog} title="Log do Liquidsoap"><Icon name="info" size={14} /> Log</button>}
+                {can('advanced') && <button type="button" className="ghost small" onClick={showLog} title="Log do Liquidsoap"><Icon name="info" size={14} /> Log</button>}
               </>
             }
           >
@@ -214,7 +214,7 @@ export default function Dashboard() {
             {station.running && station.live && (
               <p style={{ margin: '14px 0 0' }}>
                 <span className="tag accent"><Icon name="mic" size={13} /> {station.live.name} ao vivo</span>{' '}
-                <button type="button" className="ghost small" onClick={kick} disabled={busy}>Voltar ao AutoDJ</button>
+                {can('control') && <button type="button" className="ghost small" onClick={kick} disabled={busy}>Voltar ao AutoDJ</button>}
               </p>
             )}
           </PCard>
@@ -322,7 +322,7 @@ export default function Dashboard() {
             footer={
               <>
                 <Link to="djs" className="button ghost small"><Icon name="mic" size={14} /> Gerenciar</Link>
-                {station.live && <button type="button" className="ghost small" onClick={kick} disabled={busy}>Voltar ao AutoDJ</button>}
+                {station.live && can('control') && <button type="button" className="ghost small" onClick={kick} disabled={busy}>Voltar ao AutoDJ</button>}
               </>
             }
           >
@@ -338,8 +338,8 @@ export default function Dashboard() {
             footer={
               <>
                 <button type="button" className="ghost small" onClick={() => setShowCreds((v) => !v)}>{showCreds ? 'Ocultar credenciais' : 'Mostrar credenciais'}</button>
-                <button type="button" className="ghost small" disabled={busy || !station.running} onClick={() => action('restart')}><Icon name="refresh" size={14} /> Reiniciar</button>
-                <button type="button" className="ghost small danger-text" disabled={busy || !station.running} onClick={() => action('stop')}><Icon name="stop" size={14} /> Parar</button>
+                {can('control') && <button type="button" className="ghost small" disabled={busy || !station.running} onClick={() => action('restart')}><Icon name="refresh" size={14} /> Reiniciar</button>}
+                {can('control') && <button type="button" className="ghost small danger-text" disabled={busy || !station.running} onClick={() => action('stop')}><Icon name="stop" size={14} /> Parar</button>}
               </>
             }
           >

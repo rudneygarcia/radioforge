@@ -62,13 +62,95 @@ export function requireAdmin(req: FastifyRequest) {
   if (req.user.role !== 'admin') throw new HttpError(403, 'Apenas administradores');
 }
 
-/** Carrega a estação e garante que o usuário (admin ou membro) pode acessá-la. */
+/**
+ * Permissões do operador, marcadas pelo administrador no cadastro do usuário. O administrador tem todas.
+ * `padrao`: vale para operadores antigos (sem permissões salvas), que já podiam isso antes deste recurso.
+ */
+export const PERMISSIONS = [
+  { key: 'control', label: 'Controlar a rádio', hint: 'Ligar, desligar, reiniciar, derrubar o ao vivo e tocar a hora certa agora', padrao: true },
+  { key: 'media', label: 'Biblioteca', hint: 'Enviar, editar, mover e excluir músicas e pastas', padrao: true },
+  { key: 'playlists', label: 'Playlists', hint: 'Criar, editar e excluir playlists e agendamentos', padrao: true },
+  { key: 'ads', label: 'Comerciais', hint: 'Ver e gerenciar os blocos de comerciais', padrao: true },
+  { key: 'djs', label: 'DJs e gravações', hint: 'Cadastrar DJs, ver e apagar gravações do ao vivo', padrao: true },
+  { key: 'reports', label: 'Relatórios', hint: 'Ver os relatórios de ouvintes e de execução', padrao: true },
+  { key: 'requests', label: 'Cancelar pedidos', hint: 'Cancelar pedidos de música dos ouvintes', padrao: false },
+  { key: 'edit_station', label: 'Editar a estação e configurações', hint: 'Nome, portas, streams, AutoDJ, capa e demais configurações', padrao: false },
+  { key: 'advanced', label: 'Ajustes avançados', hint: 'Hora certa (áudios), presets do Stereo Tool e log do Liquidsoap', padrao: false },
+] as const;
+export type Permission = (typeof PERMISSIONS)[number]['key'];
+
+/** Permissões de um usuário: administrador = todas; operador sem lista salva = as que já tinha antes. */
+export function userPermissions(userId: number, role: string): Permission[] {
+  if (role === 'admin') return PERMISSIONS.map((p) => p.key);
+  const row = get<{ permissions: string | null }>('SELECT permissions FROM users WHERE id = ?', userId);
+  if (row?.permissions) {
+    try {
+      const list = JSON.parse(row.permissions) as string[];
+      return PERMISSIONS.filter((p) => list.includes(p.key)).map((p) => p.key);
+    } catch {
+      /* lista corrompida: cai no padrão */
+    }
+  }
+  return PERMISSIONS.filter((p) => p.padrao).map((p) => p.key);
+}
+
+export function requirePerm(req: FastifyRequest, perm: Permission) {
+  if (req.user.role === 'admin') return;
+  if (!userPermissions(req.user.id, req.user.role).includes(perm)) throw new HttpError(403, 'Você não tem permissão para esta ação');
+}
+
+/** Qual permissão cada rota da estação exige (leitura de biblioteca, playlists e pedidos fica aberta aos operadores da estação). */
+function neededPermission(method: string, route: string): Permission | null {
+  const prefix = '/api/stations/:id';
+  if (!route.startsWith(prefix)) return null;
+  const seg = route.slice(prefix.length).split('/')[1] ?? '';
+  const write = method !== 'GET' && method !== 'HEAD';
+  switch (seg) {
+    case '':
+      return method === 'PUT' ? 'edit_station' : null; // criar e excluir estação continuam só com o administrador
+    case 'cover':
+      return 'edit_station';
+    case 'start':
+    case 'stop':
+    case 'restart':
+    case 'live':
+      return 'control';
+    case 'time-announce':
+      return write ? 'control' : null;
+    case 'media':
+    case 'folders':
+      return write ? 'media' : null;
+    case 'playlists':
+      return write ? 'playlists' : null;
+    case 'djs':
+    case 'recordings':
+      return 'djs';
+    case 'ad-blocks':
+    case 'ad-plays':
+      return 'ads';
+    case 'reports':
+      return 'reports';
+    case 'requests':
+      return write ? 'requests' : null;
+    case 'time-clips':
+    case 'stereotool':
+      return write ? 'advanced' : null;
+    case 'engine-log':
+      return 'advanced';
+    default:
+      return null;
+  }
+}
+
+/** Carrega a estação e garante que o usuário (admin ou membro) pode acessá-la e fazer o que a rota pede. */
 export function stationFor(req: FastifyRequest, stationId: number): StationRow {
   const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', stationId);
   if (!st) throw new HttpError(404, 'Estação não encontrada');
   if (req.user.role !== 'admin') {
     const member = get('SELECT 1 AS ok FROM station_members WHERE station_id = ? AND user_id = ?', st.id, req.user.id);
     if (!member) throw new HttpError(403, 'Sem acesso a esta estação');
+    const need = neededPermission(req.method, req.routeOptions?.url ?? '');
+    if (need) requirePerm(req, need);
   }
   return st;
 }

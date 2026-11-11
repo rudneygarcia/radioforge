@@ -213,6 +213,8 @@ button.small { gap: 5px; }
 .check-line { display: flex; align-items: flex-start; gap: 10px; color: var(--text); cursor: pointer; }
 .check-line small { display: block; color: var(--muted); font-size: 12.5px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.perm-list { display: grid; gap: 10px; margin-top: 6px; }
+.perm-item { padding: 8px 10px; border: 1px solid var(--border, rgba(127,127,127,.25)); border-radius: 10px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 99px; font-size: 13px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); cursor: pointer; user-select: none; }
 .chip:has(input:checked) { background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
 .chip input { display: none; }

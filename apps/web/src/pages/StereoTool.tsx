@@ -13,6 +13,8 @@ interface Lib {
 export default function StereoTool({
   stationId,
   isAdmin,
+  canPresets,
+  isSystem,
   enabled,
   preset,
   onEnabled,
@@ -20,6 +22,8 @@ export default function StereoTool({
 }: {
   stationId: number;
   isAdmin: boolean;
+  canPresets: boolean;
+  isSystem: boolean;
   enabled: boolean;
   preset: string;
   onEnabled: (v: boolean) => void;
@@ -192,7 +196,7 @@ export default function StereoTool({
         <p className="muted small-text" style={{ margin: '4px 0 8px' }}>
           {lib === null ? 'Verificando…' : lib.present ? `Enviada: ${lib.name || 'biblioteca'} (${(lib.size / 1024 / 1024).toFixed(1)} MB).` : 'Ainda não enviada.'}
         </p>
-        {isAdmin && (
+        {isSystem && (
           <div className="row" style={{ margin: 0 }}>
             <label className="button ghost small">
               {busy ? 'Enviando…' : lib?.present ? 'Trocar biblioteca' : 'Enviar o ZIP do plugin (inteiro)'}
@@ -206,9 +210,9 @@ export default function StereoTool({
         <label className="field" style={{ marginTop: 12 }}>
           <span>Chave de licença {keySet && <em className="hint">(já salva)</em>}</span>
           <div className="row" style={{ margin: 0 }}>
-            <input type="password" autoComplete="off" value={key} placeholder={keySet ? '•••••••• (digite para trocar)' : 'Cole a chave da sua licença'} onChange={(e) => setKey(e.target.value)} disabled={!isAdmin} style={{ flex: 1, minWidth: 180 }} />
-            {isAdmin && <button type="button" className="small" disabled={busy || !key.trim()} onClick={() => saveKey(key)}>Salvar chave</button>}
-            {isAdmin && keySet && <button type="button" className="ghost small" onClick={() => saveKey('')}>Remover</button>}
+            <input type="password" autoComplete="off" value={key} placeholder={keySet ? '•••••••• (digite para trocar)' : 'Cole a chave da sua licença'} onChange={(e) => setKey(e.target.value)} disabled={!isSystem} style={{ flex: 1, minWidth: 180 }} />
+            {isSystem && <button type="button" className="small" disabled={busy || !key.trim()} onClick={() => saveKey(key)}>Salvar chave</button>}
+            {isSystem && keySet && <button type="button" className="ghost small" onClick={() => saveKey('')}>Remover</button>}
           </div>
           <small className="hint">Uma só chave para o servidor inteiro (vale para todas as estações); fica só no servidor e nunca é exibida de volta. Sem licença válida o Stereo Tool roda limitado. Vale ao reiniciar as estações.</small>
         </label>
@@ -228,10 +232,10 @@ export default function StereoTool({
               <input type="radio" name="stereo-preset" checked={preset === p} disabled={!isAdmin} onChange={() => onPreset(p)} />
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{p}</span>
             </label>
-            {isAdmin && <button type="button" className="icon-btn" title="Excluir preset" onClick={() => removePreset(p)}><Icon name="trash" /></button>}
+            {canPresets && <button type="button" className="icon-btn" title="Excluir preset" onClick={() => removePreset(p)}><Icon name="trash" /></button>}
           </div>
         ))}
-        {isAdmin && (
+        {canPresets && (
           <div className="row" style={{ margin: '10px 0 0' }}>
             <label className="button ghost small">
               {busy ? 'Enviando…' : 'Enviar preset (.sts)'}
