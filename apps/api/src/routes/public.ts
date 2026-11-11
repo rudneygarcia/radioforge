@@ -60,8 +60,9 @@ function proxyStream(req: FastifyRequest, reply: FastifyReply, st: StationRow, m
     },
     (up) => {
       if (up.statusCode !== 200) {
+        // Mount sem fonte (ex.: estação sem AutoDJ e sem DJ ao vivo): é "offline" (503), não erro de servidor; os players tentam de novo.
         up.resume();
-        return fail(502);
+        return fail(503);
       }
       // icy-metaint diz de quantos em quantos bytes vem o bloco de metadados; os bytes passam sem alteração.
       const icy: Record<string, string> = {};
@@ -131,7 +132,12 @@ export async function publicRoutes(app: FastifyInstance) {
     // aceita o mesmo nome sem a extensão e, por fim, entrega o stream principal em vez de dar erro.
     const mounts = [st.mount, ...mountsFor(st.id).map((m) => m.mount)];
     const bare = (s: string) => s.replace(/^\//, '').replace(/\.[a-z0-9]{2,4}$/i, '').toLowerCase();
-    const mount = mounts.find((m) => m === '/' + name) ?? mounts.find((m) => bare(m) === bare(name)) ?? st.mount;
+    // Só nomes de áudio (ou sem extensão) caem no stream principal. Páginas de estatística (status-json.xsl, 7.html...) NÃO podem abrir o áudio:
+    // cada uma viraria um "ouvinte" fantasma.
+    const ext = /\.([a-z0-9]{2,5})$/i.exec(name)?.[1]?.toLowerCase();
+    const audioLike = !ext || ['mp3', 'aac', 'ogg', 'opus', 'm4a', 'mp4'].includes(ext);
+    const exact = mounts.find((m) => m === '/' + name);
+    const mount = exact ?? (audioLike ? (mounts.find((m) => bare(m) === bare(name)) ?? st.mount) : undefined);
     return proxyStream(req, reply, st, mount);
   };
   app.get('/listen/:slug/:name', friendlyStream);

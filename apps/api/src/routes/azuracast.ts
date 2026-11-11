@@ -146,6 +146,35 @@ export async function azuraCompatRoutes(app: FastifyInstance) {
 
   app.get('/api/station/:station', async (req) => station(findStation(key.parse(req.params).station)));
 
+  // Estatísticas no formato do Icecast (/listen/<estação>/status-json.xsl?mount=/stream): sites e players antigos consultam isso para
+  // mostrar a música e o número de ouvintes. Respondemos aqui em vez de abrir o áudio.
+  app.get('/listen/:station/status-json.xsl', async (req) => {
+    const st = findStation(key.parse(req.params).station);
+    const { mount } = z.object({ mount: z.string().max(120).optional() }).parse(req.query);
+    const np = nowPlayingView(st, getNowPlaying(st.id));
+    const listeners = await getListeners(st);
+    const live = !!getLive(st.id);
+    const online = isRunning(st.id) && (!!st.autodj || live);
+    const streams = streamsOf(st).filter((s) => !mount || s.mount === mount);
+    const sources = online
+      ? streams.map((s, i) => ({
+          audio_info: `bitrate=${s.bitrate}`,
+          genre: '',
+          listener_peak: listeners,
+          listeners: i === 0 ? listeners : 0,
+          listenurl: s.proxyUrl,
+          server_description: st.description,
+          server_name: st.name,
+          server_type: s.format === 'ogg' ? 'application/ogg' : s.format === 'aac' ? 'audio/aacp' : 'audio/mpeg',
+          server_url: '',
+          stream_start: '',
+          title: np ? (np.artist ? `${np.artist} - ${np.title}` : np.title) : '',
+          dummy: null,
+        }))
+      : [];
+    return { icestats: { admin: 'icemaster@localhost', host: new URL(origin()).hostname, location: 'Earth', server_id: 'Icecast 2.4.4', server_start: '', ...(sources.length === 0 ? {} : sources.length === 1 ? { source: sources[0] } : { source: sources }) } };
+  });
+
   // Página pública do AzuraCast (/public/<estação>) -> player desta rádio.
   app.get('/public/:station', async (req, reply) => {
     const st = findStation(key.parse(req.params).station);
