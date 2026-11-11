@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authenticate, HttpError, requireAdmin } from '../auth.js';
-import { acmeTokens, issueTls, saveTlsSettings, tlsInfo } from '../engine/tls.js';
+import { acmeTokens, importFromTraefik, installPem, issueTls, saveTlsSettings, tlsInfo } from '../engine/tls.js';
 
 const host = z.string().min(3).max(253).regex(/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/i, 'Domínio inválido');
 
@@ -28,6 +28,31 @@ export async function tlsRoutes(app: FastifyInstance) {
     requireAdmin(req);
     const b = z.object({ hosts: z.array(host).max(5), email: z.union([z.string().email(), z.literal('')]).default('') }).parse(req.body);
     saveTlsSettings(b.hosts.map((h) => h.toLowerCase()), b.email);
+    return tlsInfo();
+  });
+
+  // Usa um certificado que você já tem (ex.: o do Traefik do Velix): cole o certificado completo e a chave privada, em PEM.
+  app.post('/api/system/tls/pem', async (req) => {
+    requireAdmin(req);
+    const b = z.object({ cert: z.string().min(50).max(60000), key: z.string().min(50).max(20000) }).parse(req.body);
+    try {
+      installPem(b.cert, b.key, 'manual');
+    } catch (e) {
+      throw new HttpError(400, (e as Error).message);
+    }
+    return tlsInfo();
+  });
+
+  // Lê o certificado direto do acme.json do Traefik (variável TRAEFIK_ACME_JSON apontando para o arquivo montado no contêiner).
+  app.post('/api/system/tls/traefik', async (req) => {
+    requireAdmin(req);
+    const file = process.env.TRAEFIK_ACME_JSON;
+    if (!file) throw new HttpError(400, 'Defina a variável TRAEFIK_ACME_JSON com o caminho do acme.json do Traefik (montado neste contêiner).');
+    try {
+      if (!importFromTraefik(file)) throw new Error('Nenhum certificado do acme.json cobre o domínio informado.');
+    } catch (e) {
+      throw new HttpError(400, `Não foi possível ler o acme.json: ${(e as Error).message}`);
+    }
     return tlsInfo();
   });
 

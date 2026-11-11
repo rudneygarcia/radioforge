@@ -12,6 +12,8 @@ interface Info {
   lastError: string;
   lastOkAt: string;
   busy: boolean;
+  source: string;
+  traefikFile: string;
 }
 
 /** HTTPS nas portas das rádios (https://dominio:8070/stream): certificado Let's Encrypt emitido e renovado pelo painel. Só administrador. */
@@ -22,6 +24,7 @@ export default function TlsCard() {
   const [hosts, setHosts] = useState('');
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pem, setPem] = useState({ cert: '', key: '' });
 
   const load = () =>
     api<Info>('/api/system/tls').then((i) => {
@@ -46,6 +49,33 @@ export default function TlsCard() {
     } catch (e) {
       toast((e as Error).message, 'error');
       load().catch(() => {});
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function usePem() {
+    setBusy(true);
+    try {
+      const list = hosts.split(/[\s,;]+/).map((h) => h.trim().toLowerCase()).filter(Boolean);
+      await api('/api/system/tls', { method: 'PUT', body: { hosts: list, email } });
+      setInfo(await api<Info>('/api/system/tls/pem', { method: 'POST', body: pem }));
+      setPem({ cert: '', key: '' });
+      toast('Certificado em uso: as portas das rádios já aceitam HTTPS');
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function useTraefik() {
+    setBusy(true);
+    try {
+      setInfo(await api<Info>('/api/system/tls/traefik', { method: 'POST' }));
+      toast('Certificado do Traefik em uso');
+    } catch (e) {
+      toast((e as Error).message, 'error');
     } finally {
       setBusy(false);
     }
@@ -76,6 +106,17 @@ export default function TlsCard() {
           {info.notAfter && <span className="muted small-text">Válido até {new Date(info.notAfter).toLocaleDateString()} · renova sozinho 30 dias antes</span>}
         </div>
         {info.lastError && <p className="error">Última tentativa: {info.lastError}</p>}
+        {info.issued && <p className="muted small-text" style={{ margin: 0 }}>Origem do certificado: {info.source === 'traefik' ? 'Traefik (acme.json)' : info.source === 'manual' ? 'colado manualmente' : 'Let’s Encrypt (emitido pelo painel)'}</p>}
+        <details>
+          <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Já tenho o certificado (Traefik do Velix ou outro)</summary>
+          <div className="fields" style={{ marginTop: 10 }}>
+            <p className="muted small-text" style={{ margin: 0 }}>O Traefik guarda os certificados no arquivo <code>acme.json</code> do servidor, que este painel não enxerga sozinho. Duas formas de reaproveitar o certificado que ele já emitiu: (1) se o Velix permitir montar o <code>acme.json</code> neste contêiner, defina a variável <code>TRAEFIK_ACME_JSON</code> com o caminho dele (ex.: <code>/traefik/acme.json</code>) e use o botão abaixo; ou (2) cole aqui o certificado completo e a chave privada em PEM.</p>
+            {info.traefikFile && <div className="row" style={{ margin: 0 }}><button type="button" className="ghost" onClick={useTraefik} disabled={busy || !hosts.trim()}>Ler do acme.json do Traefik</button><small className="hint">{info.traefikFile}</small></div>}
+            <label className="field"><span>Certificado completo (PEM)</span><textarea rows={4} value={pem.cert} onChange={(e) => setPem({ ...pem, cert: e.target.value })} placeholder="-----BEGIN CERTIFICATE-----" style={{ fontFamily: 'ui-monospace, Menlo, Consolas, monospace', fontSize: 12 }} /></label>
+            <label className="field"><span>Chave privada (PEM)</span><textarea rows={4} value={pem.key} onChange={(e) => setPem({ ...pem, key: e.target.value })} placeholder="-----BEGIN PRIVATE KEY-----" style={{ fontFamily: 'ui-monospace, Menlo, Consolas, monospace', fontSize: 12 }} autoComplete="off" /></label>
+            <div className="row" style={{ margin: 0 }}><button type="button" onClick={usePem} disabled={busy || !hosts.trim() || !pem.cert.trim() || !pem.key.trim()}>Usar este certificado</button><small className="hint">A chave fica só no servidor. Quando faltarem 3 dias para vencer, o painel avisa aqui.</small></div>
+          </div>
+        </details>
       </div>
     </div>
   );

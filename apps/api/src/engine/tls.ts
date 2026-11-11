@@ -30,6 +30,10 @@ export interface TlsInfo {
   lastError: string;
   lastOkAt: string;
   busy: boolean;
+  /** De onde veio o certificado em uso: 'lets-encrypt' (emitido pelo painel), 'manual' (colado) ou 'traefik' (lido do acme.json do Traefik). */
+  source: string;
+  /** Caminho do acme.json do Traefik, se configurado (TRAEFIK_ACME_JSON). */
+  traefikFile: string;
 }
 
 let busy = false;
@@ -69,7 +73,54 @@ export function tlsInfo(): TlsInfo {
     lastError: setting('tls_last_error'),
     lastOkAt: setting('tls_last_ok'),
     busy,
+    source: setting('tls_source'),
+    traefikFile: process.env.TRAEFIK_ACME_JSON ?? '',
   };
+}
+
+/** Valida e instala um certificado (PEM): a chave tem que combinar e o domínio configurado tem que estar coberto. */
+export function installPem(certPem: string, keyPem: string, source: 'manual' | 'traefik') {
+  const cert = certPem.trim() + '\n';
+  const key = keyPem.trim() + '\n';
+  let x: crypto.X509Certificate;
+  try {
+    x = new crypto.X509Certificate(cert);
+  } catch {
+    throw new Error('O certificado (PEM) é inválido. Cole o certificado completo, começando com -----BEGIN CERTIFICATE-----.');
+  }
+  let k: crypto.KeyObject;
+  try {
+    k = crypto.createPrivateKey(key);
+  } catch {
+    throw new Error('A chave privada (PEM) é inválida.');
+  }
+  if (!x.checkPrivateKey(k)) throw new Error('A chave privada não combina com este certificado.');
+  if (new Date(x.validTo).getTime() < Date.now()) throw new Error('Este certificado já venceu.');
+  const hosts = tlsSettings().hosts;
+  if (hosts.length > 0 && !hosts.some((h) => x.checkHost(h))) throw new Error('Este certificado não cobre o(s) domínio(s) informado(s): ' + hosts.join(', ') + '.');
+  fs.mkdirSync(dir(), { recursive: true });
+  fs.writeFileSync(file('key.pem'), key, { mode: 0o600 });
+  fs.writeFileSync(file('cert.pem'), cert);
+  save('tls_source', source);
+  save('tls_last_error', '');
+  save('tls_last_ok', new Date().toISOString());
+  loadTls();
+}
+
+/** Lê o certificado do domínio direto do acme.json do Traefik (o Velix emite lá); precisa de o arquivo estar montado neste contêiner. */
+export function importFromTraefik(acmeJson: string): boolean {
+  const hosts = tlsSettings().hosts;
+  if (hosts.length === 0) throw new Error('Informe o domínio antes.');
+  const data = JSON.parse(fs.readFileSync(acmeJson, 'utf8')) as Record<string, { Certificates?: { domain?: { main?: string; sans?: string[] }; certificate: string; key: string }[] }>;
+  for (const resolver of Object.values(data)) {
+    for (const c of resolver?.Certificates ?? []) {
+      const names = [c.domain?.main, ...(c.domain?.sans ?? [])].filter(Boolean).map((n) => String(n).toLowerCase());
+      if (!hosts.some((h) => names.includes(h) || names.some((n) => n.startsWith('*.') && h.endsWith(n.slice(1))))) continue;
+      installPem(Buffer.from(c.certificate, 'base64').toString('utf8'), Buffer.from(c.key, 'base64').toString('utf8'), 'traefik');
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Coloca o certificado salvo em uso nas portas das estações. */
@@ -116,6 +167,7 @@ export async function issueTls(): Promise<void> {
     fs.writeFileSync(file('cert.pem'), cert);
     save('tls_last_error', '');
     save('tls_last_ok', new Date().toISOString());
+    save('tls_source', 'lets-encrypt');
     loadTls();
   } catch (e) {
     const msg = (e as Error).message || 'falha ao emitir o certificado';
@@ -132,6 +184,15 @@ export function startTlsRenewal() {
   const check = () => {
     const i = tlsInfo();
     if (i.hosts.length === 0) return;
+    // Se o acme.json do Traefik estiver acessível (TRAEFIK_ACME_JSON), usa o certificado que o Velix já emitiu e mantém atualizado.
+    if (i.traefikFile) {
+      try {
+        if (importFromTraefik(i.traefikFile)) return;
+      } catch (e) {
+        console.error('[tls] acme.json do Traefik:', (e as Error).message);
+      }
+    }
+    if (i.source === 'manual' && i.issued && (i.daysLeft ?? 0) >= 3) return; // certificado colado à mão: não troca sozinho
     if (!i.issued || (i.daysLeft ?? 0) < 30) void issueTls().catch((e) => console.error('[tls] renovação falhou:', (e as Error).message));
   };
   setTimeout(check, 60_000).unref();
