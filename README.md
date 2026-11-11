@@ -225,3 +225,9 @@ Para sites, apps e widgets que já consumiam o AzuraCast continuarem funcionando
 ### Encoders vindos do AzuraCast (DJ ao vivo)
 
 A porta do DJ é a **porta da estação + 5** (como no AzuraCast; ajuste a porta em *Editar estação* para ficar igual à antiga). O painel aceita o mount `/live` **e também `/`** (padrão do AzuraCast), e as senhas no formato `usuário:senha` (senha do encoder) além de usuário + senha normais. Os DJs/streamers precisam ser recriados em **DJs** (as senhas não são importadas). Se o Liquidsoap recusar o mount `/`, a estação sobe só com `/live` e o painel avisa no log.
+
+### Links por porta com HTTP **e** HTTPS (estilo AzuraCast)
+
+Cada rádio atende, na própria porta (ex.: `8070`), tanto `http://dominio:8070/stream` quanto `https://dominio:8070/stream`, além de `https://dominio/listen/<estação>/stream`. O painel abre a porta pública de cada estação (aceita HTTP e HTTPS na mesma porta, identificando pelo primeiro byte) e repassa para o Icecast, que passa a escutar só em `127.0.0.1` (porta interna = porta da estação + 10000, nunca exposta). Pedidos de ouvinte levam o IP real para a contagem; encoders (`SOURCE`/`PUT`) passam sem alteração. Vale para todas as rádios, novas e antigas, com a porta de cada uma.
+
+Para o HTTPS das portas: em **Sistema → HTTPS nas portas das rádios** informe o domínio (ex.: `stm.seudominio.com.br`) e clique em *Salvar e emitir certificado*. O painel pede e renova sozinho o certificado Let's Encrypt (desafio HTTP-01 em `/.well-known/acme-challenge/`, que chega ao painel pela porta 80 do domínio no Velix). Requisitos: o domínio aponta para o IP do servidor, as portas das rádios (8000–8499) estão publicadas no servidor/firewall e, para as portas funcionarem, o registro no Cloudflare fica em "somente DNS" (nuvem cinza), pois o Cloudflare não repassa essas portas. O link `https://dominio/listen/...` continua funcionando com o proxy do Cloudflare ligado ou não.

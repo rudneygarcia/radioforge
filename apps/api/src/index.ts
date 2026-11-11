@@ -20,6 +20,9 @@ import { timeClipRoutes } from './routes/timeclips.js';
 import { stereoToolRoutes } from './routes/stereotool.js';
 import { adRoutes } from './routes/ads.js';
 import { mailRoutes } from './routes/mail.js';
+import { acmeRoutes, tlsRoutes } from './routes/tls.js';
+import { startTlsRenewal } from './engine/tls.js';
+import { setPortFront } from './engine/ports.js';
 import { azuraCompatRoutes } from './routes/azuracast.js';
 import { authRoutes } from './routes/auth.js';
 import { djRoutes } from './routes/djs.js';
@@ -82,6 +85,8 @@ await app.register(timeClipRoutes);
 await app.register(stereoToolRoutes);
 await app.register(adRoutes);
 await app.register(mailRoutes);
+await app.register(acmeRoutes);
+await app.register(tlsRoutes);
 await app.register(azuraCompatRoutes);
 
 app.get('/api/health', async () => ({ ok: true, engine: config.engine.enabled, engineMode: engineMode() }));
@@ -106,6 +111,9 @@ process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
 await app.listen({ port: config.port, host: config.host });
+// Modo Icecast+Liquidsoap: as portas das estações passam a ser atendidas pelo painel (HTTP e HTTPS) e o Icecast fica só em 127.0.0.1.
+setPortFront(engineMode() === 'liquidsoap');
+startTlsRenewal();
 await startAutostart();
 startStatsCollector();
 backfillCovers();

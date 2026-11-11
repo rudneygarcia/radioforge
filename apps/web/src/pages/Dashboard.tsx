@@ -230,7 +230,14 @@ export default function Dashboard() {
                   <code>{s.proxyUrl}</code>
                   <CopyButton text={s.proxyUrl} />
                 </div>
+                {s.secureUrl && (
                 <div className="copy-row" style={{ margin: 0 }}>
+                  <span className="lbl small-text">direto HTTPS</span>
+                  <code className="muted" style={{ fontSize: 12 }}>{s.secureUrl}</code>
+                  <CopyButton text={s.secureUrl} label="" />
+                </div>
+              )}
+              <div className="copy-row" style={{ margin: 0 }}>
                   <span className="lbl small-text">link direto</span>
                   <code className="muted" style={{ fontSize: 12 }}>{s.url}</code>
                   <CopyButton text={s.url} label="" />

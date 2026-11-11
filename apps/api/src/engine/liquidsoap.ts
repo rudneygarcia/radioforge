@@ -1,6 +1,7 @@
 import type { DjRow, MountRow, StationRow } from '../db.js';
 import { config } from '../config.js';
 import { getLicenseKey, presetPath, stereoLibPath } from './stereotool.js';
+import { icePort } from './ports.js';
 
 /** Literal de string seguro para Liquidsoap (JSON é compatível com as escapes dele). */
 const q = (s: string) => JSON.stringify(s);
@@ -283,7 +284,7 @@ export function buildLiquidsoapScript(
     lines.push(
       `output.icecast(${encoder(o.format, o.bitrate)},`,
       ...(o.format === 'aac' ? ['  format = "audio/aac",'] : []),
-      `  host = "127.0.0.1", port = ${st.stream_port}, password = ${q(st.source_password)},`,
+      `  host = "127.0.0.1", port = ${icePort(st)}, password = ${q(st.source_password)},`,
       `  mount = ${q(o.mount)}, name = ${q(st.name)}, description = ${q(st.description)},`,
       `  radio)`,
       ``,

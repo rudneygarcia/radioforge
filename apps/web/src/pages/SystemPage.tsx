@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Icon, PageHeader, useUi } from '../ui';
 import SmtpCard from './SmtpCard';
+import TlsCard from './TlsCard';
 
 interface Info {
   version: string;
@@ -106,6 +107,7 @@ export default function SystemPage() {
           )}
         </div>
       </div>
+      <TlsCard />
       <SmtpCard />
     </>
   );

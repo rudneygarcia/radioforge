@@ -1,5 +1,6 @@
 import { all, type StationRow } from '../db.js';
 import { isRunning } from './manager.js';
+import { icePort } from './ports.js';
 import { getLive, recordTrack, setLive } from './nowplaying.js';
 
 /**
@@ -28,7 +29,7 @@ const decode = (s: string) =>
 async function viaAdminStats(st: StationRow): Promise<IceSource[] | null> {
   try {
     const auth = Buffer.from(`admin:${st.admin_password}`).toString('base64');
-    const r = await fetch(`http://127.0.0.1:${st.stream_port}/admin/stats`, { headers: { Authorization: `Basic ${auth}` }, signal: AbortSignal.timeout(2500) });
+    const r = await fetch(`http://127.0.0.1:${icePort(st)}/admin/stats`, { headers: { Authorization: `Basic ${auth}` }, signal: AbortSignal.timeout(2500) });
     if (!r.ok) return null;
     const xml = await r.text();
     const out: IceSource[] = [];
@@ -44,7 +45,7 @@ async function viaAdminStats(st: StationRow): Promise<IceSource[] | null> {
 
 async function viaStatusJson(st: StationRow): Promise<IceSource[] | null> {
   try {
-    const r = await fetch(`http://127.0.0.1:${st.stream_port}/status-json.xsl`, { signal: AbortSignal.timeout(2500) });
+    const r = await fetch(`http://127.0.0.1:${icePort(st)}/status-json.xsl`, { signal: AbortSignal.timeout(2500) });
     const j = (await r.json()) as { icestats?: { source?: unknown } };
     const s = j.icestats?.source;
     const arr = (Array.isArray(s) ? s : s ? [s] : []) as { listenurl?: string; title?: string; artist?: string }[];

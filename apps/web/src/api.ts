@@ -70,6 +70,8 @@ export interface MountCfg {
 export interface StreamInfo extends MountCfg {
   url: string;
   proxyUrl: string;
+  /** Link direto por HTTPS na porta da estação (quando o certificado existe). */
+  secureUrl?: string | null;
 }
 export interface Station {
   id: number;

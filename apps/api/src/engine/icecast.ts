@@ -1,4 +1,5 @@
 import type { StationRow } from '../db.js';
+import { icePort, portFrontOn } from './ports.js';
 
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -25,8 +26,8 @@ export function buildIcecastConfig(st: StationRow, logDir: string): string {
   <hostname>localhost</hostname>
   <x-forwarded-for>127.0.0.1</x-forwarded-for>
   <listen-socket>
-    <port>${st.stream_port}</port>
-    <bind-address>0.0.0.0</bind-address>
+    <port>${icePort(st)}</port>
+    <bind-address>${portFrontOn() ? '127.0.0.1' : '0.0.0.0'}</bind-address>
   </listen-socket>
   <http-headers>
     <header name="Access-Control-Allow-Origin" value="*" />

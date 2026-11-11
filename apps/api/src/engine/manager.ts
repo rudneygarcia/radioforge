@@ -13,6 +13,8 @@ import { buildLiquidsoapScript, telnetPort, type LiqPlaylist } from './liquidsoa
 import { isHiddenTrack } from './hide.js';
 import { getLicenseKey, libraryInfo, listPresets } from './stereotool.js';
 import { lastNextCall } from './dynstate.js';
+import { icePort, setPortFront } from './ports.js';
+import { startFront, stopFront } from './portfront.js';
 
 /** Mantém um processo vivo, reiniciando com backoff se cair. */
 class Supervised {
@@ -215,6 +217,10 @@ export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn
     const ice = new Supervised(`icecast:${st.slug}`, config.engine.icecastBin, ['-c', path.join(base, 'config', 'icecast.xml')], path.join(base, 'logs', 'icecast.out.log'), { TZ: st.timezone || process.env.TZ || 'America/Sao_Paulo' });
     procs.set(st.id, { icecast: ice, liquidsoap: null });
     ice.start();
+    await startFront(st).catch(async (e) => {
+      await stopStation(st.id);
+      throw startError(`Não foi possível abrir a porta ${st.stream_port}: ${(e as Error).message}`);
+    });
     await new Promise((r) => setTimeout(r, 2500));
     if (!procs.get(st.id)?.icecast.running) {
       await stopStation(st.id);
@@ -322,6 +328,11 @@ export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn
   );
   procs.set(st.id, { icecast, liquidsoap });
   icecast.start();
+  // Porta pública da estação (HTTP e HTTPS) atendida pelo painel; o Icecast fica só em 127.0.0.1.
+  await startFront(st).catch(async (e) => {
+    await stopStation(st.id);
+    throw startError(`Não foi possível abrir a porta ${st.stream_port}: ${(e as Error).message}`);
+  });
   // Dá um instante para o Icecast abrir a porta antes do Liquidsoap conectar.
   setTimeout(() => procs.get(st.id)?.liquidsoap?.start(), 1500);
 
@@ -384,6 +395,7 @@ export async function stopStation(stationId: number) {
     return;
   }
   clearLive(stationId);
+  stopFront(stationId);
   const p = procs.get(stationId);
   if (!p) return;
   procs.delete(stationId);
@@ -431,7 +443,7 @@ export async function kickLive(st: StationRow): Promise<void> {
   if (!st.autodj) {
     // Sem AutoDJ o encoder está direto no Icecast: derruba pela API de administração dele.
     const auth = Buffer.from(`admin:${st.admin_password}`).toString('base64');
-    const r = await fetch(`http://127.0.0.1:${st.stream_port}/admin/killsource?mount=${encodeURIComponent(st.mount)}`, { headers: { Authorization: `Basic ${auth}` }, signal: AbortSignal.timeout(4000) });
+    const r = await fetch(`http://127.0.0.1:${icePort(st)}/admin/killsource?mount=${encodeURIComponent(st.mount)}`, { headers: { Authorization: `Basic ${auth}` }, signal: AbortSignal.timeout(4000) });
     if (!r.ok) throw new Error(`Icecast respondeu ${r.status}`);
     return;
   }

@@ -14,6 +14,7 @@ import { PROXY_MARK, registerProxyConn } from '../engine/listeners.js';
 import { coverFile, coverMime, historyView, nowPlayingView, stationCoverPath, stationCoverUrl } from '../engine/covers.js';
 import { getHistory, getListeners, getLive, getNowPlaying, recordTrack, setLive } from '../engine/nowplaying.js';
 import { streamsOf, streamUrl } from './stations.js';
+import { icePort } from '../engine/ports.js';
 
 const slugParam = z.object({ slug: z.string() });
 
@@ -46,7 +47,7 @@ function proxyStream(req: FastifyRequest, reply: FastifyReply, st: StationRow, m
   const upstream = http.get(
     {
       host: '127.0.0.1',
-      port: st.stream_port,
+      port: icePort(st),
       path: mount,
       // O Icecast (e o motor simples) confiam neste cabeçalho, vindo de 127.0.0.1, para registrar o IP real do ouvinte.
       headers: {

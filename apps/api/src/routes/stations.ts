@@ -6,6 +6,8 @@ import { authenticate, HttpError, requireAdmin, stationFor } from '../auth.js';
 import { config, stationDir } from '../config.js';
 import { all, db, get, mountsFor, run, type StationRow } from '../db.js';
 import { historyView, nowPlayingView, removeStationCover, saveStationCover, sniffImage, stationCoverUrl } from '../engine/covers.js';
+import { tlsReady } from '../engine/portfront.js';
+import { tlsSettings } from '../engine/tls.js';
 import { announceNow, isValidTimezone, localTime, resolveClip } from '../engine/announce.js';
 import { audioWarningFor, engineLogTail, telnetRun, kickLive, engineMode, ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
 import { harborPort } from '../engine/liquidsoap.js';
@@ -146,10 +148,16 @@ export function proxyUrl(st: StationRow, mount = st.mount) {
 }
 
 /** Todos os streams da estação (principal primeiro). */
+/** Link direto por HTTPS na porta da estação (só quando o certificado já foi emitido). */
+function secureUrl(st: StationRow, mount: string): string | null {
+  const host = tlsSettings().hosts[0];
+  return host && tlsReady() ? `https://${host}:${st.stream_port}${mount}` : null;
+}
+
 export function streamsOf(st: StationRow) {
   return [
-    { mount: st.mount, url: streamUrl(st), proxyUrl: proxyUrl(st), format: st.format, bitrate: st.bitrate },
-    ...mountsFor(st.id).map((m) => ({ mount: m.mount, url: streamUrl(st, m.mount), proxyUrl: proxyUrl(st, m.mount), format: m.format, bitrate: m.bitrate })),
+    { mount: st.mount, url: streamUrl(st), secureUrl: secureUrl(st, st.mount), proxyUrl: proxyUrl(st), format: st.format, bitrate: st.bitrate },
+    ...mountsFor(st.id).map((m) => ({ mount: m.mount, url: streamUrl(st, m.mount), secureUrl: secureUrl(st, m.mount), proxyUrl: proxyUrl(st, m.mount), format: m.format, bitrate: m.bitrate })),
   ];
 }
 

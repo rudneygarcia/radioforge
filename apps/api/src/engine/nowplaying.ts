@@ -1,5 +1,6 @@
 import { all, get, run, type StationRow } from '../db.js';
 import { icecastError, liveListeners } from './listeners.js';
+import { icePort } from './ports.js';
 import { dispatch } from './webhooks.js';
 
 export interface NowPlaying {
@@ -87,7 +88,7 @@ export async function getListeners(st: StationRow): Promise<number> {
   if (hit && Date.now() - hit.at < 5000) return Math.max(hit.value, proxied);
   let value = 0;
   try {
-    const res = await fetch(`http://127.0.0.1:${st.stream_port}/status-json.xsl`, {
+    const res = await fetch(`http://127.0.0.1:${icePort(st)}/status-json.xsl`, {
       signal: AbortSignal.timeout(1500),
     });
     const json = (await res.json()) as { icestats?: { source?: unknown } };

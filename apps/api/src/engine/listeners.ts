@@ -1,5 +1,6 @@
 import type { StationRow } from '../db.js';
 import { mountsFor } from '../db.js';
+import { icePort } from './ports.js';
 import { classifyDevice, classifyPlayer, locateIp } from './sessions.js';
 
 // O motor simples (native.ts) registra aqui como listar seus clientes (evita importação circular).
@@ -40,7 +41,7 @@ function build(id: string, ip: string, userAgent: string, seconds: number, mount
 /** Lê os ouvintes conectados de um mountpoint no Icecast (admin/listclients). */
 async function listMount(st: StationRow, mount: string): Promise<LiveListener[]> {
   const auth = Buffer.from(`admin:${st.admin_password}`).toString('base64');
-  const res = await fetch(`http://127.0.0.1:${st.stream_port}/admin/listclients?mount=${encodeURIComponent(mount)}`, {
+  const res = await fetch(`http://127.0.0.1:${icePort(st)}/admin/listclients?mount=${encodeURIComponent(mount)}`, {
     headers: { Authorization: `Basic ${auth}` },
     signal: AbortSignal.timeout(2000),
   });
