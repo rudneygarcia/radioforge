@@ -120,6 +120,24 @@ export function jingleUri(st: StationRow, abs: string, duration = 0) {
   return `annotate:rf_jingle="1",${cue}liq_fade_in="0.10",liq_fade_out="0.10",title="${label}",artist="",album="":${abs}`;
 }
 
+/**
+ * Música normal: título e artista vêm da biblioteca (o que o painel mostra e o administrador pode corrigir), não das tags do
+ * arquivo. Assim o Icecast e os players nunca exibem o nome interno do arquivo (um código aleatório) quando a tag está vazia.
+ */
+export function songUri(abs: string, title: string, artist: string) {
+  // Aspas, barra invertida, quebras de linha e vírgula quebrariam o annotate: viram espaço.
+  const clean = (v: string) => v.split('"').join(' ').split('\\').join(' ').split(',').join(' ').split(/[\r\n\s]+/).filter(Boolean).join(' ');
+  const t = clean(title);
+  if (!t) return abs;
+  return `annotate:title="${t}",artist="${clean(artist)}":${abs}`;
+}
+
+/** Mesma coisa para um arquivo da biblioteca identificado só pelo caminho (pedidos e horários). */
+function songUriFor(abs: string) {
+  const m = get<{ title: string; artist: string }>('SELECT title, artist FROM media WHERE path = ?', path.relative(config.dataDir, abs));
+  return m ? songUri(abs, m.title, m.artist) : abs;
+}
+
 /** Faixa oculta: toca normalmente, mas sem título/artista (nada é enviado ao servidor nem ao Icecast, nem o nome da estação). */
 export function hiddenUri(abs: string) {
   return `annotate:rf_jingle="1",rf_hide="1",title="",artist="",album="":${abs}`;
@@ -143,7 +161,7 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
     const uri = (m: MediaRow) => {
       const abs = path.join(config.dataDir, m.path);
       if (st && isHiddenTrack(st, m)) return hiddenUri(abs);
-      return p.is_jingle && st ? jingleUri(st, abs, m.duration) : abs;
+      return p.is_jingle && st ? jingleUri(st, abs, m.duration) : songUri(abs, m.title, m.artist);
     };
     const content = media.map(uri).join('\n') + '\n';
     // Só regrava se mudou: cada gravação faz o Liquidsoap recarregar a playlist.
@@ -530,7 +548,7 @@ export function pushRequest(stationId: number, absPath: string, silent = false, 
     });
     sock.on('error', (e) => done(e));
     // Vinheta pedida pela fila: o annotate mantém o nome fora do servidor.
-    const uri = hide ? hiddenUri(absPath) : silent ? jingleUri(st, absPath, duration) : absPath;
+    const uri = hide ? hiddenUri(absPath) : silent ? jingleUri(st, absPath, duration) : songUriFor(absPath);
     sock.on('connect', () => sock.write(`requests.push ${uri}\nquit\n`));
     sock.on('data', (d) => (reply += d.toString()));
     sock.on('close', () => {

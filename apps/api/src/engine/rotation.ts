@@ -3,7 +3,7 @@ import { config } from '../config.js';
 import { all, get, playlistMedia, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
 import { isHiddenTrack } from './hide.js';
 import { markAsk } from './dynstate.js';
-import { hiddenUri, jingleUri } from './manager.js';
+import { hiddenUri, jingleUri, songUri } from './manager.js';
 
 /**
  * Escolha da próxima música feita pelo painel (o Liquidsoap pergunta por HTTP a cada faixa): assim as regras de
@@ -113,5 +113,5 @@ export function nextUri(st: StationRow, playlistId: number): string | null {
   notePick(st.id, m);
   const abs = path.join(config.dataDir, m.path);
   if (isHiddenTrack(st, m)) return hiddenUri(abs);
-  return p.is_jingle ? jingleUri(st, abs, m.duration) : abs;
+  return p.is_jingle ? jingleUri(st, abs, m.duration) : songUri(abs, m.title, m.artist);
 }

@@ -267,11 +267,15 @@ export async function publicRoutes(app: FastifyInstance) {
       .object({ artist: z.string().default(''), title: z.string().default(''), filename: z.string().default('') })
       .parse(req.body);
     if (!get('SELECT 1 AS ok FROM stations WHERE id = ?', id)) throw new HttpError(404, 'Estação não encontrada');
-    const title = b.title || path.basename(b.filename, path.extname(b.filename)) || 'Desconhecido';
-    // Descobre qual música da biblioteca é (pelo caminho) para a regra de não repetir.
+    // Descobre qual música da biblioteca é (pelo caminho) para a regra de não repetir e para usar o título/artista do painel.
     const rel = b.filename ? path.relative(config.dataDir, b.filename) : '';
-    const media = rel ? get<{ id: number }>('SELECT id FROM media WHERE station_id = ? AND path = ?', id, rel) : undefined;
-    recordTrack(id, b.artist, title, media?.id ?? null);
+    const media = rel ? get<{ id: number; title: string; artist: string }>('SELECT id, title, artist FROM media WHERE station_id = ? AND path = ?', id, rel) : undefined;
+    // O arquivo é guardado com um código aleatório no nome: nunca mostrar isso como título.
+    const base = path.basename(b.filename, path.extname(b.filename));
+    const codeName = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(base);
+    const title = b.title || media?.title || (codeName ? '' : base) || 'Desconhecido';
+    const artist = b.title || !media ? b.artist : media.artist;
+    recordTrack(id, artist, title, media?.id ?? null);
     // A faixa que acabou de tocar sai das playlists por um tempo (o Liquidsoap recarrega o arquivo).
     const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', id);
     // Rotação pela API não precisa regravar as playlists (a regra é aplicada na hora de escolher a próxima faixa).
