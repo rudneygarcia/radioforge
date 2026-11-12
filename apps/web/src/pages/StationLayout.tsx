@@ -22,7 +22,7 @@ const NAV: { to: string; label: string; icon: string; perm?: string[]; autodj?: 
   { to: 'widgets', label: 'Widgets', icon: 'code' },
   { to: 'integrations', label: 'Integrações', icon: 'plug' },
   { to: 'edit', label: 'Editar estação', icon: 'edit', perm: ['edit_station'] },
-  { to: 'autodj', label: 'AutoDJ, ao vivo e pedidos', icon: 'play', perm: ['edit_station'] },
+  { to: 'autodj', label: 'AutoDJ/Pedidos', icon: 'play', perm: ['edit_station'] },
   { to: 'hora-certa', label: 'Hora certa', icon: 'clock', perm: ['edit_station', 'advanced'], autodj: true },
   { to: 'ocultar', label: 'Ocultar nomes', icon: 'mute', perm: ['edit_station'], autodj: true },
   { to: 'settings', label: 'Configurações', icon: 'cog', perm: ['edit_station', 'advanced'] },
