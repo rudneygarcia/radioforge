@@ -347,6 +347,7 @@ export async function stationRoutes(app: FastifyInstance) {
     if (newSecret && newSecret !== st.source_password) run('UPDATE stations SET source_password = ? WHERE id = ?', newSecret, st.id);
     // Porta do stream: muda os links diretos e as portas do DJ ao vivo (+5) e do console (+6); a estação reinicia ao salvar.
     if (b.port !== undefined && b.port !== st.stream_port) {
+      requireAdmin(req); // trocar a porta é decisão do administrador (precisa estar liberada no servidor)
       run('UPDATE stations SET stream_port = ? WHERE id = ?', customPort(b.port, st.id), st.id);
     }
     // Endereço curto: muda os links (player e stream) — quem usa o antigo precisa trocar.
