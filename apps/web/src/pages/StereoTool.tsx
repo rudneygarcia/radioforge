@@ -13,25 +13,18 @@ interface Lib {
 export default function StereoTool({
   stationId,
   isAdmin,
-  canPresets,
   isSystem,
   enabled,
-  preset,
   onEnabled,
-  onPreset,
 }: {
   stationId: number;
   isAdmin: boolean;
-  canPresets: boolean;
   isSystem: boolean;
   enabled: boolean;
-  preset: string;
   onEnabled: (v: boolean) => void;
-  onPreset: (v: string) => void;
 }) {
   const { toast, confirm } = useUi();
   const [lib, setLib] = useState<Lib | null>(null);
-  const [presets, setPresets] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   // Andamento do envio: mostra a barra, o "processando" no servidor e o resultado (ou o erro) na tela.
   const [up, setUp] = useState<{ name: string; pct: number; stage: 'sending' | 'processing' | 'done' | 'error'; msg: string } | null>(null);
@@ -65,7 +58,6 @@ export default function StereoTool({
 
   const load = useCallback(() => {
     api<{ library: Lib; keySet: boolean }>('/api/stereotool').then((r) => { setLib(r.library); setKeySet(r.keySet); }).catch(() => {});
-    api<{ presets: string[] }>(`/api/stations/${stationId}/stereotool/presets`).then((r) => setPresets(r.presets)).catch(() => {});
   }, [stationId]);
   useEffect(load, [load]);
 
@@ -154,13 +146,6 @@ export default function StereoTool({
     load();
   }
 
-  async function removePreset(name: string) {
-    if (!(await confirm({ title: `Excluir o preset “${name}”?`, confirmLabel: 'Excluir', danger: true }))) return;
-    await api(`/api/stations/${stationId}/stereotool/presets/${encodeURIComponent(name)}`, { method: 'DELETE' });
-    if (preset === name) onPreset('');
-    load();
-  }
-
   return (
     <div className="fields">
       <p className="muted" style={{ marginTop: -4 }}>
@@ -223,29 +208,7 @@ export default function StereoTool({
         <span>Usar o Stereo Tool nesta estação<small>Vale ao salvar (a estação reinicia). Se o Liquidsoap não carregar a biblioteca, a rádio sobe com o processador interno e o painel avisa.</small></span>
       </label>
 
-      <div className="card" style={{ padding: 14 }}>
-        <strong>2. Preset desta estação (cada rádio tem o seu som)</strong>
-        {presets.length === 0 && <p className="muted small-text" style={{ margin: '4px 0 8px' }}>Nenhum preset enviado.</p>}
-        {presets.map((p) => (
-          <div key={p} className="req-item" style={{ margin: '8px 0 0' }}>
-            <label className="check-line" style={{ flex: 1, minWidth: 0 }}>
-              <input type="radio" name="stereo-preset" checked={preset === p} disabled={!isAdmin} onChange={() => onPreset(p)} />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{p}</span>
-            </label>
-            {canPresets && <button type="button" className="icon-btn" title="Excluir preset" onClick={() => removePreset(p)}><Icon name="trash" /></button>}
-          </div>
-        ))}
-        {canPresets && (
-          <div className="row" style={{ margin: '10px 0 0' }}>
-            <label className="button ghost small">
-              {busy ? 'Enviando…' : 'Enviar preset (.sts)'}
-              <input type="file" hidden accept=".sts,.ini" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; void send(`/api/stations/${stationId}/stereotool/presets`, f, 'Preset enviado'); }} />
-            </label>
-            {preset && <button type="button" className="ghost small" onClick={() => onPreset('')}>Sem preset</button>}
-          </div>
-        )}
-        <small className="hint" style={{ display: 'block', marginTop: 8 }}>Escolha qual preset usar e salve as configurações.</small>
-      </div>
+      <p className="muted small-text" style={{ margin: 0 }}>O preset (.sts) de cada estação é enviado e escolhido no menu <strong>Stereo Tool</strong> da própria estação.</p>
     </div>
   );
 }

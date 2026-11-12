@@ -371,7 +371,7 @@ function SettingsForm({ view }: { view: View }) {
       </Modal>
 
       <Modal open={open === 'stereo'} title="Stereo Tool" onClose={close} size="lg" footer={<button type="button" onClick={close}>Concluído</button>}>
-        <StereoTool stationId={station.id} isAdmin={can('system')} canPresets={can('system')} isSystem={can('system')} enabled={f.stereoEnabled} preset={f.stereoPreset} onEnabled={(v) => setF({ ...f, stereoEnabled: v })} onPreset={(v) => setF({ ...f, stereoPreset: v })} />
+        <StereoTool stationId={station.id} isAdmin={can('system')} isSystem={can('system')} enabled={f.stereoEnabled} onEnabled={(v) => setF({ ...f, stereoEnabled: v })} />
       </Modal>
 
       {view === 'hora' && (
