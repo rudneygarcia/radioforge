@@ -498,7 +498,7 @@ function SettingsForm({ view }: { view: View }) {
         </div>
       )}
 
-      {isAdmin && view === 'edit' && (
+      {can('system') && view === 'edit' && (
         <div className="card danger-zone">
           <h3>Zona de perigo</h3>
           <p className="muted">Excluir a estação apaga a biblioteca, as playlists e o histórico dela.</p>
