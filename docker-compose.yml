@@ -8,6 +8,7 @@ services:
     ports:
       - "3000:3000"            # painel + API
       - "8000-8499:8000-8499"  # Icecast/DJ/telnet das estações (10 portas por estação)
+      - "2222:2222"  # SFTP da biblioteca de cada estação
     volumes:
       - radioforge-data:/data
 

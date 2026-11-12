@@ -162,6 +162,13 @@ function allowAacFormat() {
 allowAacFormat();
 // Permissões do operador (lista JSON de chaves). NULL = padrão (o que operadores já podiam antes).
 addColumn('users', 'permissions', 'TEXT');
+// Acesso SFTP à biblioteca de cada estação (usuário e senha próprios).
+db.exec(`CREATE TABLE IF NOT EXISTS station_sftp (
+  station_id INTEGER PRIMARY KEY REFERENCES stations(id) ON DELETE CASCADE,
+  username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  password TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1
+)`);
 addColumn('stations', 'history_limit', 'INTEGER NOT NULL DEFAULT 5'); // quantas músicas recentes o player público mostra
 addColumn('stations', 'audio_preset', "TEXT NOT NULL DEFAULT 'off'"); // off | balanced | loud (Liquidsoap)
 // Não repetir a mesma música por N minutos (0 = desligado).

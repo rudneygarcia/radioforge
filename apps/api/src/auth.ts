@@ -119,7 +119,8 @@ function neededPermission(method: string, route: string): Permission | null {
       return write ? 'control' : null;
     case 'media':
     case 'folders':
-      return write ? 'media' : null;
+    case 'sftp':
+      return write || seg === 'sftp' ? 'media' : null;
     case 'playlists':
       return write ? 'playlists' : null;
     case 'djs':

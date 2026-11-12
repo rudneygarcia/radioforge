@@ -39,6 +39,32 @@ export default function MediaPage() {
   const [folderModal, setFolderModal] = useState<{ id?: number; name: string } | null>(null);
   const [moveOpen, setMoveOpen] = useState(false);
   const canEdit = useCan()('media');
+  interface SftpInfo { available: boolean; configured: boolean; enabled: boolean; username: string; password: string; host: string; port: number }
+  const [sftp, setSftp] = useState<SftpInfo | null>(null);
+  const [sftpForm, setSftpForm] = useState({ username: '', password: '' });
+  const [showPass, setShowPass] = useState(false);
+  async function openSftp() {
+    setError('');
+    setShowPass(false);
+    try {
+      const i = await api<SftpInfo>(`${base}/sftp`);
+      setSftp(i);
+      setSftpForm({ username: i.username, password: i.password });
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    }
+  }
+  async function saveSftp(body: Record<string, unknown>, msg: string) {
+    setError('');
+    try {
+      const i = await api<SftpInfo>(`${base}/sftp`, { method: 'PUT', body });
+      setSftp(i);
+      setSftpForm({ username: i.username, password: i.password });
+      toast(msg);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
   const [editMedia, setEditMedia] = useState<{ id: number; title: string; artist: string; album: string; originalName: string } | null>(null);
   const [moveTo, setMoveTo] = useState<string>('none');
   const [error, setError] = useState('');
@@ -290,6 +316,7 @@ export default function MediaPage() {
           <Icon name="search" />
           <input placeholder={typeof view === 'number' ? 'Buscar em toda a biblioteca' : 'Buscar música ou pasta'} value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
+        {canEdit && <button className="ghost" onClick={openSftp}><Icon name="plug" /> SFTP</button>}
         {typeof view !== 'number' && <button onClick={() => { setError(''); setFolderModal({ name: '' }); }}><Icon name="folder" /> Nova pasta</button>}
       </div>
 
@@ -409,6 +436,46 @@ export default function MediaPage() {
           </div>
         </>
       )}
+
+      <Modal
+        open={!!sftp}
+        size="md"
+        title="Enviar músicas por SFTP"
+        onClose={() => setSftp(null)}
+        footer={<button type="button" onClick={() => setSftp(null)}>Fechar</button>}
+      >
+        {sftp && (
+          <div className="fields">
+            <p className="muted small-text" style={{ margin: 0 }}>
+              Use um programa como FileZilla ou WinSCP para enviar, baixar, renomear e apagar as músicas desta rádio. O acesso é só à biblioteca (pastas e músicas): não altera configurações e não para nem reinicia a rádio, então você pode enviar com ela no ar. As músicas enviadas aparecem na Biblioteca e entram nas playlists em alguns segundos.
+            </p>
+            {!sftp.available && <p className="error">O SFTP está desligado neste servidor (SFTP_PORT=0).</p>}
+            <label className="check-line">
+              <input type="checkbox" checked={sftp.enabled} disabled={!sftp.available} onChange={(e) => saveSftp({ enabled: e.target.checked }, e.target.checked ? 'Acesso SFTP ligado' : 'Acesso SFTP desligado')} />
+              <span><strong>Acesso SFTP ligado</strong><small className="hint">{sftp.configured ? 'Desligue para bloquear o envio sem apagar o usuário.' : 'Ao ligar, o usuário e a senha são criados.'}</small></span>
+            </label>
+            {sftp.configured && (
+              <>
+                <div className="field-row">
+                  <label className="field"><span>Servidor</span><input readOnly value={sftp.host} onFocus={(e) => e.target.select()} /></label>
+                  <label className="field"><span>Porta</span><input readOnly value={sftp.port} onFocus={(e) => e.target.select()} /></label>
+                </div>
+                <div className="field-row">
+                  <label className="field"><span>Usuário</span><input value={sftpForm.username} onChange={(e) => setSftpForm({ ...sftpForm, username: e.target.value.toLowerCase() })} maxLength={32} /></label>
+                  <label className="field"><span>Senha</span><input type={showPass ? 'text' : 'password'} value={sftpForm.password} onChange={(e) => setSftpForm({ ...sftpForm, password: e.target.value })} maxLength={64} autoComplete="new-password" /></label>
+                </div>
+                <div className="row" style={{ margin: 0 }}>
+                  <button type="button" className="ghost small" onClick={() => setShowPass((v) => !v)}>{showPass ? 'Ocultar senha' : 'Mostrar senha'}</button>
+                  <button type="button" className="ghost small" onClick={() => saveSftp({ regenerate: true }, 'Nova senha gerada')}>Gerar nova senha</button>
+                  <button type="button" className="small" disabled={sftpForm.username === sftp.username && sftpForm.password === sftp.password} onClick={() => saveSftp({ username: sftpForm.username, password: sftpForm.password }, 'Dados salvos')}>Salvar usuário e senha</button>
+                </div>
+                <small className="hint">Ao conectar, a raiz é a biblioteca: as pastas aparecem como diretórios. Só são aceitos arquivos de áudio (mp3, ogg, opus, flac, wav, m4a, aac). Enviar um arquivo com o mesmo nome substitui o anterior.</small>
+              </>
+            )}
+            {error && <p className="error">{error}</p>}
+          </div>
+        )}
+      </Modal>
 
       <Modal
         open={!!editMedia}
