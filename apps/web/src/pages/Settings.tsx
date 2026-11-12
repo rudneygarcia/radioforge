@@ -414,26 +414,26 @@ function SettingsForm({ view }: { view: View }) {
       {view === 'dj' && (
         <div className="card section">
           <div className="section-title"><h3>AutoDJ, ao vivo e pedidos</h3></div>
-        <div className="fields">
+        <div className="fields form-grid">
           <Toggle checked={f.liveEnabled} onChange={(v) => setF({ ...f, liveEnabled: v })} disabled={!isAdmin} title="Permitir DJ ao vivo" />
-          <label className="field" style={{ maxWidth: 340 }}>
+          <label className="field">
             <span>AutoDJ volta após (segundos sem sinal do encoder)</span>
             <input type="number" min={3} max={60} value={f.liveTimeout} onChange={(e) => setF({ ...f, liveTimeout: Math.max(3, Math.min(60, Number(e.target.value) || 8)) })} disabled={!isAdmin || !f.liveEnabled} />
             <small className="hint">Se o encoder cair (ex.: internet cortou), o AutoDJ assume depois desse tempo. Menor = volta mais rápido, mas uma oscilação curta já derruba o ao vivo. Padrão: 8 s.</small>
           </label>
           <Toggle checked={f.liveContinue} onChange={(v) => setF({ ...f, liveContinue: v })} disabled={!isAdmin || !f.liveEnabled} title="AutoDJ continua a música ao voltar do ao vivo" hint="Durante o DJ, o AutoDJ segue tocando mudo; quando o encoder cai, a música que estiver tocando continua (em vez de começar outra). Enquanto o DJ está no ar, pedidos de ouvintes ficam indisponíveis." />
           <Toggle checked={f.recordLive} onChange={(v) => setF({ ...f, recordLive: v })} disabled={!isAdmin || !f.liveEnabled} title="Gravar as transmissões ao vivo" hint="Salva cada transmissão de DJ para baixar depois." />
-          <label className="field" style={{ maxWidth: 340 }}>
+          <label className="field">
             <span>Não repetir a mesma música por (minutos)</span>
             <input type="number" min={0} max={1440} value={f.noRepeatMinutes} onChange={(e) => setF({ ...f, noRepeatMinutes: Math.max(0, Math.min(1440, Number(e.target.value) || 0)) })} disabled={!isAdmin} />
             <small className="hint">Uma música que tocou só volta depois desse tempo (0 = desligado; 60 = 1 hora). Se a biblioteca for pequena e todas já tiverem tocado, a rádio continua tocando (nunca fica sem música). Vinhetas não entram na regra.</small>
           </label>
-          <label className="field" style={{ maxWidth: 340 }}>
+          <label className="field">
             <span>Não repetir o mesmo artista por (minutos)</span>
             <input type="number" min={0} max={1440} value={f.noRepeatArtistMinutes} onChange={(e) => setF({ ...f, noRepeatArtistMinutes: Math.max(0, Math.min(1440, Number(e.target.value) || 0)) })} disabled={!isAdmin} />
             <small className="hint">Depois que um artista toca, outra música dele só entra depois desse tempo (0 = desligado; 30 = meia hora). Feats e participações contam como o artista principal. Se não houver outra opção, a rádio relaxa a regra em vez de ficar muda.</small>
           </label>
-          <label className="field" style={{ maxWidth: 260 }}>
+          <label className="field">
             <span>Músicas recentes no player público</span>
             <input type="number" min={1} max={50} value={f.historyLimit} onChange={(e) => setF({ ...f, historyLimit: Math.max(1, Math.min(50, Number(e.target.value) || 1)) })} disabled={!isAdmin} />
             <small className="hint">Quantas faixas aparecem em “Tocou recentemente” (1 a 50).</small>

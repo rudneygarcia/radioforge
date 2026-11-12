@@ -10,12 +10,12 @@ export interface StationCtx {
   reload: () => Promise<void>;
 }
 
-const NAV: { to: string; label: string; icon: string; perm?: string[] }[] = [
+const NAV: { to: string; label: string; icon: string; perm?: string[]; autodj?: boolean }[] = [
   { to: '.', label: 'Painel', icon: 'home' },
-  { to: 'media', label: 'Biblioteca', icon: 'music' },
-  { to: 'playlists', label: 'Playlists', icon: 'list' },
-  { to: 'ads', label: 'Comerciais', icon: 'megaphone', perm: ['ads'] },
-  { to: 'requests', label: 'Pedidos', icon: 'heart' },
+  { to: 'media', label: 'Biblioteca', icon: 'music', autodj: true },
+  { to: 'playlists', label: 'Playlists', icon: 'list', autodj: true },
+  { to: 'ads', label: 'Comerciais', icon: 'megaphone', perm: ['ads'], autodj: true },
+  { to: 'requests', label: 'Pedidos', icon: 'heart', autodj: true },
   { to: 'djs', label: 'DJs', icon: 'mic', perm: ['djs'] },
   { to: 'listeners', label: 'Ouvintes', icon: 'users' },
   { to: 'reports', label: 'Relatórios', icon: 'chart', perm: ['reports'] },
@@ -23,8 +23,8 @@ const NAV: { to: string; label: string; icon: string; perm?: string[] }[] = [
   { to: 'integrations', label: 'Integrações', icon: 'plug' },
   { to: 'edit', label: 'Editar estação', icon: 'edit', perm: ['edit_station'] },
   { to: 'autodj', label: 'AutoDJ, ao vivo e pedidos', icon: 'play', perm: ['edit_station'] },
-  { to: 'hora-certa', label: 'Hora certa', icon: 'clock', perm: ['edit_station', 'advanced'] },
-  { to: 'ocultar', label: 'Ocultar nomes', icon: 'mute', perm: ['edit_station'] },
+  { to: 'hora-certa', label: 'Hora certa', icon: 'clock', perm: ['edit_station', 'advanced'], autodj: true },
+  { to: 'ocultar', label: 'Ocultar nomes', icon: 'mute', perm: ['edit_station'], autodj: true },
   { to: 'settings', label: 'Configurações', icon: 'cog', perm: ['edit_station', 'advanced'] },
 ];
 
@@ -86,7 +86,7 @@ export default function StationLayout() {
             <small>Painel da estação</small>
           </div>
         </div>
-        {NAV.filter((n) => !n.perm || n.perm.some((p) => can(p))).map((n) => (
+        {NAV.filter((n) => (!n.perm || n.perm.some((p) => can(p))) && (!n.autodj || station.autodj)).map((n) => (
           <NavLink key={n.to} end={n.to === '.'} to={n.to} title={n.label}>
             <Icon name={n.icon} size={18} />
             <span className="nav-label">{n.label}</span>
