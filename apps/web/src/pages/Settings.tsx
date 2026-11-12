@@ -20,11 +20,17 @@ function Toggle({ checked, onChange, disabled, title, hint }: { checked: boolean
 
 /** Editar estação: dados da rádio. Configurações: áudio e parte técnica. */
 const CARDS = {
-  edit: ['capa', 'hide', 'hora', 'dj'],
+  edit: [],
+  capa: [],
+  hora: [],
+  dj: [],
+  hide: [],
   tech: ['qual', 'autocue', 'proc', 'stereo', 'extra'],
 } as const;
 
-function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
+type View = 'edit' | 'tech' | 'capa' | 'hora' | 'dj' | 'hide';
+
+function SettingsForm({ view }: { view: View }) {
   const show = (id: string) => (CARDS[view] as readonly string[]).includes(id);
   const { station, reload } = useOutletContext<StationCtx>();
   const can = useCan();
@@ -209,7 +215,7 @@ function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
       </div>
       )}
 
-      <div className="settings-grid">
+      <div className="settings-grid" style={view === 'tech' ? undefined : { display: 'none' }}>
         {show('capa') && (
           <button type="button" className="setting-card" onClick={() => setOpen('capa')}>
             <strong>Capa da rádio</strong>
@@ -266,7 +272,9 @@ function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
         )}
       </div>
 
-      <Modal open={open === 'capa'} title="Capa da rádio" onClose={close} size="md" footer={<button type="button" onClick={close}>Concluído</button>}>
+      {view === 'capa' && (
+        <div className="card section">
+          <div className="section-title"><h3>Capa da rádio</h3></div>
         <p className="muted" style={{ marginTop: -4 }}>Logo ou imagem da estação. Aparece no player e nos históricos <strong>no lugar da capa das músicas que não têm</strong>, e também quando nada está tocando.</p>
         <div className="row" style={{ alignItems: 'center', gap: 16 }}>
           <Cover url={station.coverUrl} size={96} />
@@ -281,7 +289,8 @@ function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
           ) : null}
         </div>
         <p className="muted small-text" style={{ marginBottom: 0 }}>PNG, JPG, WEBP ou GIF, até 4 MB. Quadrada (ex.: 600×600) fica melhor.</p>
-      </Modal>
+      </div>
+      )}
 
       <Modal open={open === 'qual'} title="Qualidade do áudio" onClose={close} size="md" footer={<button type="button" onClick={close}>Concluído</button>}>
         <div className="fields">
@@ -366,7 +375,9 @@ function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
         <StereoTool stationId={station.id} isAdmin={isAdmin} canPresets={canAdvanced} isSystem={can('system')} enabled={f.stereoEnabled} preset={f.stereoPreset} onEnabled={(v) => setF({ ...f, stereoEnabled: v })} onPreset={(v) => setF({ ...f, stereoPreset: v })} />
       </Modal>
 
-      <Modal open={open === 'hora'} title="Hora certa" onClose={close} size="lg" footer={<button type="button" onClick={close}>Concluído</button>}>
+      {view === 'hora' && (
+        <div className="card section">
+          <div className="section-title"><h3>Hora certa</h3></div>
         <p className="muted" style={{ marginTop: -4 }}>O AutoDJ avisa a hora usando os <strong>seus áudios</strong> (um por minuto, enviados num ZIP abaixo) ou, se faltar, a voz sintética (ex.: “Hora certa. São catorze horas e meia.”). O aviso entra na fila e toca <strong>ao fim da música atual</strong> (o servidor estima esse instante e fala o minuto certo); não aparece em “Tocando agora” nem no histórico, e não toca enquanto há DJ ao vivo.</p>
         <div className="fields">
           <div className="field-row">
@@ -398,9 +409,12 @@ function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
           <small className="hint">Salve as configurações para valer a mudança. Só funciona no modo completo. A hora usa o fuso escolhido acima (o servidor costuma estar em UTC).</small>
         </div>
         <TimeClips station={station} isAdmin={canAdvanced} voiceFallback={f.timeAnnounceVoice} voice={f.timeVoice} onVoice={(v) => setF({ ...f, timeVoice: v })} />
-      </Modal>
+      </div>
+      )}
 
-      <Modal open={open === 'dj'} title="AutoDJ, ao vivo e pedidos" onClose={close} size="md" footer={<button type="button" onClick={close}>Concluído</button>}>
+      {view === 'dj' && (
+        <div className="card section">
+          <div className="section-title"><h3>AutoDJ, ao vivo e pedidos</h3></div>
         <div className="fields">
           <Toggle checked={f.liveEnabled} onChange={(v) => setF({ ...f, liveEnabled: v })} disabled={!isAdmin} title="Permitir DJ ao vivo" />
           <label className="field" style={{ maxWidth: 340 }}>
@@ -439,9 +453,12 @@ function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
             </label>
           </div>
         </div>
-      </Modal>
+      </div>
+      )}
 
-      <Modal open={open === 'hide'} title="Ocultar nomes (metadados)" onClose={close} size="md" footer={<button type="button" onClick={close}>Concluído</button>}>
+      {view === 'hide' && (
+        <div className="card section">
+          <div className="section-title"><h3>Ocultar nomes (metadados)</h3></div>
         <p className="muted" style={{ marginTop: -4 }}>Músicas cujo título, artista, álbum ou nome do arquivo contenham alguma destas palavras <strong>tocam normalmente, mas sem enviar metadados</strong>: não aparecem em “Tocando agora”, no histórico, nos webhooks nem no stream (também não vai o nome da estação).</p>
         <div className="fields">
           <label className="field">
@@ -451,7 +468,8 @@ function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
           </label>
           <Toggle checked={f.jingleHideName} onChange={(v) => setF({ ...f, jingleHideName: v })} disabled={!isAdmin} title="Vinhetas também sem nome" hint="Hoje as vinhetas enviam o nome da estação como título. Ligado, elas não enviam nada." />
         </div>
-      </Modal>
+      </div>
+      )}
 
       <Modal open={open === 'extra'} title="Streams extras" onClose={close} size="md" footer={<button type="button" onClick={close}>Concluído</button>}>
         <p className="muted" style={{ marginTop: -4 }}>Além de <code>/radio</code>, publique outros mountpoints com qualidade diferente (máx. 4).</p>
@@ -473,7 +491,7 @@ function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
         )}
       </Modal>
 
-      {isAdmin && (
+      {isAdmin && view !== 'capa' && (
         <div className="save-bar">
           <button disabled={busy}>{busy ? 'Salvando…' : 'Salvar alterações'}</button>
           <span className="muted small-text">Reinicia a estação se estiver no ar.</span>
@@ -491,10 +509,16 @@ function SettingsForm({ view }: { view: 'edit' | 'tech' }) {
   );
 }
 
-/** Editar estação: nome, endereço, capa, ocultar nomes, hora certa, AutoDJ/ao vivo/pedidos e excluir. */
+/** Editar estação: nome, endereço, porta, senha e excluir. */
 export function EditStation() {
   return <SettingsForm view="edit" />;
 }
+
+/** Páginas próprias no menu da estação (antes eram cartões dentro de Editar estação). */
+export const CoverSettings = () => <SettingsForm view="capa" />;
+export const TimeSettings = () => <SettingsForm view="hora" />;
+export const AutoDjSettings = () => <SettingsForm view="dj" />;
+export const HideSettings = () => <SettingsForm view="hide" />;
 
 /** Configurações: áudio (qualidade, AutoCue, processador, Stereo Tool) e streams extras. */
 export default function Settings() {

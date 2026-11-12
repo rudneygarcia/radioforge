@@ -20,7 +20,7 @@ import AdsPage from './pages/AdsPage';
 import RequestsPage from './pages/RequestsPage';
 import IntegrationsPage from './pages/IntegrationsPage';
 import AccountPage from './pages/AccountPage';
-import Settings, { EditStation } from './pages/Settings';
+import Settings, { AutoDjSettings, CoverSettings, EditStation, HideSettings, TimeSettings } from './pages/Settings';
 import Users from './pages/Users';
 import BackupsPage from './pages/BackupsPage';
 import SystemPage from './pages/SystemPage';
@@ -86,6 +86,10 @@ export default function App() {
           <Route path="reports" element={<ReportsPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="edit" element={<EditStation />} />
+          <Route path="capa" element={<CoverSettings />} />
+          <Route path="autodj" element={<AutoDjSettings />} />
+          <Route path="hora-certa" element={<TimeSettings />} />
+          <Route path="ocultar" element={<HideSettings />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Route>
