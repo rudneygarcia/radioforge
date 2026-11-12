@@ -187,14 +187,16 @@ function SettingsForm({ view }: { view: View }) {
               <small className="hint">Usada pelo link direto do stream. A estação ocupa 10 portas seguidas a partir dela (DJ ao vivo = porta +5). Trocar a porta reinicia a estação e muda o link direto e o endereço do DJ: ela precisa estar liberada no servidor.</small>
             </label>
           )}
-          <label className="field">
-            <span>Nova senha da transmissão ao vivo <em className="hint">(usuário source)</em></span>
-            <div className="row" style={{ margin: 0 }}>
-              <input value={secret} onChange={(e) => setSecret(e.target.value.replace(/\s/g, ''))} placeholder="Deixe em branco para manter a atual" maxLength={64} autoComplete="off" disabled={!isAdmin} style={{ flex: 1, minWidth: 160 }} />
-              {isAdmin && <button type="button" className="ghost small" onClick={() => setSecret(Array.from(crypto.getRandomValues(new Uint8Array(14)), (b) => 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 56]).join(''))}>Gerar</button>}
-            </div>
-            <small className="hint">A senha atual aparece no Painel (cartão Serviço de transmissão). Mínimo 6 caracteres, sem espaços. Ao salvar, a estação reinicia e o DJ precisa usar a nova senha.</small>
-          </label>
+          {can('system') && (
+            <label className="field">
+              <span>Nova senha da transmissão ao vivo <em className="hint">(usuário source)</em></span>
+              <div className="row" style={{ margin: 0 }}>
+                <input value={secret} onChange={(e) => setSecret(e.target.value.replace(/\s/g, ''))} placeholder="Deixe em branco para manter a atual" maxLength={64} autoComplete="off" disabled={!isAdmin} style={{ flex: 1, minWidth: 160 }} />
+                {isAdmin && <button type="button" className="ghost small" onClick={() => setSecret(Array.from(crypto.getRandomValues(new Uint8Array(14)), (b) => 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 56]).join(''))}>Gerar</button>}
+              </div>
+              <small className="hint">A senha atual aparece no Painel (cartão Serviço de transmissão). Mínimo 6 caracteres, sem espaços. Ao salvar, a estação reinicia e o DJ precisa usar a nova senha.</small>
+            </label>
+          )}
           <label className="field"><span>Descrição</span><input value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} disabled={!isAdmin} /></label>
           <label className="field">
             <span>Nome do stream <em className="hint">(endereço de escuta)</em></span>

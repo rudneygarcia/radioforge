@@ -344,6 +344,9 @@ export async function stationRoutes(app: FastifyInstance) {
     const newMount = b.mount ?? st.mount;
     // Senha da transmissão ao vivo: só troca se uma nova for informada; a estação reinicia ao salvar.
     const newSecret = liveSecret(b.sourcePassword);
+    if (newSecret && newSecret !== st.source_password) {
+      requireAdmin(req); // trocar a senha da transmissão é decisão do administrador
+    }
     if (newSecret && newSecret !== st.source_password) run('UPDATE stations SET source_password = ? WHERE id = ?', newSecret, st.id);
     // Porta do stream: muda os links diretos e as portas do DJ ao vivo (+5) e do console (+6); a estação reinicia ao salvar.
     if (b.port !== undefined && b.port !== st.stream_port) {
