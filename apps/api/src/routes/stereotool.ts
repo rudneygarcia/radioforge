@@ -4,6 +4,8 @@ import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authenticate, HttpError, requireAdmin, stationFor } from '../auth.js';
+import { isRunning } from '../engine/manager.js';
+import { run } from '../db.js';
 import crypto from 'node:crypto';
 import { extractLibraryFromZip, getLicenseKey, inspectLibrary, installLibrary, libraryInfo, uploadsDir, setLibraryName, setLicenseKey, listPresets, presetPath, presetsDir, safePresetName, stereoLibDir, stereoLibPath } from '../engine/stereotool.js';
 
@@ -129,7 +131,17 @@ export async function stereoToolRoutes(app: FastifyInstance) {
   app.get('/api/stations/:id/stereotool/presets', async (req) => {
     const { id } = idParam.parse(req.params);
     const st = stationFor(req, id);
-    return { presets: listPresets(st.id), active: st.stereo_preset };
+    return { presets: listPresets(st.id), active: st.stereo_preset, enabled: !!st.stereo_enabled };
+  });
+
+  // Escolhe qual preset a estação usa (não reinicia a rádio: vale na próxima vez que ela reiniciar).
+  app.put('/api/stations/:id/stereotool/active', async (req) => {
+    const { id } = idParam.parse(req.params);
+    const st = stationFor(req, id);
+    const { preset } = z.object({ preset: z.string().max(100) }).parse(req.body);
+    if (preset && !listPresets(st.id).includes(preset)) throw new HttpError(404, 'Preset não encontrado');
+    run('UPDATE stations SET stereo_preset = ? WHERE id = ?', preset, st.id);
+    return { active: preset, needsRestart: !!st.stereo_enabled && isRunning(st.id) };
   });
 
   app.post('/api/stations/:id/stereotool/presets', async (req) => {
@@ -158,6 +170,7 @@ export async function stereoToolRoutes(app: FastifyInstance) {
     const safe = safePresetName(name);
     if (!safe) throw new HttpError(400, 'Nome inválido');
     fs.rmSync(presetPath(st.id, safe), { force: true });
+    if (st.stereo_preset === safe) run("UPDATE stations SET stereo_preset = '' WHERE id = ?", st.id);
     return { presets: listPresets(st.id) };
   });
 }

@@ -21,6 +21,7 @@ import RequestsPage from './pages/RequestsPage';
 import IntegrationsPage from './pages/IntegrationsPage';
 import AccountPage from './pages/AccountPage';
 import Settings, { AutoDjSettings, EditStation, HideSettings, TimeSettings } from './pages/Settings';
+import StereoPresets from './pages/StereoPresets';
 import Users from './pages/Users';
 import BackupsPage from './pages/BackupsPage';
 import SystemPage from './pages/SystemPage';
@@ -89,6 +90,7 @@ export default function App() {
           <Route path="autodj" element={<AutoDjSettings />} />
           <Route path="hora-certa" element={<TimeSettings />} />
           <Route path="ocultar" element={<HideSettings />} />
+          <Route path="stereo-tool" element={<StereoPresets />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Route>

@@ -239,7 +239,7 @@ function SettingsForm({ view }: { view: View }) {
             <span>{f.stereoEnabled ? 'Desativado: o Stereo Tool está em uso' : f.audioPreset === 'off' ? 'Desligado' : `${f.audioPreset === 'loud' ? 'Forte (FM)' : 'Equilibrado'}${f.audioGain ? ` · +${f.audioGain} dB` : ''}`}</span>
           </button>
         )}
-        {show('stereo') && (
+        {show('stereo') && can('system') && (
           <button type="button" className="setting-card" onClick={() => setOpen('stereo')}>
             <strong>Stereo Tool</strong>
             <span>{f.stereoEnabled ? `Ligado${f.stereoPreset ? ` · ${f.stereoPreset}` : ''}` : 'Desligado'}</span>
@@ -371,7 +371,7 @@ function SettingsForm({ view }: { view: View }) {
       </Modal>
 
       <Modal open={open === 'stereo'} title="Stereo Tool" onClose={close} size="lg" footer={<button type="button" onClick={close}>Concluído</button>}>
-        <StereoTool stationId={station.id} isAdmin={isAdmin} canPresets={canAdvanced} isSystem={can('system')} enabled={f.stereoEnabled} preset={f.stereoPreset} onEnabled={(v) => setF({ ...f, stereoEnabled: v })} onPreset={(v) => setF({ ...f, stereoPreset: v })} />
+        <StereoTool stationId={station.id} isAdmin={can('system')} canPresets={can('system')} isSystem={can('system')} enabled={f.stereoEnabled} preset={f.stereoPreset} onEnabled={(v) => setF({ ...f, stereoEnabled: v })} onPreset={(v) => setF({ ...f, stereoPreset: v })} />
       </Modal>
 
       {view === 'hora' && (

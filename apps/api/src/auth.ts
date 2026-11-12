@@ -75,6 +75,7 @@ export const PERMISSIONS = [
   { key: 'reports', label: 'Relatórios', hint: 'Ver os relatórios de ouvintes e de execução', padrao: true },
   { key: 'requests', label: 'Cancelar pedidos', hint: 'Cancelar pedidos de música dos ouvintes', padrao: false },
   { key: 'edit_station', label: 'Editar a estação e configurações', hint: 'Nome, portas, streams, AutoDJ, capa e demais configurações', padrao: false },
+  { key: 'stereo', label: 'Preset do Stereo Tool', hint: 'Enviar e escolher o preset do Stereo Tool desta estação (a licença e ligar ou desligar ficam com o administrador)', padrao: false },
   { key: 'advanced', label: 'Ajustes avançados', hint: 'Hora certa (áudios), presets do Stereo Tool e log do Liquidsoap', padrao: false },
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number]['key'];
@@ -134,8 +135,9 @@ function neededPermission(method: string, route: string): Permission | null {
     case 'requests':
       return write ? 'requests' : null;
     case 'time-clips':
-    case 'stereotool':
       return write ? 'advanced' : null;
+    case 'stereotool':
+      return write ? 'stereo' : null;
     case 'engine-log':
       return 'advanced';
     default:
