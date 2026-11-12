@@ -43,16 +43,6 @@ const djView = (d: DjRow) => ({
   days: d.days.split(',').filter(Boolean).map(Number),
 });
 
-const recordingsPath = (stationId: number) => path.join(stationDir(stationId), 'recordings');
-const SAFE_FILE = /^[A-Za-z0-9_.-]+\.(mp3|ogg)$/;
-
-/** Resolve o arquivo dentro da pasta de gravações, recusando qualquer nome suspeito. */
-function recordingFile(stationId: number, name: string | undefined): string {
-  if (!name || !SAFE_FILE.test(name)) throw new HttpError(400, 'Nome de arquivo inválido');
-  const abs = path.join(recordingsPath(stationId), name);
-  if (!fs.existsSync(abs)) throw new HttpError(404, 'Gravação não encontrada');
-  return abs;
-}
 
 export async function djRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate);
@@ -117,39 +107,4 @@ export async function djRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
-  // --- Gravações das transmissões ao vivo ---
-
-  app.get('/api/stations/:id/recordings', async (req) => {
-    const { id } = params.parse(req.params);
-    const st = stationFor(req, id);
-    const dir = recordingsPath(st.id);
-    if (!fs.existsSync(dir)) return [];
-    return fs
-      .readdirSync(dir)
-      .filter((f) => SAFE_FILE.test(f))
-      .map((f) => {
-        const s = fs.statSync(path.join(dir, f));
-        return { name: f, size: s.size, modifiedAt: s.mtime.toISOString() };
-      })
-      .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
-  });
-
-  app.get('/api/stations/:id/recordings/:file', async (req, reply) => {
-    const { id, file } = params.parse(req.params);
-    const st = stationFor(req, id);
-    const abs = recordingFile(st.id, file);
-    const type = abs.endsWith('.ogg') ? 'audio/ogg' : 'audio/mpeg';
-    return reply
-      .header('Content-Type', type)
-      .header('Content-Length', fs.statSync(abs).size)
-      .header('Content-Disposition', `attachment; filename="${path.basename(abs)}"`)
-      .send(fs.createReadStream(abs));
-  });
-
-  app.delete('/api/stations/:id/recordings/:file', async (req) => {
-    const { id, file } = params.parse(req.params);
-    const st = stationFor(req, id);
-    fs.rmSync(recordingFile(st.id, file), { force: true });
-    return { ok: true };
-  });
 }

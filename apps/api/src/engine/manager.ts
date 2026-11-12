@@ -102,7 +102,7 @@ const procs = new Map<number, StationProcs>();
 
 export function ensureStationDirs(id: number) {
   const base = stationDir(id);
-  for (const d of ['media', 'playlists', 'config', 'logs', 'recordings']) fs.mkdirSync(path.join(base, d), { recursive: true });
+  for (const d of ['media', 'playlists', 'config', 'logs']) fs.mkdirSync(path.join(base, d), { recursive: true });
 }
 
 /**
@@ -199,7 +199,7 @@ function writeConfigs(st: StationRow, variant: Variant = variantOf.get(st.id) ??
   fs.writeFileSync(path.join(base, 'config', 'icecast.xml'), buildIcecastConfig(st, path.join(base, 'logs')));
   fs.writeFileSync(
     path.join(base, 'config', 'radio.liq'),
-    buildLiquidsoapScript(st, playlists, mountsFor(st.id), djsFor(st.id), path.join(base, 'recordings'), variant),
+    buildLiquidsoapScript(st, playlists, mountsFor(st.id), djsFor(st.id), variant),
   );
   return playlists.length;
 }

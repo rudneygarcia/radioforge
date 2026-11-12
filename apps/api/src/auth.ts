@@ -71,7 +71,7 @@ export const PERMISSIONS = [
   { key: 'media', label: 'Biblioteca', hint: 'Enviar, editar, mover e excluir músicas e pastas', padrao: true },
   { key: 'playlists', label: 'Playlists', hint: 'Criar, editar e excluir playlists e agendamentos', padrao: true },
   { key: 'ads', label: 'Comerciais', hint: 'Ver e gerenciar os blocos de comerciais', padrao: true },
-  { key: 'djs', label: 'DJs e gravações', hint: 'Cadastrar DJs, ver e apagar gravações do ao vivo', padrao: true },
+  { key: 'djs', label: 'DJs', hint: 'Cadastrar, editar e excluir os DJs do ao vivo e seus horários', padrao: true },
   { key: 'reports', label: 'Relatórios', hint: 'Ver os relatórios de ouvintes e de execução', padrao: true },
   { key: 'requests', label: 'Cancelar pedidos', hint: 'Cancelar pedidos de música dos ouvintes', padrao: false },
   { key: 'edit_station', label: 'Editar a estação e configurações', hint: 'Nome, portas, streams, AutoDJ, capa e demais configurações', padrao: false },
@@ -125,7 +125,6 @@ function neededPermission(method: string, route: string): Permission | null {
     case 'playlists':
       return write ? 'playlists' : null;
     case 'djs':
-    case 'recordings':
       return 'djs';
     case 'ad-blocks':
     case 'ad-plays':

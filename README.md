@@ -52,7 +52,7 @@ A API escolhe sozinha (`ENGINE_MODE=auto`, padrão):
 
 | Modo | Quando | O que oferece |
 |---|---|---|
-| `liquidsoap` | Icecast e Liquidsoap instalados (imagem Docker) | Tudo: DJ ao vivo, crossfade, normalização, gravação, vários formatos/bitrates |
+| `liquidsoap` | Icecast e Liquidsoap instalados (imagem Docker) | Tudo: DJ ao vivo, crossfade, normalização, vários formatos/bitrates |
 | `native` | Sem esses programas (ex.: Windows, para testar) | Motor simples em Node: **só MP3**, playlists e agendamento, pedidos, relatórios. Sem DJ, crossfade, normalização, gravação ou transcodificação (streams extras repetem o principal). Sem playlists, toca a biblioteca inteira |
 
 Force um modo com `ENGINE_MODE=native` ou `ENGINE_MODE=liquidsoap`. O painel avisa quando está no modo simples. O endereço do stream é `http://<host>:<porta>/radio.mp3` (nome padrão de estações novas; editável em Configurações → Nome do stream, ou `/radio.ogg` se o formato for OGG; estações antigas continuam em `/radio` até serem editadas); no Windows, libere o Node no firewall se ele perguntar.
@@ -66,7 +66,7 @@ Force um modo com `ENGINE_MODE=native` ou `ENGINE_MODE=liquidsoap`. O painel avi
 | CRUD de estações, usuários, playlists, biblioteca (upload + tags) | Pronto, testado localmente |
 | Playlists agendadas por dia da semana e horário (prioridade sobre a rotação geral) | Pronto na API/painel; o script Liquidsoap gerado foi revisado, mas **não executado** |
 | Crossfade, normalização de volume (ReplayGain) e até 4 streams extras com formato/bitrate próprios | Pronto na API/painel/player; script Liquidsoap revisado, **não executado** |
-| DJs com usuário/senha próprios (o usuário `source` continua valendo) e gravação das transmissões ao vivo, com download | Pronto na API/painel, testado; autenticação do harbor e `output.file` no Liquidsoap **não executados** |
+| DJs com usuário/senha próprios (o usuário `source` continua valendo) | Pronto na API/painel, testado; autenticação do harbor e `output.file` no Liquidsoap **não executados** |
 | Relatórios de ouvintes: média/pico ao longo do tempo, países (GeoIP), players, horário de pico, com gráficos e tabela | Pronto e testado com logs de exemplo; **ainda não com o access.log real do Icecast** (ver nota abaixo) |
 | Chaves de API e webhooks (Discord e JSON assinado), com proteção SSRF | Pronto e testado (24 verificações automáticas) |
 | Motor simples em Node (modo `native`) para testar o áudio sem Icecast/Liquidsoap | Pronto e testado: stream em tempo real, troca de faixa, pedidos, relatórios; tocou num navegador de verdade |
@@ -95,7 +95,6 @@ Principais endpoints (JSON; os de estação usam o `id` numérico da estação):
 | `GET/POST/PUT/DELETE /api/stations/:id/media` | Biblioteca (upload em `multipart/form-data`) |
 | `GET/POST/PUT/DELETE /api/stations/:id/playlists` | Playlists e agendamento |
 | `GET/POST/PUT/DELETE /api/stations/:id/djs` | Contas de DJ |
-| `GET /api/stations/:id/recordings` | Gravações das transmissões ao vivo |
 | `GET /api/stations/:id/reports?days=7` | Relatórios de ouvintes |
 | `GET/POST/PUT/DELETE /api/stations/:id/webhooks` | Webhooks |
 | `GET /api/public/stations/:slug` · `/history` · `/songs` | Dados públicos, **sem chave** (para sites e apps) |

@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { api, downloadFile, type Dj, type Recording } from '../api';
+import { api, type Dj } from '../api';
 import { CopyButton, Empty, Icon, Modal, useUi } from '../ui';
 import type { StationCtx } from './StationLayout';
 
@@ -11,7 +11,6 @@ export default function DjsPage() {
   const { station } = useOutletContext<StationCtx>();
   const { confirm, toast } = useUi();
   const [djs, setDjs] = useState<Dj[] | null>(null);
-  const [recs, setRecs] = useState<Recording[]>([]);
   const [creating, setCreating] = useState(false);
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -21,7 +20,6 @@ export default function DjsPage() {
 
   const load = async () => {
     setDjs(await api<Dj[]>(`${base}/djs`));
-    setRecs(await api<Recording[]>(`${base}/recordings`));
   };
   useEffect(() => {
     load();
@@ -63,13 +61,6 @@ export default function DjsPage() {
     if (!(await confirm({ title: 'Excluir DJ?', message: `O acesso de "${d.username}" será removido.`, confirmLabel: 'Excluir', danger: true }))) return;
     await api(`${base}/djs/${d.id}`, { method: 'DELETE' });
     toast('DJ excluído');
-    load();
-  }
-
-  async function removeRec(r: Recording) {
-    if (!(await confirm({ title: 'Excluir gravação?', message: r.name, confirmLabel: 'Excluir', danger: true }))) return;
-    await api(`${base}/recordings/${encodeURIComponent(r.name)}`, { method: 'DELETE' });
-    toast('Gravação excluída');
     load();
   }
 
@@ -119,32 +110,6 @@ export default function DjsPage() {
                       <button className="ghost small" onClick={() => update(d, { enabled: !d.enabled }, d.enabled ? 'DJ desativado' : 'DJ ativado')}>{d.enabled ? 'Desativar' : 'Ativar'}</button>
                       <button className="ghost small" onClick={() => newPassword(d)}><Icon name="key" size={13} /> Nova senha</button>
                       <button className="icon-btn" title="Excluir" onClick={() => remove(d)}><Icon name="trash" /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      <div className="section-title" style={{ marginTop: 28 }}><h3>Gravações <span className="muted">({recs.length})</span></h3></div>
-      {!station.recordLive && <p className="muted" style={{ marginTop: -4 }}>A gravação está desligada. Ative em Editar estação.</p>}
-      <div className="card tight">
-        {recs.length === 0 ? (
-          <Empty icon="mic" title="Sem gravações" text="As transmissões ao vivo gravadas aparecem aqui para baixar." />
-        ) : (
-          <table>
-            <tbody>
-              {recs.map((r) => (
-                <tr key={r.name}>
-                  <td>{r.name}</td>
-                  <td className="muted hide-sm">{mb(r.size)}</td>
-                  <td className="muted hide-sm">{new Date(r.modifiedAt).toLocaleString()}</td>
-                  <td>
-                    <div className="table-actions">
-                      <button className="ghost small" onClick={() => downloadFile(`${base}/recordings/${encodeURIComponent(r.name)}`, r.name).catch((e) => toast((e as Error).message, 'error'))}><Icon name="download" size={13} /> Baixar</button>
-                      <button className="icon-btn" title="Excluir" onClick={() => removeRec(r)}><Icon name="trash" /></button>
                     </div>
                   </td>
                 </tr>

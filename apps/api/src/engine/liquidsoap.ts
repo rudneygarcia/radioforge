@@ -79,7 +79,6 @@ export function buildLiquidsoapScript(
   playlists: LiqPlaylist[],
   extraMounts: MountRow[] = [],
   djs: DjRow[] = [],
-  recordingsDir = '',
   opts: {
     /** 0 = processador de áudio completo, 1 = só valores padrão, 2 = sem processador. */
     audio?: 0 | 1 | 2;
@@ -243,13 +242,6 @@ export function buildLiquidsoapScript(
       lines.push(
         `live_root = input.harbor("/", port = ${harborPort(st)}, auth = dj_auth, on_connect = fun (_) -> notify_live("connect"), on_disconnect = fun () -> notify_live("disconnect"))`,
         `live = fallback(id = "live_inputs", track_sensitive = false, [live, live_root])`,
-      );
-    }
-    if (st.record_live && recordingsDir) {
-      // Grava só enquanto houver DJ conectado (fonte "fallible").
-      const ext = st.format === 'ogg' ? 'ogg' : 'mp3'; // AAC é gravado em MP3 (arquivo mais universal)
-      lines.push(
-        `output.file(${st.format === 'ogg' ? `%ogg(%vorbis.abr(bitrate = ${st.bitrate}))` : `%mp3(bitrate = ${st.bitrate})`}, ${q(`${recordingsDir}/%Y-%m-%d_%Hh%Mm%Ss.${ext}`)}, fallible = true, live)`,
       );
     }
     // O AutoDJ continua sendo "puxado" por uma saída muda enquanto o DJ está no ar: quando o encoder cai, a música

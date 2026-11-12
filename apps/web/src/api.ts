@@ -175,7 +175,6 @@ export interface Station {
   autostart: boolean;
   crossfadeSeconds: number;
   normalize: boolean;
-  recordLive: boolean;
   mounts: MountCfg[];
   streams: StreamInfo[];
   engine: 'liquidsoap' | 'native';
@@ -231,11 +230,6 @@ export interface Dj {
   startTime: string;
   endTime: string;
   days: number[];
-}
-export interface Recording {
-  name: string;
-  size: number;
-  modifiedAt: string;
 }
 export interface Playlist {
   id: number;

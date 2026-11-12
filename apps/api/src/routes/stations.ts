@@ -175,7 +175,6 @@ export async function stationView(st: StationRow) {
     autostart: !!st.autostart,
     crossfadeSeconds: st.crossfade_seconds,
     normalize: !!st.normalize,
-    recordLive: !!st.record_live,
     historyLimit: st.history_limit,
     audioPreset: st.audio_preset,
     audioGain: st.audio_gain,
