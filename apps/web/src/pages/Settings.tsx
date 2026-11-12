@@ -21,14 +21,13 @@ function Toggle({ checked, onChange, disabled, title, hint }: { checked: boolean
 /** Editar estação: dados da rádio. Configurações: áudio e parte técnica. */
 const CARDS = {
   edit: [],
-  capa: [],
   hora: [],
   dj: [],
   hide: [],
   tech: ['qual', 'autocue', 'proc', 'stereo', 'extra'],
 } as const;
 
-type View = 'edit' | 'tech' | 'capa' | 'hora' | 'dj' | 'hide';
+type View = 'edit' | 'tech' | 'hora' | 'dj' | 'hide';
 
 function SettingsForm({ view }: { view: View }) {
   const show = (id: string) => (CARDS[view] as readonly string[]).includes(id);
@@ -272,7 +271,7 @@ function SettingsForm({ view }: { view: View }) {
         )}
       </div>
 
-      {view === 'capa' && (
+      {view === 'edit' && (
         <div className="card section">
           <div className="section-title"><h3>Capa da rádio</h3></div>
         <p className="muted" style={{ marginTop: -4 }}>Logo ou imagem da estação. Aparece no player e nos históricos <strong>no lugar da capa das músicas que não têm</strong>, e também quando nada está tocando.</p>
@@ -491,7 +490,7 @@ function SettingsForm({ view }: { view: View }) {
         )}
       </Modal>
 
-      {isAdmin && view !== 'capa' && (
+      {isAdmin && (
         <div className="save-bar">
           <button disabled={busy}>{busy ? 'Salvando…' : 'Salvar alterações'}</button>
           <span className="muted small-text">Reinicia a estação se estiver no ar.</span>
@@ -515,7 +514,6 @@ export function EditStation() {
 }
 
 /** Páginas próprias no menu da estação (antes eram cartões dentro de Editar estação). */
-export const CoverSettings = () => <SettingsForm view="capa" />;
 export const TimeSettings = () => <SettingsForm view="hora" />;
 export const AutoDjSettings = () => <SettingsForm view="dj" />;
 export const HideSettings = () => <SettingsForm view="hide" />;
