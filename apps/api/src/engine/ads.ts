@@ -49,16 +49,15 @@ export async function fireBlock(st: StationRow, b: AdBlockRow, reason: 'horario'
     }
     let count = 0;
     for (const m of chosen) {
-      let status = 'ok';
-      let note = reason === 'manual' ? 'disparo manual' : '';
+      // O registro nasce antes do envio: o id vai junto na faixa e o Liquidsoap confirma quando ela começa a tocar.
+      const r = run('INSERT INTO ad_plays (station_id, block_id, block_name, media_id, title, status, note) VALUES (?, ?, ?, ?, ?, ?, ?)', st.id, b.id, b.name, m.id, m.title || m.original_name, 'ok', reason === 'manual' ? 'disparo manual' : '');
+      const playId = Number(r.lastInsertRowid);
       try {
-        await pushRequest(st.id, path.join(config.dataDir, m.path), true, m.duration);
+        await pushRequest(st.id, path.join(config.dataDir, m.path), true, m.duration, false, playId);
         count++;
       } catch (e) {
-        status = 'erro';
-        note = (e as Error).message.slice(0, 200);
+        run("UPDATE ad_plays SET status = 'erro', note = ? WHERE id = ?", (e as Error).message.slice(0, 200), playId);
       }
-      run('INSERT INTO ad_plays (station_id, block_id, block_name, media_id, title, status, note) VALUES (?, ?, ?, ?, ?, ?, ?)', st.id, b.id, b.name, m.id, m.title || m.original_name, status, note);
     }
     return count;
   } finally {

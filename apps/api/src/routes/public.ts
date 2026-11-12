@@ -259,6 +259,15 @@ export async function publicRoutes(app: FastifyInstance) {
     return reply.header('Content-Type', 'text/plain; charset=utf-8').send(uri);
   });
 
+  // O Liquidsoap avisa que um comercial começou a tocar (comprovante de veiculação).
+  app.post('/internal/stations/:id/ad-played/:playId', async (req) => {
+    const token = String(req.headers['x-internal-token'] ?? '');
+    if (!safeEqual(token, config.internalToken)) throw new HttpError(401, 'Token inválido');
+    const { id, playId } = z.object({ id: z.coerce.number().int(), playId: z.coerce.number().int() }).parse(req.params);
+    run("UPDATE ad_plays SET played_at = datetime('now') WHERE id = ? AND station_id = ? AND played_at IS NULL", playId, id);
+    return { ok: true };
+  });
+
   app.post('/internal/stations/:id/track', async (req) => {
     const token = String(req.headers['x-internal-token'] ?? '');
     if (!safeEqual(token, config.internalToken)) throw new HttpError(401, 'Token inválido');

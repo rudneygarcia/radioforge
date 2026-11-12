@@ -116,6 +116,11 @@ export function buildLiquidsoapScript(
     `    payload = json.stringify({artist = m["artist"], title = m["title"], filename = m["filename"]})`,
     `    thread.run({ignore(http.post(headers = [("Content-Type", "application/json"), ("X-Internal-Token", ${q(config.internalToken)})], data = payload, ${q(`${config.apiInternalUrl}/internal/stations/${st.id}/track`)}))})`,
     `  end`,
+    // Comercial veiculado: o disparo marca a faixa com rf_ad (id do registro); ao começar a tocar, o painel confirma "tocou".
+    `  if m["rf_ad"] != "" then`,
+    `    ad_url = (${q(`${config.apiInternalUrl}/internal/stations/${st.id}/ad-played/`)} ^ m["rf_ad"])`,
+    `    thread.run({ignore(http.post(headers = [("Content-Type", "application/json"), ("X-Internal-Token", ${q(config.internalToken)})], data = "{}", ad_url))})`,
+    `  end`,
     `end`,
     ``,
   );

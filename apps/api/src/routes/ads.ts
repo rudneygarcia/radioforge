@@ -97,8 +97,8 @@ export async function adRoutes(app: FastifyInstance) {
     const { id } = idParam.parse(req.params);
     const st = stationFor(req, id);
     const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(500).default(100) }).parse(req.query);
-    return all<{ id: number; block_name: string; title: string; status: string; note: string; pushed_at: string }>(
-      'SELECT id, block_name, title, status, note, pushed_at FROM ad_plays WHERE station_id = ? ORDER BY id DESC LIMIT ?',
+    return all<{ id: number; block_name: string; title: string; status: string; note: string; pushed_at: string; played_at: string | null }>(
+      'SELECT id, block_name, title, status, note, pushed_at, played_at FROM ad_plays WHERE station_id = ? ORDER BY id DESC LIMIT ?',
       st.id,
       limit,
     );

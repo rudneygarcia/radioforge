@@ -109,7 +109,7 @@ export function ensureStationDirs(id: number) {
  * URI de uma vinheta para o Liquidsoap: rf_jingle faz o aviso ao servidor ser ignorado e título/artista são
  * trocados pelo nome da estação, para o Icecast e os players não exibirem as tags do arquivo.
  */
-export function jingleUri(st: StationRow, abs: string, duration = 0) {
+export function jingleUri(st: StationRow, abs: string, duration = 0, adId = 0) {
   const label = st.jingle_hide_name ? '' : st.name.replace(/["\\\r\n,]/g, ' ').trim();
   // Com AutoCue: cue exato (começa em 0 e vai até o fim real, sem a análise cortar o meio), sem pular silêncio,
   // sobreposição própria (padrão 0: vinheta→vinheta não se atropelam) e ganho opcional.
@@ -117,7 +117,7 @@ export function jingleUri(st: StationRow, abs: string, duration = 0) {
     ? `liq_blankskip="0.0",${duration > 0 ? `liq_cue_out="${(duration + 0.2).toFixed(2)}",` : 'liq_cue_in="0.0",'}liq_cross_duration="${st.jingle_overlap.toFixed(2)}",${st.jingle_gain ? `liq_amplify="${Math.pow(10, st.jingle_gain / 20).toFixed(3)}",` : ''}`
     : '';
   // liq_fade_in/out curtos: vinheta e aviso entram e saem sem estalo, e o AutoCue encaixa a passagem.
-  return `annotate:rf_jingle="1",${cue}liq_fade_in="0.10",liq_fade_out="0.10",title="${label}",artist="",album="":${abs}`;
+  return `annotate:rf_jingle="1",${adId ? `rf_ad="${adId}",` : ''}${cue}liq_fade_in="0.10",liq_fade_out="0.10",title="${label}",artist="",album="":${abs}`;
 }
 
 /**
@@ -516,7 +516,7 @@ export function engineLogTail(stationId: number, lines = 120): string {
 }
 
 /** Empurra um arquivo na fila de pedidos do Liquidsoap via telnet local. */
-export function pushRequest(stationId: number, absPath: string, silent = false, duration = 0, hide = false): Promise<void> {
+export function pushRequest(stationId: number, absPath: string, silent = false, duration = 0, hide = false, adId = 0): Promise<void> {
   const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', stationId);
   if (!st) return Promise.reject(new Error('Estação não encontrada'));
   if (engineMode() === 'native') {
@@ -548,7 +548,7 @@ export function pushRequest(stationId: number, absPath: string, silent = false, 
     });
     sock.on('error', (e) => done(e));
     // Vinheta pedida pela fila: o annotate mantém o nome fora do servidor.
-    const uri = hide ? hiddenUri(absPath) : silent ? jingleUri(st, absPath, duration) : songUriFor(absPath);
+    const uri = hide ? hiddenUri(absPath) : silent ? jingleUri(st, absPath, duration, adId) : songUriFor(absPath);
     sock.on('connect', () => sock.write(`requests.push ${uri}\nquit\n`));
     sock.on('data', (d) => (reply += d.toString()));
     sock.on('close', () => {

@@ -23,11 +23,21 @@ interface Play {
   status: string;
   note: string;
   pushed_at: string;
+  played_at: string | null;
 }
 type Draft = Omit<Block, 'id' | 'folderName' | 'count'> & { id?: number };
 
 const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const empty = (): Draft => ({ name: '', folderId: null, times: [], days: [0, 1, 2, 3, 4, 5, 6], mode: 'sequential', items: 0, enabled: true });
+/** Situação do comercial: Tocou (confirmado pelo Liquidsoap), Na fila (enviado há pouco) ou Enviado (sem confirmação depois de 15 min). */
+function playState(p: { status: string; played_at: string | null; pushed_at: string }): { label: string; cls: string; at: string } {
+  if (p.status === 'erro') return { label: 'Erro', cls: 'queued', at: p.pushed_at };
+  if (p.status === 'pulado') return { label: 'Pulado', cls: 'queued', at: p.pushed_at };
+  if (p.played_at) return { label: 'Tocou', cls: 'played', at: p.played_at };
+  const old = Date.now() - new Date(p.pushed_at.replace(' ', 'T') + 'Z').getTime() > 15 * 60_000;
+  return { label: old ? 'Enviado' : 'Na fila', cls: old ? 'played' : 'queued', at: p.pushed_at };
+}
+
 const when = (s: string) => new Date(s.replace(' ', 'T') + 'Z').toLocaleString();
 
 /** Blocos comerciais: comerciais de uma pasta da Biblioteca que entram nos horários programados. */
@@ -155,8 +165,8 @@ export default function AdsPage() {
                         <tr key={p.id}>
                           <td><strong>{p.title || p.block_name}</strong><br /><span className="muted small-text">{p.block_name}{p.note ? ` · ${p.note}` : ''}</span></td>
                           <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                            <span className={`req-state ${p.status === 'ok' ? 'played' : 'queued'}`}>{p.status === 'ok' ? 'Na fila' : p.status === 'pulado' ? 'Pulado' : 'Erro'}</span><br />
-                            <span className="muted small-text">{when(p.pushed_at)}</span>
+                            <span className={`req-state ${playState(p).cls}`}>{playState(p).label}</span><br />
+                            <span className="muted small-text">{when(playState(p).at)}</span>
                           </td>
                         </tr>
                       ))}
@@ -164,7 +174,7 @@ export default function AdsPage() {
                   </table>
                 </div>
               )}
-              <p className="muted small-text" style={{ margin: 16 }}>O horário é o do envio à fila; o comercial toca ao fim da música que estiver no ar.</p>
+              <p className="muted small-text" style={{ margin: 16 }}>“Na fila” = enviado ao AutoDJ (toca ao fim da música que estiver no ar). Vira “Tocou”, com o horário real, assim que o comercial começa a tocar.</p>
             </div>
           </section>
         </div>
