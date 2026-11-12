@@ -38,6 +38,9 @@ function throttleForgot(key: string) {
 const sha = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+/** Sessão do painel: expira após 3 horas SEM atividade (o navegador renova o login enquanto a pessoa usa o painel ou envia arquivos). */
+const SESSION = '3h';
+
 const publicUser = (u: UserRow) => ({ id: u.id, email: u.email, name: u.name, role: u.role, permissions: userPermissions(u.id, u.role) });
 
 export async function authRoutes(app: FastifyInstance) {
@@ -59,7 +62,7 @@ export async function authRoutes(app: FastifyInstance) {
       hash,
     );
     const user = get<UserRow>('SELECT * FROM users WHERE id = ?', Number(r.lastInsertRowid))!;
-    const token = app.jwt.sign({ id: user.id, role: user.role }, { expiresIn: '7d' });
+    const token = app.jwt.sign({ id: user.id, role: user.role }, { expiresIn: SESSION });
     return reply.code(201).send({ token, user: publicUser(user) });
   });
 
@@ -69,7 +72,7 @@ export async function authRoutes(app: FastifyInstance) {
     const user = get<UserRow>('SELECT * FROM users WHERE email = ?', body.email.toLowerCase());
     const ok = user ? await bcrypt.compare(body.password, user.password_hash) : false;
     if (!user || !ok) throw new HttpError(401, 'E-mail ou senha inválidos');
-    const token = app.jwt.sign({ id: user.id, role: user.role }, { expiresIn: '7d' });
+    const token = app.jwt.sign({ id: user.id, role: user.role }, { expiresIn: SESSION });
     return { token, user: publicUser(user) };
   });
 
@@ -112,6 +115,14 @@ export async function authRoutes(app: FastifyInstance) {
     run('UPDATE users SET password_hash = ? WHERE id = ?', hash, row.user_id);
     run('UPDATE password_resets SET used = 1 WHERE user_id = ?', row.user_id);
     return { ok: true };
+  });
+
+  // Renova o login (o navegador chama enquanto há atividade). Só por login; chaves de API não passam por aqui.
+  app.post('/api/auth/refresh', { preHandler: authenticate }, async (req) => {
+    if (req.viaApiKey) throw new HttpError(400, 'Chaves de API não precisam de renovação');
+    const user = get<UserRow>('SELECT * FROM users WHERE id = ?', req.user.id);
+    if (!user) throw new HttpError(401, 'Usuário não existe mais');
+    return { token: app.jwt.sign({ id: user.id, role: user.role }, { expiresIn: SESSION }) };
   });
 
   app.get('/api/me', { preHandler: authenticate }, async (req) => {

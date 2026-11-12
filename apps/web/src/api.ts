@@ -3,6 +3,62 @@ const TOKEN_KEY = 'rf_token';
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const setToken = (t: string | null) => (t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY));
 
+/** Segundos de validade restantes e idade do login (lidos do próprio token, sem consultar o servidor). */
+function tokenTimes(t: string | null): { iat: number; exp: number } | null {
+  if (!t) return null;
+  try {
+    const p = JSON.parse(atob(t.split('.')[1].split('-').join('+').split('_').join('/'))) as { iat?: number; exp?: number };
+    return p.iat && p.exp ? { iat: p.iat * 1000, exp: p.exp * 1000 } : null;
+  } catch {
+    return null;
+  }
+}
+
+let lastActivity = Date.now();
+let activeUploads = 0;
+let keeperOn = false;
+let renewing = false;
+
+/**
+ * Mantém o login vivo enquanto a pessoa usa o painel: cada atividade (mouse, teclado, toque, rolagem) ou envio de
+ * arquivos em andamento renova o login. Sem atividade por 3 horas o login expira e é preciso entrar de novo.
+ * (As consultas automáticas do painel NÃO contam como atividade: só a pessoa.)
+ */
+export function startSessionKeeper() {
+  if (keeperOn) return;
+  keeperOn = true;
+  const touch = () => {
+    lastActivity = Date.now();
+  };
+  for (const ev of ['mousedown', 'mousemove', 'keydown', 'touchstart', 'scroll', 'wheel']) window.addEventListener(ev, touch, { passive: true, capture: true });
+  const tick = async () => {
+    const token = getToken();
+    const t = tokenTimes(token);
+    if (!token || !t) return;
+    if (t.exp <= Date.now()) {
+      setToken(null);
+      location.href = '/login';
+      return;
+    }
+    const recentlyActive = lastActivity > t.iat || activeUploads > 0; // houve atividade desde que este login foi emitido
+    if (recentlyActive && Date.now() - t.iat > 5 * 60_000 && !renewing) {
+      renewing = true;
+      try {
+        const r = await fetch('/api/auth/refresh', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+        if (r.ok) setToken(((await r.json()) as { token: string }).token);
+      } catch {
+        /* sem rede agora: tenta de novo no próximo ciclo */
+      } finally {
+        renewing = false;
+      }
+    }
+  };
+  setInterval(tick, 60_000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) void tick();
+  });
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -207,6 +263,7 @@ export interface Playlist {
  */
 export function uploadForm<T = unknown>(path: string, form: FormData, onProgress?: (loaded: number, total: number) => void) {
   const xhr = new XMLHttpRequest();
+  activeUploads++; // envio em andamento conta como atividade (o login não expira no meio dele)
   const promise = new Promise<T>((resolve, reject) => {
     xhr.open('POST', path);
     const token = getToken();
@@ -232,5 +289,10 @@ export function uploadForm<T = unknown>(path: string, form: FormData, onProgress
     xhr.onabort = () => reject(new Error('Envio cancelado'));
     xhr.send(form);
   });
+  const done = () => {
+    activeUploads = Math.max(0, activeUploads - 1);
+    lastActivity = Date.now();
+  };
+  promise.then(done, done);
   return { promise, abort: () => xhr.abort() };
 }

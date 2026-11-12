@@ -246,3 +246,6 @@ Em **Usuários** (novo ou editar) o administrador marca o que cada operador pode
 
 ### SFTP para enviar músicas
 Na **Biblioteca**, botão **SFTP**: cada estação ganha usuário e senha próprios (gerados ao ligar; dá para trocar). Em FileZilla/WinSCP, conecte em `<servidor>:2222` (variável `SFTP_PORT`; `0` desliga). A raiz é a biblioteca da estação, com as pastas como diretórios; dá para enviar, baixar, renomear, mover e apagar músicas (só áudio). O acesso não alcança configurações e não para nem reinicia a rádio: as músicas enviadas são importadas (tags e capa) e as playlists são atualizadas em lote, alguns segundos depois do último envio. É preciso **publicar a porta 2222** do contêiner (no Velix, como as portas das rádios). A chave do servidor fica em `.secrets/sftp_host_ed25519` (persistente no volume), então o aviso de "chave nova" não reaparece a cada deploy. 10 senhas erradas seguidas bloqueiam o IP por 10 minutos.
+
+### Sessão do painel
+O login expira após **3 horas sem atividade**. Enquanto a pessoa usa o painel (mouse, teclado, toque ou rolagem) ou há um envio de arquivos em andamento, o navegador renova o login sozinho. As consultas automáticas do painel (ouvintes, now playing) não contam como atividade. Chaves de API não expiram.

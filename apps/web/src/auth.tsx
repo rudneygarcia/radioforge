@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { api, getToken, setToken, type User } from './api';
+import { api, getToken, setToken, startSessionKeeper, type User } from './api';
 
 interface AuthCtx {
   user: User | null;
@@ -20,6 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(!!getToken());
 
   useEffect(() => {
+    startSessionKeeper();
     if (!getToken()) return;
     api<User>('/api/me')
       .then(setUser)
