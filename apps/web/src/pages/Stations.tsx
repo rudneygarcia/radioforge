@@ -125,6 +125,7 @@ export default function Stations() {
       <Modal
         open={open}
         title="Nova estação"
+        size="lg"
         onClose={() => setOpen(false)}
         footer={
           <>
@@ -133,7 +134,7 @@ export default function Stations() {
           </>
         }
       >
-        <form id="new-station" className="fields" onSubmit={create}>
+        <form id="new-station" className="fields form-grid" onSubmit={create}>
           <label className="field">
             <span>Nome</span>
             <input value={name} onChange={(e) => { setName(e.target.value); if (!slugEdited) setSlug(toSlug(e.target.value)); }} placeholder="Ex.: Rádio Garcia" required />
@@ -155,10 +156,6 @@ export default function Stations() {
             <input value={mount} onChange={(e) => setMount(e.target.value.replace(/[^a-zA-Z0-9._-]/g, ''))} placeholder="radio.mp3" maxLength={40} required />
             <small className="hint">É o final do endereço de escuta. Padrão: radio.mp3 — dá para mudar depois em Editar estação.</small>
           </label>
-          <label className="check-line">
-            <input type="checkbox" checked={autodj} onChange={(e) => setAutodj(e.target.checked)} />
-            <span>Usar AutoDJ (músicas automáticas)<small>Desmarque se o cliente só transmite ao vivo: a estação roda só com o Icecast (o DJ conecta direto nele) e todo o processamento de áudio e o Liquidsoap ficam desligados, economizando CPU. Dá para ligar o AutoDJ depois em Editar estação.</small></span>
-          </label>
           <label className="field">
             <span>Porta da estação <em className="hint">(opcional)</em></span>
             <input type="number" min={1024} max={65000} value={port} onChange={(e) => setPort(e.target.value.replace(/[^0-9]/g, ''))} placeholder="Automática" />
@@ -172,7 +169,11 @@ export default function Stations() {
             </div>
             <small className="hint">É a senha que o DJ usa no programa de transmissão (usuário <code>source</code>). Mínimo 6 caracteres, sem espaços. Em branco, o painel cria uma senha forte. Dá para trocar depois em Editar estação.</small>
           </label>
-          {error && <p className="error">{error}</p>}
+          <label className="check-line span-all">
+            <input type="checkbox" checked={autodj} onChange={(e) => setAutodj(e.target.checked)} />
+            <span>Usar AutoDJ (músicas automáticas)<small>Desmarque se o cliente só transmite ao vivo: a estação roda só com o Icecast (o DJ conecta direto nele) e todo o processamento de áudio e o Liquidsoap ficam desligados, economizando CPU. Dá para ligar o AutoDJ depois em Editar estação.</small></span>
+          </label>
+          {error && <p className="error span-all">{error}</p>}
         </form>
       </Modal>
     </>
