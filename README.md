@@ -27,6 +27,15 @@ PUBLIC_HOST=radio.seudominio.com docker compose up -d --build
 
 Abra `http://SERVIDOR:3000`. Na primeira visita o painel pede para criar o administrador. Libere as portas `3000` e `8000-8499` no firewall (ideal: colocar um proxy reverso com HTTPS na frente do `3000`).
 
+**Instalador para servidores sem o Velix** (Debian/Ubuntu/CentOS/Fedora, como root): instala o Docker, baixa o projeto em `/opt/radioforge`, gera `.env`, libera as portas no firewall e sobe tudo. Se você informar um domínio, sobe também um Caddy (portas 80/443) com HTTPS automático na frente do painel.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rudneygarcia/radioforge/main/install.sh | sudo bash
+# sem perguntas:  RF_DOMAIN=radio.seudominio.com  (ou vazio = painel em http://IP:3000)
+```
+
+Depois use `radioforge update | status | logs | restart | stop | start | uninstall`. Variáveis: `RF_DOMAIN`, `RF_DIR`, `RF_REPO`, `RF_BRANCH`, `GITHUB_TOKEN` (repositório privado), `RF_PANEL_PORT`, `RF_TZ`. Requer Docker Compose 2.24+ (o instalador do Docker já traz). Fora do Velix o botão "Atualizar agora" do painel não tem webhook: atualize com `radioforge update`.
+
 Desenvolvimento (Windows/Linux, sem streaming):
 
 ```bash
