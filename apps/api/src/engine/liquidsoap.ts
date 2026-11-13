@@ -54,14 +54,17 @@ export function audioChain(preset: 'off' | 'balanced' | 'loud', gainDb = 0, vari
     return out;
   }
   if (preset === 'balanced') {
+    // O alvo do normalizador (-10 dB) fica acima do que a maioria das músicas já masterizadas traz, e o compressor
+    // devolve com folga (gain = makeup) o que a compressão tira: o resultado fica igual ou mais alto que o áudio
+    // original, nunca mais baixo (antes o alvo de -13 dB podia abaixar música já alta e não devolver o volume).
     out.push(
-      `radio = normalize(radio)`,
-      `radio = compress(threshold = -18., ratio = 3., attack = 30., release = 300., gain = 3., radio)`,
+      `radio = normalize(target = -10., radio)`,
+      `radio = compress(threshold = -20., ratio = 3., attack = 20., release = 250., gain = 5., radio)`,
     );
   } else if (preset === 'loud') {
     out.push(
-      `radio = normalize(radio)`,
-      `radio = compress(threshold = -22., ratio = 4., attack = 20., release = 250., gain = 5., radio)`,
+      `radio = normalize(target = -8., radio)`,
+      `radio = compress(threshold = -24., ratio = 5., attack = 15., release = 200., gain = 7., radio)`,
     );
   }
   out.push(...gain, `radio = limit(threshold = -1., radio)`);
