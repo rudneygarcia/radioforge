@@ -82,7 +82,9 @@ export function buildLiquidsoapScript(
   djs: DjRow[] = [],
   opts: {
     /** 0 = processador de áudio completo, 1 = só valores padrão, 2 = sem processador. */
-    audio?: 0 | 1 | 2;
+    audio?: 0 | 1 | 2 | 3;
+    /** Etapas extras (equalizador, largura estéreo, multibanda) já validadas; entram na variante 3, antes do compressor/limitador. */
+    fx?: string[];
     /** Mantém o AutoDJ tocando (mudo) durante o ao vivo, para continuar a mesma música quando o DJ cair. */
     keepAlive?: boolean;
     /** AutoCue: análise de cada faixa (cue in/out, fades) e crossfade inteligente nas passagens. */
@@ -281,6 +283,10 @@ export function buildLiquidsoapScript(
     if (licenseKey) args.push(`license_key = ${q(licenseKey)}`);
     if (st.stereo_preset) args.push(`preset = ${q(presetPath(st.id, st.stereo_preset))}`);
     lines.push(`radio = stereotool(${args.join(', ')}, radio)`);
+  } else if (audioVariant === 3) {
+    // Com etapas extras: elas vêm primeiro e o limitador sempre fecha a cadeia (mesmo com o predefinido desligado).
+    const chain = audioChain(st.audio_preset, st.audio_gain, 0);
+    lines.push(...(opts.fx ?? []), ...(chain.length ? chain : [`radio = limit(threshold = -1., radio)`]));
   } else if (audioVariant === 0 || audioVariant === 1) lines.push(...audioChain(st.audio_preset, st.audio_gain, audioVariant));
 
   lines.push(`radio = mksafe(radio)`, `radio.on_metadata(notify)`, ``);

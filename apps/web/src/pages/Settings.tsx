@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
+import AudioFx from './AudioFx';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { api, getToken, uploadForm, type MountCfg, type Station } from '../api';
 import { useCan } from '../auth';
@@ -371,6 +372,7 @@ function SettingsForm({ view }: { view: View }) {
             <small className="hint">Se ainda estiver baixo, suba de 2 em 2 dB. Acima de uns +8 dB o som pode ficar “espremido”; o limitador evita o estouro, mas escute antes de deixar fixo.</small>
           </label>
         </div>
+        <AudioFx stationId={station.id} disabled={!isAdmin || f.stereoEnabled} running={station.running} />
       </Modal>
 
       <Modal open={open === 'stereo'} title="Stereo Tool" onClose={close} size="lg" footer={<button type="button" onClick={close}>Concluído</button>}>
