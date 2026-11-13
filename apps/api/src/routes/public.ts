@@ -12,6 +12,7 @@ import { nextUri, notePick } from '../engine/rotation.js';
 import { isHiddenTrack } from '../engine/hide.js';
 import { PROXY_MARK, registerProxyConn } from '../engine/listeners.js';
 import { coverFile, coverMime, historyView, nowPlayingView, stationCoverPath, stationCoverUrl } from '../engine/covers.js';
+import { saveCue } from '../engine/cuecache.js';
 import { getHistory, getListeners, getLive, getNowPlaying, recordTrack, setLive } from '../engine/nowplaying.js';
 import { streamsOf, streamUrl } from './stations.js';
 import { icePort } from '../engine/ports.js';
@@ -279,6 +280,17 @@ export async function publicRoutes(app: FastifyInstance) {
     const { id, playId } = z.object({ id: z.coerce.number().int(), playId: z.coerce.number().int() }).parse(req.params);
     run("UPDATE ad_plays SET played_at = datetime('now') WHERE id = ? AND station_id = ? AND played_at IS NULL", playId, id);
     return { ok: true };
+  });
+
+  // O Liquidsoap manda a análise do AutoCue de uma música que acabou de ser analisada: fica salva para as próximas vezes.
+  app.post('/internal/stations/:id/cue', async (req) => {
+    const token = String(req.headers['x-internal-token'] ?? '');
+    if (!safeEqual(token, config.internalToken)) throw new HttpError(401, 'Token inválido');
+    const { id } = z.object({ id: z.coerce.number().int() }).parse(req.params);
+    const body = z.record(z.string(), z.unknown()).parse(req.body);
+    const rel = typeof body.filename === 'string' && body.filename ? path.relative(config.dataDir, body.filename) : '';
+    const media = rel ? get<{ id: number }>('SELECT id FROM media WHERE station_id = ? AND path = ?', id, rel) : undefined;
+    return { ok: !!media && saveCue(media.id, body) };
   });
 
   app.post('/internal/stations/:id/track', async (req) => {

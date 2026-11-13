@@ -8,6 +8,7 @@ import { HttpError } from '../auth.js';
 import { config, stationDir } from '../config.js';
 import { all, avoidRecent, djsFor, get, mountsFor, playlistMedia, recentMedia, type MediaRow, type PlaylistRow, type StationRow } from '../db.js';
 import { buildIcecastConfig } from './icecast.js';
+import { cueCacheOn, cueFor, cueMap } from './cuecache.js';
 import { dispatch } from './webhooks.js';
 import { clearLive } from './nowplaying.js';
 import { nativeEnqueue, nativeRunning, startNative, stopNative } from './native.js';
@@ -132,18 +133,19 @@ export function jingleUri(st: StationRow, abs: string, duration = 0, adId = 0) {
  * Música normal: título e artista vêm da biblioteca (o que o painel mostra e o administrador pode corrigir), não das tags do
  * arquivo. Assim o Icecast e os players nunca exibem o nome interno do arquivo (um código aleatório) quando a tag está vazia.
  */
-export function songUri(abs: string, title: string, artist: string) {
+export function songUri(abs: string, title: string, artist: string, cue = '') {
   // Aspas, barra invertida, quebras de linha e vírgula quebrariam o annotate: viram espaço.
   const clean = (v: string) => v.split('"').join(' ').split('\\').join(' ').split(',').join(' ').split(/[\r\n\s]+/).filter(Boolean).join(' ');
   const t = clean(title);
   if (!t) return abs;
-  return `annotate:title="${t}",artist="${clean(artist)}":${abs}`;
+  return `annotate:${cue}title="${t}",artist="${clean(artist)}":${abs}`;
 }
 
 /** Mesma coisa para um arquivo da biblioteca identificado só pelo caminho (pedidos e horários). */
 function songUriFor(abs: string) {
-  const m = get<{ title: string; artist: string }>('SELECT title, artist FROM media WHERE path = ?', path.relative(config.dataDir, abs));
-  return m ? songUri(abs, m.title, m.artist) : abs;
+  const m = get<{ id: number; title: string; artist: string }>('SELECT id, title, artist FROM media WHERE path = ?', path.relative(config.dataDir, abs));
+  const stn = m ? get<StationRow>('SELECT s.* FROM stations s JOIN media x ON x.station_id = s.id WHERE x.id = ?', m.id) : undefined;
+  return m ? songUri(abs, m.title, m.artist, stn ? cueFor(stn, m.id) : '') : abs;
 }
 
 /** Faixa oculta: toca normalmente, mas sem título/artista (nada é enviado ao servidor nem ao Icecast, nem o nome da estação). */
@@ -159,6 +161,7 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
   // Regra "não repetir por N minutos": as tocadas há pouco ficam fora do arquivo (o Liquidsoap recarrega sozinho).
   const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', stationId);
   const recent = recentMedia(stationId, st?.no_repeat_minutes ?? 0);
+  const cues = st ? cueMap(st) : new Map<number, string>(); // análises do AutoCue já salvas
   for (const p of playlists) {
     if (p.every_minutes > 0) continue; // entra por tempo (ver timed.ts), não na rotação
     const full = playlistMedia(p.id);
@@ -169,7 +172,7 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
     const uri = (m: MediaRow) => {
       const abs = path.join(config.dataDir, m.path);
       if (st && isHiddenTrack(st, m)) return hiddenUri(abs);
-      return p.is_jingle && st ? jingleUri(st, abs, m.duration) : songUri(abs, m.title, m.artist);
+      return p.is_jingle && st ? jingleUri(st, abs, m.duration) : songUri(abs, m.title, m.artist, cues.get(m.id) ?? '');
     };
     const content = media.map(uri).join('\n') + '\n';
     // Só regrava se mudou: cada gravação faz o Liquidsoap recarregar a playlist.
@@ -191,7 +194,7 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
 }
 
 /** Versão do script que vale por estação: processador (0 completo, 1 só padrões, 2 desligado) e AutoDJ em segundo plano. */
-type Variant = { audio: 0 | 1 | 2; keepAlive: boolean; autocue: boolean; tuned: boolean; stereo?: boolean; dyn?: boolean; root?: boolean };
+type Variant = { audio: 0 | 1 | 2; keepAlive: boolean; autocue: boolean; tuned: boolean; stereo?: boolean; dyn?: boolean; root?: boolean; cue?: boolean };
 const variantOf = new Map<number, Variant>();
 const audioWarnings = new Map<number, string>();
 /** A estação roda com a próxima faixa escolhida pela API (não pelas playlists .m3u)? */
@@ -331,6 +334,8 @@ export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn
     const withRoot = [...attempts.map((v) => ({ ...v, root: true })), ...attempts.map((v) => ({ ...v, root: false }))];
     attempts.splice(0, attempts.length, ...withRoot);
   }
+  // Cache do AutoCue: a melhor tentativa ganha uma versão com o aprendizado das análises logo na frente (se o Liquidsoap recusar, segue sem ele).
+  if (wantsAutocue && cueCacheOn() && attempts[0]?.autocue) attempts.unshift({ ...attempts[0], cue: true });
   audioWarnings.delete(st.id);
   let firstError = '';
   let lastOut = '';

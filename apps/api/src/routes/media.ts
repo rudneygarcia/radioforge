@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { authenticate, HttpError, stationFor } from '../auth.js';
 import { config, stationDir } from '../config.js';
 import { all, db, get, run, type FolderRow, type MediaRow } from '../db.js';
+import { clearCueCache } from '../engine/cuecache.js';
 import { coversDir, extractCover } from '../engine/covers.js';
 import { ensureStationDirs, writePlaylists } from '../engine/manager.js';
 
@@ -192,6 +193,15 @@ export async function mediaRoutes(app: FastifyInstance) {
     }
     writePlaylists(st.id);
     return { ok: true, removed };
+  });
+
+  // Apaga as análises do AutoCue guardadas (na próxima vez que cada música tocar, ela é analisada de novo).
+  app.delete('/api/stations/:id/media/cue-cache', async (req) => {
+    const { id } = params.parse(req.params);
+    const st = stationFor(req, id);
+    const cleared = clearCueCache(st.id);
+    writePlaylists(st.id);
+    return { ok: true, cleared };
   });
 
   app.delete('/api/stations/:id/media/:mediaId', async (req) => {

@@ -256,3 +256,10 @@ O login expira após **3 horas sem atividade**. Enquanto a pessoa usa o painel (
 - **Consultas repetidas:** a resposta pública de cada estação (player, widgets, API compatível com AzuraCast) fica 3 s em cache; consultas simultâneas à lista de ouvintes do Icecast dividem uma só.
 - **Painel aberto:** as telas do painel param de atualizar com a aba escondida; a da estação atualiza a cada 10 s.
 - **Logs:** Icecast em nível de aviso (menos escrita) e logs de Icecast/Liquidsoap rotacionados acima de 5 MB.
+
+### Cache do AutoCue (a música é analisada uma vez só)
+A análise do AutoCue (início/fim reais, fades, sobreposição e volume de cada faixa) é a parte mais pesada do Liquidsoap. Na **primeira vez** que uma música toca, o Liquidsoap avisa o resultado e ele é guardado no banco (`media_cue`); nas vezes seguintes o painel entrega esses valores junto com a faixa e o Liquidsoap **pula a análise** (ele já faz isso quando `liq_cue_in`/`liq_cue_out` vêm na faixa). Detalhes:
+- vale para a rotação pela API (padrão), pedidos e playlists por horário; no modo de playlists `.m3u` entra a partir da próxima reescrita da playlist;
+- só funciona com o AutoCue ligado na estação; se o Liquidsoap recusar o trecho de aprendizado, a rádio sobe normalmente sem ele (e analisa sempre, como antes);
+- `AUTOCUE_CACHE=false` desliga o cache (volta a analisar sempre);
+- para refazer as análises de uma estação: `DELETE /api/stations/:id/media/cue-cache`.

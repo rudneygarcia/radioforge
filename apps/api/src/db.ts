@@ -273,6 +273,12 @@ CREATE TABLE IF NOT EXISTS ad_plays (
 );
 CREATE INDEX IF NOT EXISTS idx_ad_plays_station ON ad_plays(station_id, id DESC);
 `);
+// Resultado da análise do AutoCue de cada música (não precisa analisar de novo a cada vez que ela toca).
+db.exec(`CREATE TABLE IF NOT EXISTS media_cue (
+  media_id INTEGER PRIMARY KEY REFERENCES media(id) ON DELETE CASCADE,
+  data TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`);
 // Quando o comercial realmente começou a tocar (confirmado pelo Liquidsoap).
 addColumn('ad_plays', 'played_at', 'TEXT');
 // Não repetir o mesmo artista por N minutos (0 = desligado).

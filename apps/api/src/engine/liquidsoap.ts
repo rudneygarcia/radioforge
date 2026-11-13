@@ -2,6 +2,7 @@ import type { DjRow, MountRow, StationRow } from '../db.js';
 import { config } from '../config.js';
 import { getLicenseKey, presetPath, stereoLibPath } from './stereotool.js';
 import { icePort } from './ports.js';
+import { CUE_KEYS } from './cuecache.js';
 
 /** Literal de string seguro para Liquidsoap (JSON é compatível com as escapes dele). */
 const q = (s: string) => JSON.stringify(s);
@@ -92,6 +93,8 @@ export function buildLiquidsoapScript(
     stereo?: boolean;
     /** Próxima faixa escolhida pela API (request.dynamic) em vez das playlists .m3u. */
     dyn?: boolean;
+    /** Guarda a análise do AutoCue de cada música (cache): só tentado primeiro; se o Liquidsoap recusar, sobe sem. */
+    cue?: boolean;
     /** Também aceita encoders no mount "/" (padrão do AzuraCast) além de /live. */
     root?: boolean;
   } = {},
@@ -116,6 +119,17 @@ export function buildLiquidsoapScript(
     `    payload = json.stringify({artist = m["artist"], title = m["title"], filename = m["filename"]})`,
     `    thread.run({ignore(http.post(headers = [("Content-Type", "application/json"), ("X-Internal-Token", ${q(config.internalToken)})], data = payload, ${q(`${config.apiInternalUrl}/internal/stations/${st.id}/track`)}))})`,
     `  end`,
+    // AutoCue: guarda a análise de cada música (a primeira vez) para o painel reaproveitar e não analisar de novo.
+    ...(opts.cue
+      ? [
+          `def learn_cue(m) =`,
+          `  if m["liq_cue_in"] != "" and m["rf_cue"] == "" and m["rf_jingle"] != "1" then`,
+          `    payload = json.stringify({filename = m["filename"], ${CUE_KEYS.map((k) => `${k} = m["${k}"]`).join(', ')}})`,
+          `    thread.run({ignore(http.post(headers = [("Content-Type", "application/json"), ("X-Internal-Token", ${q(config.internalToken)})], data = payload, ${q(`${config.apiInternalUrl}/internal/stations/${st.id}/cue`)}))})`,
+          `  end`,
+          `end`,
+        ]
+      : []),
     // Comercial veiculado: o disparo marca a faixa com rf_ad (id do registro); ao começar a tocar, o painel confirma "tocou".
     `  if m["rf_ad"] != "" then`,
     `    ad_url = (${q(`${config.apiInternalUrl}/internal/stations/${st.id}/ad-played/`)} ^ m["rf_ad"])`,
@@ -191,6 +205,7 @@ export function buildLiquidsoapScript(
   }
   auto.push('rotation');
   lines.push(`radio = fallback(id = "auto", track_sensitive = true, [${auto.join(', ')}])`);
+  if (opts.cue) lines.push(`radio.on_metadata(learn_cue)`);
 
   // Normalização e crossfade só no áudio automático: o DJ ao vivo entra depois, sem processamento.
   // Com o AutoCue ligado e o nivelamento dele (liq_amplify) ativo, o ReplayGain seria uma SEGUNDA análise de volume de cada faixa
