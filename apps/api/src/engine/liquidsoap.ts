@@ -43,13 +43,13 @@ export function schedulePredicate(s: NonNullable<LiqPlaylist['schedule']>): stri
  * multibanda + limitador num só plugin — por isso, ao contrário do processador interno, ele entra SOZINHO (sem o
  * normalizador/compressor/limitador do painel). `gainDb` (Volume extra) vira o ganho de entrada do próprio plugin.
  */
-function masterMeChain(gainDb: number, variant: 0 | 1): string[] {
+function masterMeChain(gainDb: number, targetLufs: number, variant: 0 | 1): string[] {
   if (variant === 1) return [`radio = ladspa.master_me(radio)`]; // só os valores padrão do próprio plugin
   return [
     `radio = ladspa.master_me(`,
     `  bypass = false, brickwall_bypass = false, eq_bypass = false, gate_bypass = true,`,
     `  kneecomp_bypass = false, leveler_bypass = false, limiter_bypass = false, mscomp_bypass = false,`,
-    `  target = -14., brickwall_ceiling = -1.00, brickwall_release = 75.00,`,
+    `  target = ${targetLufs.toFixed(2)}, brickwall_ceiling = -1.00, brickwall_release = 75.00,`,
     `  eq_highpass_freq = 5.00, eq_side_bandwidth = 1.00, eq_side_freq = 600.00, eq_side_gain = 1.00, eq_tilt_gain = 0.00,`,
     `  gate_attack = 0.00, gate_hold = 50.00, gate_release = 430.50, gate_threshold = -90.00,`,
     `  kneecomp_attack = 20.00, kneecomp_dry_wet = 50, kneecomp_ff_fb = 50, kneecomp_knee = 6.00, kneecomp_link = 60,`,
@@ -73,9 +73,9 @@ function masterMeChain(gainDb: number, variant: 0 | 1): string[] {
  * `variant`: 0 = completa (com parâmetros); 1 = só valores padrão do Liquidsoap (se algum nome de
  * parâmetro não existir nesta versão); o manager tenta 0, depois 1, e por fim sem processamento.
  */
-export function audioChain(preset: 'off' | 'balanced' | 'loud' | 'master_me', gainDb = 0, variant: 0 | 1 = 0): string[] {
+export function audioChain(preset: 'off' | 'balanced' | 'loud' | 'master_me', gainDb = 0, variant: 0 | 1 = 0, masterTarget = -14): string[] {
   if (preset === 'off' && gainDb <= 0) return [];
-  if (preset === 'master_me') return masterMeChain(gainDb, variant);
+  if (preset === 'master_me') return masterMeChain(gainDb, masterTarget, variant);
   const out: string[] = [];
   const gain = gainDb > 0 ? [`radio = amplify(${Math.pow(10, gainDb / 20).toFixed(3)}, radio)`] : [];
   if (variant === 1) {
@@ -316,7 +316,7 @@ export function buildLiquidsoapScript(
     if (licenseKey) args.push(`license_key = ${q(licenseKey)}`);
     if (st.stereo_preset) args.push(`preset = ${q(presetPath(st.id, st.stereo_preset))}`);
     lines.push(`radio = stereotool(${args.join(', ')}, radio)`);
-  } else if (audioVariant === 0 || audioVariant === 1) lines.push(...audioChain(st.audio_preset, st.audio_gain, audioVariant));
+  } else if (audioVariant === 0 || audioVariant === 1) lines.push(...audioChain(st.audio_preset, st.audio_gain, audioVariant, st.audio_master_target));
 
   lines.push(`radio = mksafe(radio)`, `radio.on_metadata(notify)`, ``);
 

@@ -144,6 +144,7 @@ export interface Station {
   historyLimit: number;
   audioPreset: 'off' | 'balanced' | 'loud' | 'master_me';
   audioGain: number;
+  audioMasterTarget: number;
   audioWarning: string | null;
   noRepeatMinutes: number;
   liveTimeout: number;

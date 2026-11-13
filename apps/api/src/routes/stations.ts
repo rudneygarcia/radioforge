@@ -46,6 +46,8 @@ const settings = z.object({
   audioPreset: z.enum(['off', 'balanced', 'loud', 'master_me']).default('balanced'),
   /** Ganho extra em dB (antes do limitador, que evita distorção). */
   audioGain: z.number().min(0).max(12).default(0),
+  /** Volume alvo do master_me, em LUFS (quanto mais negativo, mais baixo/dinâmico; -23 é o padrão de TV/rádio europeu, -14 é comum em streaming). */
+  audioMasterTarget: z.number().min(-30).max(-6).default(-14),
   /** Não repetir a mesma música por N minutos (0 = desligado). */
   noRepeatMinutes: z.number().int().min(0).max(1440).default(60),
   /** Segundos sem áudio do encoder até o AutoDJ voltar (3 a 60). */
@@ -178,6 +180,7 @@ export async function stationView(st: StationRow) {
     historyLimit: st.history_limit,
     audioPreset: st.audio_preset,
     audioGain: st.audio_gain,
+    audioMasterTarget: st.audio_master_target,
     noRepeatMinutes: st.no_repeat_minutes,
     liveTimeout: st.live_timeout,
     liveContinue: !!st.live_continue,
@@ -364,7 +367,7 @@ export async function stationRoutes(app: FastifyInstance) {
     if (b.mounts.some((m) => m.mount === newMount)) throw new HttpError(400, `O nome ${newMount} já é usado por um stream extra`);
     run(
       `UPDATE stations SET name = ?, description = ?, mount = ?, format = ?, bitrate = ?,
-         live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ?, record_live = ?, history_limit = ?, audio_preset = ?, audio_gain = ?, no_repeat_minutes = ?, live_timeout = ?, live_continue = ?, time_announce = ?, timezone = ?, time_announce_voice = ?, time_voice = ?, autocue = ?, autocue_custom = ?, autocue_duration = ?, autocue_fade_in = ?, autocue_fade_out = ?, jingle_overlap = ?, jingle_gain = ?, autocue_level = ?, hidden_words = ?, jingle_hide_name = ?, request_interval = ?, request_delay = ?, stereo_enabled = ?, stereo_key = ?, stereo_preset = ?, no_repeat_artist_minutes = ?, autodj = ? WHERE id = ?`,
+         live_enabled = ?, requests_enabled = ?, autostart = ?, crossfade_seconds = ?, normalize = ?, record_live = ?, history_limit = ?, audio_preset = ?, audio_gain = ?, audio_master_target = ?, no_repeat_minutes = ?, live_timeout = ?, live_continue = ?, time_announce = ?, timezone = ?, time_announce_voice = ?, time_voice = ?, autocue = ?, autocue_custom = ?, autocue_duration = ?, autocue_fade_in = ?, autocue_fade_out = ?, jingle_overlap = ?, jingle_gain = ?, autocue_level = ?, hidden_words = ?, jingle_hide_name = ?, request_interval = ?, request_delay = ?, stereo_enabled = ?, stereo_key = ?, stereo_preset = ?, no_repeat_artist_minutes = ?, autodj = ? WHERE id = ?`,
       b.name,
       b.description,
       newMount,
@@ -379,6 +382,7 @@ export async function stationRoutes(app: FastifyInstance) {
       b.historyLimit,
       b.audioPreset,
       b.audioGain,
+      b.audioMasterTarget,
       b.noRepeatMinutes,
       b.liveTimeout,
       b.liveContinue ? 1 : 0,

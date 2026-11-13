@@ -290,6 +290,7 @@ addColumn('stations', 'cover', 'TEXT'); // capa/logo da rádio (arquivo dentro d
 addColumn('stations', 'no_repeat_minutes', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('history', 'media_id', 'INTEGER'); // música tocada (para a regra de não repetir); null em vinhetas/antigos
 addColumn('stations', 'audio_gain', 'REAL NOT NULL DEFAULT 0'); // ganho extra em dB (0 a 12), antes do limitador
+addColumn('stations', 'audio_master_target', 'REAL NOT NULL DEFAULT -14'); // volume alvo do master_me, em LUFS (ex.: -14, -16, -23)
 // Migração única (user_version 1): quem estava sem processador passa ao "Equilibrado", que nivela o volume (o áudio original saía baixo).
 if ((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version < 1) {
   db.exec("UPDATE stations SET audio_preset = 'balanced' WHERE audio_preset = 'off'");
@@ -456,6 +457,7 @@ export interface StationRow {
   history_limit: number;
   audio_preset: 'off' | 'balanced' | 'loud' | 'master_me';
   audio_gain: number;
+  audio_master_target: number;
   no_repeat_minutes: number;
   live_timeout: number;
   live_continue: number;

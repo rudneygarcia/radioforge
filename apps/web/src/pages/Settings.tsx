@@ -46,6 +46,7 @@ function SettingsForm({ view }: { view: View }) {
     bitrate: station.bitrate,
     audioPreset: station.audioPreset,
     audioGain: station.audioGain,
+    audioMasterTarget: station.audioMasterTarget,
     noRepeatMinutes: station.noRepeatMinutes,
     liveTimeout: station.liveTimeout,
     liveContinue: station.liveContinue,
@@ -376,10 +377,40 @@ function SettingsForm({ view }: { view: View }) {
                 : 'Só no modo completo (Icecast + Liquidsoap). O limitador no final impede a distorção mesmo com o volume alto.'}
             </small>
           </label>
+          {f.audioPreset === 'master_me' && (
+            <label className="field">
+              <span>Volume alvo do master_me: {f.audioMasterTarget} LUFS</span>
+              <select
+                value={[-14, -16, -18, -23].includes(f.audioMasterTarget) ? String(f.audioMasterTarget) : 'custom'}
+                onChange={(e) => e.target.value !== 'custom' && setF({ ...f, audioMasterTarget: Number(e.target.value) })}
+                disabled={!isAdmin || f.stereoEnabled}
+              >
+                <option value="-14">-14 LUFS — streaming/YouTube (mais alto)</option>
+                <option value="-16">-16 LUFS — música geral, podcasts Apple (recomendado)</option>
+                <option value="-18">-18 LUFS — mais dinâmico</option>
+                <option value="-23">-23 LUFS — padrão EBU R128 de TV/rádio europeu</option>
+                <option value="custom">Personalizado…</option>
+              </select>
+              <input
+                type="number"
+                min={-30}
+                max={-6}
+                step={1}
+                value={f.audioMasterTarget}
+                onChange={(e) => setF({ ...f, audioMasterTarget: Number(e.target.value) })}
+                disabled={!isAdmin || f.stereoEnabled}
+              />
+              <small className="hint">Quanto mais perto de 0, mais alto (e menos dinâmico) fica o som. Valores entre -14 e -18 LUFS são comuns para rádio pela internet.</small>
+            </label>
+          )}
           <label className="field">
             <span>Volume extra: {f.audioGain === 0 ? 'sem ganho' : `+${f.audioGain} dB`}</span>
             <input type="range" min={0} max={12} step={1} value={f.audioGain} onChange={(e) => setF({ ...f, audioGain: Number(e.target.value) })} disabled={!isAdmin || f.stereoEnabled} style={{ padding: 0 }} />
-            <small className="hint">Se ainda estiver baixo, suba de 2 em 2 dB. Acima de uns +8 dB o som pode ficar “espremido”; o limitador evita o estouro, mas escute antes de deixar fixo.</small>
+            <small className="hint">
+              {f.audioPreset === 'master_me'
+                ? 'Aqui vira o ganho de entrada do próprio master_me, antes dele processar.'
+                : 'Se ainda estiver baixo, suba de 2 em 2 dB. Acima de uns +8 dB o som pode ficar “espremido”; o limitador evita o estouro, mas escute antes de deixar fixo.'}
+            </small>
           </label>
         </div>
       </Modal>
