@@ -263,3 +263,6 @@ A análise do AutoCue (início/fim reais, fades, sobreposição e volume de cada
 - só funciona com o AutoCue ligado na estação; se o Liquidsoap recusar o trecho de aprendizado, a rádio sobe normalmente sem ele (e analisa sempre, como antes);
 - `AUTOCUE_CACHE=false` desliga o cache (volta a analisar sempre);
 - para refazer as análises de uma estação: `DELETE /api/stations/:id/media/cue-cache`.
+
+### Etapas extras do processador de áudio
+Em **Configurações → Processador de áudio** (só o administrador) dá para somar ao normalizador/compressor/limitador: **equalizador** (Neutro, Voz, Graves, Agudos, Rock/Pop), **largura estéreo** (Normal, Mais aberto, Mono) e **compressor multibanda**. Usam só recursos do próprio Liquidsoap (sem plugin VST/LV2). Como os nomes dos parâmetros variam entre versões, cada etapa é testada com `liquidsoap --check` num script mínimo (resultado em cache) e só entra se o Liquidsoap aceitar; senão aparece o aviso e a tela marca "Indisponível". O limitador sempre fecha a cadeia. Vale após reiniciar a rádio. Com o Stereo Tool ligado, as etapas ficam de fora.
