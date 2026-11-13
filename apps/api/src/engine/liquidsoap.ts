@@ -147,14 +147,9 @@ export function buildLiquidsoapScript(
     `settings.autocue.internal.timeout := 60.`,
     `settings.harbor.timeout := ${Math.max(3, Math.min(60, Math.round(st.live_timeout || 8)))}.`,
     ``,
-    `# Avisa a API de cada faixa tocada (histórico + now playing).`,
-    `# Vinhetas vêm marcadas com rf_jingle (annotate no .m3u): não avisam o servidor.`,
-    `def notify(m) =`,
-    `  if m["rf_jingle"] != "1" then`,
-    `    payload = json.stringify({artist = m["artist"], title = m["title"], filename = m["filename"]})`,
-    `    thread.run({ignore(http.post(headers = [("Content-Type", "application/json"), ("X-Internal-Token", ${q(config.internalToken)})], data = payload, ${q(`${config.apiInternalUrl}/internal/stations/${st.id}/track`)}))})`,
-    `  end`,
     // AutoCue: guarda a análise de cada música (a primeira vez) para o painel reaproveitar e não analisar de novo.
+    // Precisa ficar FORA de "notify" (uma def própria): dentro dela ficaria só visível ali e `radio.on_metadata(learn_cue)`,
+    // chamado lá embaixo, não a encontraria ("Undefined variable learn_cue"), derrubando sempre essa tentativa.
     ...(opts.cue
       ? [
           `def learn_cue(m) =`,
@@ -163,8 +158,16 @@ export function buildLiquidsoapScript(
           `    thread.run({ignore(http.post(headers = [("Content-Type", "application/json"), ("X-Internal-Token", ${q(config.internalToken)})], data = payload, ${q(`${config.apiInternalUrl}/internal/stations/${st.id}/cue`)}))})`,
           `  end`,
           `end`,
+          ``,
         ]
       : []),
+    `# Avisa a API de cada faixa tocada (histórico + now playing).`,
+    `# Vinhetas vêm marcadas com rf_jingle (annotate no .m3u): não avisam o servidor.`,
+    `def notify(m) =`,
+    `  if m["rf_jingle"] != "1" then`,
+    `    payload = json.stringify({artist = m["artist"], title = m["title"], filename = m["filename"]})`,
+    `    thread.run({ignore(http.post(headers = [("Content-Type", "application/json"), ("X-Internal-Token", ${q(config.internalToken)})], data = payload, ${q(`${config.apiInternalUrl}/internal/stations/${st.id}/track`)}))})`,
+    `  end`,
     // Comercial veiculado: o disparo marca a faixa com rf_ad (id do registro); ao começar a tocar, o painel confirma "tocou".
     `  if m["rf_ad"] != "" then`,
     `    ad_url = (${q(`${config.apiInternalUrl}/internal/stations/${st.id}/ad-played/`)} ^ m["rf_ad"])`,
