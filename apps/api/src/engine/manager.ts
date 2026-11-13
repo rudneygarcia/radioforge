@@ -12,7 +12,6 @@ import { cueCacheOn, cueFor, cueMap } from './cuecache.js';
 import { dispatch } from './webhooks.js';
 import { clearLive } from './nowplaying.js';
 import { nativeEnqueue, nativeRunning, startNative, stopNative } from './native.js';
-import { resolveFx, wantsFx } from './audiofx.js';
 import { buildLiquidsoapScript, telnetPort, type LiqPlaylist } from './liquidsoap.js';
 import { isHiddenTrack } from './hide.js';
 import { getLicenseKey, libraryInfo, listPresets } from './stereotool.js';
@@ -195,7 +194,7 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
 }
 
 /** Versão do script que vale por estação: processador (0 completo, 1 só padrões, 2 desligado) e AutoDJ em segundo plano. */
-type Variant = { audio: 0 | 1 | 2 | 3; fx?: string[]; keepAlive: boolean; autocue: boolean; tuned: boolean; stereo?: boolean; dyn?: boolean; root?: boolean; cue?: boolean };
+type Variant = { audio: 0 | 1 | 2; keepAlive: boolean; autocue: boolean; tuned: boolean; stereo?: boolean; dyn?: boolean; root?: boolean; cue?: boolean };
 const variantOf = new Map<number, Variant>();
 const audioWarnings = new Map<number, string>();
 /** A estação roda com a próxima faixa escolhida pela API (não pelas playlists .m3u)? */
@@ -300,10 +299,7 @@ export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn
   const wantsChain = st.audio_preset !== 'off' || st.audio_gain > 0;
   const wantsKeep = !!st.live_continue && !!st.live_enabled;
   // Tentativas, da mais completa à mais simples: com AutoDJ em segundo plano primeiro, depois sem.
-  // Etapas extras (equalizador, largura estéreo, multibanda): só entram as que o Liquidsoap aceita (testadas em script mínimo).
-  const fx = wantsFx(st) ? resolveFx(st) : { lines: [] as string[], skipped: [] as string[] };
-  const hasFx = fx.lines.length > 0;
-  const audios: (0 | 1 | 2 | 3)[] = hasFx ? [3, 0, 1, 2] : wantsChain ? [0, 1, 2] : [2];
+  const audios: (0 | 1 | 2)[] = wantsChain ? [0, 1, 2] : [2];
   const wantsAutocue = !!st.autocue;
   // Todas as combinações, da mais completa à mais simples (cada recurso que o Liquidsoap recusar é desligado sozinho).
   const attempts: Variant[] = [];
@@ -311,7 +307,7 @@ export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn
   const cueLevels = wantsAutocue ? [...(st.autocue_custom ? [{ autocue: true, tuned: true }] : []), { autocue: true, tuned: false }, { autocue: false, tuned: false }] : [{ autocue: false, tuned: false }];
   for (const cue of cueLevels)
     for (const keepAlive of wantsKeep ? [true, false] : [false])
-      for (const audio of audios) attempts.push({ audio, keepAlive, autocue: cue.autocue, tuned: cue.tuned, ...(audio === 3 ? { fx: fx.lines } : {}) });
+      for (const audio of audios) attempts.push({ audio, keepAlive, autocue: cue.autocue, tuned: cue.tuned });
   const reductions = (v: Variant) => audios.indexOf(v.audio) + (wantsKeep && !v.keepAlive ? 1 : 0) + cueLevels.findIndex((c) => c.autocue === v.autocue && c.tuned === v.tuned);
   attempts.sort((a, b) => reductions(a) - reductions(b));
   // Stereo Tool (se ligado, com biblioteca e preset enviados): tentado primeiro; se o Liquidsoap recusar, cai no processador interno.
@@ -366,8 +362,6 @@ export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn
   if (stereoProblem) notes.push(stereoProblem + ' Usando o processador interno.');
   if (wantsStereo && !chosen.stereo) notes.push('O Stereo Tool NÃO foi carregado (o Liquidsoap recusou o script: verifique se esta versão do Liquidsoap tem o suporte a Stereo Tool). Usando o processador interno.');
   if (!skip.dyn && !chosen.dyn) notes.push('A rotação pela API (regras exatas de não repetir música/artista) não foi aceita pelo Liquidsoap: usando as playlists comuns.');
-  if (!chosen.stereo && fx.skipped.length) notes.push(`Não foi possível usar: ${fx.skipped.join(", ")}. Essa etapa do processador ficou de fora.`);
-  if (hasFx && !chosen.stereo && chosen.audio !== 3) notes.push(`O compressor multibanda (plugin LSP) foi desligado porque o Liquidsoap recusou o script.`);
   if (wantsChain && !chosen.stereo && chosen.audio === 1) notes.push(`O processador de áudio roda só com valores padrão (os ajustes finos não foram aceitos pelo Liquidsoap).`);
   if (wantsChain && !chosen.stereo && chosen.audio === 2) notes.push(`O processador de áudio foi DESLIGADO porque o Liquidsoap recusou o script.`);
   if (wantsAutocue && chosen.autocue && !chosen.tuned && st.autocue_custom) notes.push(`O AutoCue roda com a configuração padrão (os valores personalizados de duração/fade não foram aceitos pelo Liquidsoap).`);

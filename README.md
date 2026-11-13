@@ -263,6 +263,3 @@ A análise do AutoCue (início/fim reais, fades, sobreposição e volume de cada
 - só funciona com o AutoCue ligado na estação; se o Liquidsoap recusar o trecho de aprendizado, a rádio sobe normalmente sem ele (e analisa sempre, como antes);
 - `AUTOCUE_CACHE=false` desliga o cache (volta a analisar sempre);
 - para refazer as análises de uma estação: `DELETE /api/stations/:id/media/cue-cache`.
-
-### Compressor multibanda (plugin LSP)
-A imagem instala o `lsp-plugins-ladspa` (de forma protegida: se quebrar o Liquidsoap, é removido). Em **Configurações → Processador de áudio** (só o administrador) dá para ligar o compressor multibanda `ladspa.lsp_mb_compressor_stereo` (4 bandas, cortes em 120 Hz, 1 kHz e 5 kHz) em dois níveis, Suave e Forte (estilo FM). Ele entra antes do normalizador/compressor/limitador, que continuam no fim. Antes de usar, o trecho é testado com `liquidsoap --check` num script mínimo; se o plugin não existir ou for recusado, a etapa fica de fora, a tela mostra "Indisponível" e a rádio sobe normalmente. Vale após reiniciar a rádio; usa mais CPU. Os limiares e ganhos do plugin são valores lineares (0,08 ≈ -22 dB).
