@@ -58,7 +58,7 @@ export default function AdsPage() {
   useEffect(() => {
     load();
     api<Folder[]>(`/api/stations/${station.id}/folders`).then(setFolders).catch(() => {});
-    const t = setInterval(load, 15000);
+    const t = setInterval(() => { if (!document.hidden) load(); }, 15000);
     return () => clearInterval(t);
   }, [load, station.id]);
 

@@ -6,7 +6,9 @@ import { applyPendingRestore } from './engine/restore.js';
 applyPendingRestore(); // precisa rodar antes de abrir o banco
 
 export const db = new DatabaseSync(path.join(config.dataDir, 'radioforge.db'));
-db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+// WAL + synchronous NORMAL: sem fsync a cada gravação (histórico, sessões, amostras); seguro contra queda do programa e,
+// no pior caso (queda de energia), só se perde o que foi gravado nos últimos instantes.
+db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA temp_store = MEMORY; PRAGMA cache_size = -16000; PRAGMA foreign_keys = ON;');
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (

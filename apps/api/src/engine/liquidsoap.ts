@@ -193,7 +193,9 @@ export function buildLiquidsoapScript(
   lines.push(`radio = fallback(id = "auto", track_sensitive = true, [${auto.join(', ')}])`);
 
   // Normalização e crossfade só no áudio automático: o DJ ao vivo entra depois, sem processamento.
-  if (st.normalize) {
+  // Com o AutoCue ligado e o nivelamento dele (liq_amplify) ativo, o ReplayGain seria uma SEGUNDA análise de volume de cada faixa
+  // (CPU a mais) e um segundo ganho em cima do primeiro: o AutoCue já nivela, então o ReplayGain só entra quando ele não faz isso.
+  if (st.normalize && !(opts.autocue && st.autocue_level)) {
     lines.push(`enable_replaygain_metadata()`, `radio = amplify(1., override = "replaygain_track_gain", radio)`);
   }
   if (opts.autocue) {

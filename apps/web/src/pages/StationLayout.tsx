@@ -48,7 +48,7 @@ export default function StationLayout() {
 
   useEffect(() => {
     reload();
-    const t = setInterval(reload, 8000);
+    const t = setInterval(() => { if (!document.hidden) reload(); }, 10000);
     return () => clearInterval(t);
   }, [reload]);
 

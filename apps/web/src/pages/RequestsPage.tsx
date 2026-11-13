@@ -44,7 +44,7 @@ export default function RequestsPage() {
     return () => clearTimeout(t);
   }, [load, q]);
   useEffect(() => {
-    const t = setInterval(load, 10_000);
+    const t = setInterval(() => { if (!document.hidden) load(); }, 10_000);
     return () => clearInterval(t);
   }, [load]);
 

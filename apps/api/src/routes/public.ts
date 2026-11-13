@@ -89,9 +89,22 @@ function proxyStream(req: FastifyRequest, reply: FastifyReply, st: StationRow, m
   req.raw.on('close', () => upstream.destroy());
 }
 
+/** Resposta pública da estação guardada por 3 s: centenas de players e sites perguntam a mesma coisa o tempo todo. */
+const publicCache = new Map<string, { at: number; data: unknown }>();
+
 export async function publicRoutes(app: FastifyInstance) {
   app.get('/api/public/stations/:slug', async (req) => {
     const st = stationBySlug(slugParam.parse(req.params).slug);
+    const ckey = `${st.id}|${config.publicOrigin}`; // os links da resposta dependem do endereço pelo qual o site foi aberto
+    const hit = publicCache.get(ckey);
+    if (hit && Date.now() - hit.at < 3000) return hit.data;
+    const data = await buildPublic(st);
+    publicCache.set(ckey, { at: Date.now(), data });
+    if (publicCache.size > 500) publicCache.clear();
+    return data;
+  });
+
+  const buildPublic = async (st: StationRow) => {
     return {
       name: st.name,
       slug: st.slug,
@@ -110,7 +123,7 @@ export async function publicRoutes(app: FastifyInstance) {
       liveContinue: !!st.live_continue,
       coverUrl: stationCoverUrl(st),
     };
-  });
+  };
 
   /**
    * Áudio pela mesma origem do painel (HTTPS, porta do painel): o navegador bloqueia áudio http:// dentro de

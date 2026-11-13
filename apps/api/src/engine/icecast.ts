@@ -43,7 +43,7 @@ export function buildIcecastConfig(st: StationRow, logDir: string): string {
   <logging>
     <accesslog>access.log</accesslog>
     <errorlog>error.log</errorlog>
-    <loglevel>3</loglevel>
+    <loglevel>2</loglevel>
     <logsize>10000</logsize>
   </logging>
   <security>

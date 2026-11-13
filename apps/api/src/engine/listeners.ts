@@ -79,6 +79,7 @@ export function registerProxyConn(stationId: number, ip: string, ua: string, mou
 }
 
 const cache = new Map<number, { at: number; items: LiveListener[] }>();
+const inflight = new Map<number, Promise<LiveListener[]>>();
 const errors = new Map<number, string | null>();
 /** Último erro ao consultar o Icecast (null = ok). Afeta só os ouvintes do link direto. */
 export const icecastError = (stationId: number): string | null => errors.get(stationId) ?? null;
@@ -101,16 +102,26 @@ export async function liveListeners(st: StationRow, engine: 'liquidsoap' | 'nati
   if (hit && now - hit.at < 4000) {
     direct = hit.items;
   } else {
-    try {
-      const mounts = [st.mount, ...mountsFor(st.id).map((m) => m.mount)];
-      const all = (await Promise.all(mounts.map((m) => listMount(st, m)))).flat();
-      direct = all.filter((l) => !l.userAgent.includes(PROXY_MARK)); // as do proxy já estão em viaProxy
-      errors.set(st.id, null);
-    } catch (e) {
-      direct = [];
-      errors.set(st.id, (e as Error).message || 'falha ao consultar o Icecast');
+    // Vários pedidos ao mesmo tempo (painel aberto, player público, sites) dividem UMA consulta ao Icecast.
+    let pending = inflight.get(st.id);
+    if (!pending) {
+      pending = (async () => {
+        let items: LiveListener[];
+        try {
+          const mounts = [st.mount, ...mountsFor(st.id).map((m) => m.mount)];
+          const all = (await Promise.all(mounts.map((m) => listMount(st, m)))).flat();
+          items = all.filter((l) => !l.userAgent.includes(PROXY_MARK)); // as do proxy já estão em viaProxy
+          errors.set(st.id, null);
+        } catch (e) {
+          items = [];
+          errors.set(st.id, (e as Error).message || 'falha ao consultar o Icecast');
+        }
+        cache.set(st.id, { at: Date.now(), items });
+        return items;
+      })().finally(() => inflight.delete(st.id));
+      inflight.set(st.id, pending);
     }
-    cache.set(st.id, { at: now, items: direct });
+    direct = await pending;
   }
   return [...viaProxy, ...direct];
 }

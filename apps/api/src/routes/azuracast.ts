@@ -83,7 +83,19 @@ function station(st: StationRow) {
   };
 }
 
-async function nowPlaying(st: StationRow) {
+/** Resposta guardada por 3 s: sites e apps de migração consultam o now playing o tempo todo. */
+const npCache = new Map<string, { at: number; data: Promise<unknown> }>();
+function nowPlaying(st: StationRow) {
+  const key = `${st.id}|${config.publicOrigin}`;
+  const hit = npCache.get(key);
+  if (hit && Date.now() - hit.at < 3000) return hit.data as ReturnType<typeof buildNowPlaying>;
+  const data = buildNowPlaying(st);
+  npCache.set(key, { at: Date.now(), data });
+  if (npCache.size > 500) npCache.clear();
+  return data;
+}
+
+async function buildNowPlaying(st: StationRow) {
   const np = nowPlayingView(st, getNowPlaying(st.id));
   const listeners = await getListeners(st);
   const live = getLive(st.id);

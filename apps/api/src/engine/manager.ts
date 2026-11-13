@@ -1,6 +1,8 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
+import os from 'node:os';
 import path from 'node:path';
 import { HttpError } from '../auth.js';
 import { config, stationDir } from '../config.js';
@@ -37,6 +39,12 @@ class Supervised {
 
   start() {
     this.stopping = false;
+    // Log que cresce sem parar pesa em disco e na leitura: passado de 5 MB, o antigo vira .1 e começa um novo.
+    try {
+      if (fs.statSync(this.logFile).size > 5 * 1024 * 1024) fs.renameSync(this.logFile, `${this.logFile}.1`);
+    } catch {
+      /* sem log ainda */
+    }
     const log = fs.openSync(this.logFile, 'a');
     const startedAt = Date.now();
     const child = spawn(this.bin, this.args, { stdio: ['ignore', log, log], env: { ...process.env, ...this.env } });
@@ -216,6 +224,32 @@ const maskKey = (s: string) => {
   return k.length >= 6 ? s.split(k).join('<chave oculta>') : s;
 };
 
+/** Scripts do Liquidsoap já aprovados no --check (vale enquanto o contêiner/Liquidsoap for o mesmo: o arquivo fica em /tmp). */
+const checkFile = path.join(os.tmpdir(), 'radioforge-liq-checked.json');
+const scriptHash = (file: string) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+function checkedOk(file: string): boolean {
+  try {
+    const list = JSON.parse(fs.readFileSync(checkFile, 'utf8')) as string[];
+    return list.includes(scriptHash(file));
+  } catch {
+    return false;
+  }
+}
+function rememberChecked(file: string) {
+  try {
+    let list: string[] = [];
+    try {
+      list = JSON.parse(fs.readFileSync(checkFile, 'utf8')) as string[];
+    } catch {
+      /* primeiro uso */
+    }
+    list = [...list.filter((h) => h !== scriptHash(file)), scriptHash(file)].slice(-200);
+    fs.writeFileSync(checkFile, JSON.stringify(list));
+  } catch {
+    /* só otimização */
+  }
+}
+
 export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn?: boolean; root?: boolean } = {}) {
   const skipStereo = !!skip.stereo;
   if (!config.engine.enabled) throw new Error('Engine desativada (ENGINE_ENABLED=false)');
@@ -304,9 +338,12 @@ export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn
   let dynPlaylists = 0;
   for (const v of attempts) {
     dynPlaylists = writeConfigs(st, v);
-    const check = runCheck();
+    // Script idêntico já validado neste contêiner: não compila de novo (a verificação custa CPU a cada início/reinício).
+    const checked = checkedOk(path.join(base, 'config', 'radio.liq'));
+    const check = checked ? { status: 0, stdout: '', stderr: '', error: undefined } : runCheck();
     if (check.error) throw startError(`Não foi possível executar o Liquidsoap: ${check.error.message}`);
     if (check.status === 0) {
+      if (!checked) rememberChecked(path.join(base, 'config', 'radio.liq'));
       chosen = v;
       break;
     }

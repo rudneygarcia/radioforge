@@ -248,3 +248,11 @@ Na **Biblioteca**, botão **SFTP**: cada estação ganha usuário e senha própr
 
 ### Sessão do painel
 O login expira após **3 horas sem atividade**. Enquanto a pessoa usa o painel (mouse, teclado, toque ou rolagem) ou há um envio de arquivos em andamento, o navegador renova o login sozinho. As consultas automáticas do painel (ouvintes, now playing) não contam como atividade. Chaves de API não expiram.
+
+### Desempenho (menos CPU, mesma qualidade)
+- **AutoCue + ReplayGain:** com o AutoCue e o nivelamento dele ligados, o ReplayGain não roda (era uma segunda análise de volume de cada faixa e um segundo ganho em cima do primeiro).
+- **Verificação do script:** o `liquidsoap --check` só roda quando o script da estação muda (resultado guardado em `/tmp` do contêiner); reinícios iguais não recompilam.
+- **Banco:** SQLite com `synchronous=NORMAL` (WAL) e cache maior: menos fsync a cada gravação de histórico/sessão.
+- **Consultas repetidas:** a resposta pública de cada estação (player, widgets, API compatível com AzuraCast) fica 3 s em cache; consultas simultâneas à lista de ouvintes do Icecast dividem uma só.
+- **Painel aberto:** as telas do painel param de atualizar com a aba escondida; a da estação atualiza a cada 10 s.
+- **Logs:** Icecast em nível de aviso (menos escrita) e logs de Icecast/Liquidsoap rotacionados acima de 5 MB.
