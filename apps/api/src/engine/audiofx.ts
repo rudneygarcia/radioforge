@@ -40,11 +40,15 @@ function eqCandidates(bass: number, treble: number): string[][] {
   return out;
 }
 const widthCandidates = (w: number): string[][] => [[`radio = stereo.width(width = ${w.toFixed(2)}, radio)`], [`radio = stereo.width(${w.toFixed(2)}, radio)`]];
-// Assinatura real (Liquidsoap 2.3): compress.multiband(~limit=true, ~wet=1., s, bandas). Cada banda: frequency (corte superior, crescente), attack, release, ratio, threshold, gain.
-const band = (frequency: number, threshold: number, gain: number) => `{frequency = ${frequency}., attack = 30., release = 300., ratio = 3., threshold = ${threshold}., gain = ${gain}.}`;
 const multibandCandidates = (): string[][] => [
-  [`radio = compress.multiband(radio, [${band(200, -22, 2)}, ${band(3000, -22, 1)}, ${band(20000, -22, 1)}])`],
-  [`radio = compress.multiband(limit = false, radio, [${band(200, -22, 2)}, ${band(3000, -22, 1)}, ${band(20000, -22, 1)}])`],
+  [
+    `radio = compress.multiband(bands = [`,
+    `  {frequency = 150., attack = 30., release = 300., threshold = -22., ratio = 3., knee = 3., gain = 2.},`,
+    `  {frequency = 2500., attack = 20., release = 250., threshold = -22., ratio = 3., knee = 3., gain = 1.},`,
+    `  {frequency = 20000., attack = 10., release = 200., threshold = -22., ratio = 3., knee = 3., gain = 1.}`,
+    `], radio)`,
+  ],
+  [`radio = compress.multiband(radio)`],
 ];
 
 const probeFile = path.join(os.tmpdir(), 'radioforge-fx-probe.json');
