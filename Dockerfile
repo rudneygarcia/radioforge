@@ -32,8 +32,8 @@ RUN (apt-get update && apt-get install -y --no-install-recommends lsp-plugins-la
     || echo "lsp-plugins-ladspa não instalado"; \
     rm -rf /var/lib/apt/lists/*
 # Só informa no log do build o que o Liquidsoap enxerga de plugins (não falha o build).
-RUN echo "== plugins LADSPA/LV2 no Liquidsoap"; (liquidsoap --list-functions 2>&1 | grep -iE "ladspa|lv2" | head -80) || echo "(nenhum)"; \
-    for f in $(liquidsoap --list-functions 2>&1 | grep -iE "^ladspa\..*(mb_comp|multiband)" | head -3); do echo "== $f"; liquidsoap -h "$f" 2>&1 | head -70; done; true
+RUN echo "== compressores/limitadores LADSPA"; (liquidsoap --list-functions 2>&1 | grep -iE "^ladspa[.].*(compressor|limiter|equalizer)" | paste -sd" ") || echo "(nenhum)"; \
+    for f in ladspa.lsp_mb_compressor_stereo ladspa.lsp_mb_compressor_lr; do echo "== $f (parametros globais)"; liquidsoap -h "$f" 2>&1 | grep -oE "[?][a-z_0-9]+" | grep -iE "split|cross|slope|look|^[?](input|output|dry|wet|shift)|mode$|bypass|stereo|link" | paste -sd" " | head -c 3000; echo; done; true
 COPY --from=node:24-bookworm-slim /usr/local/bin/node /usr/local/bin/node
 # Mostra no log do build a versão de cada programa (não falha o build: só informa).
 RUN for c in "node --version" "liquidsoap --version" "icecast2 -v" "liquidsoap --list-functions"; do echo "== $c"; $c 2>&1 | head -2 || true; done
