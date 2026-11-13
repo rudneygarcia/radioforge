@@ -49,7 +49,7 @@ function masterMeChain(gainDb: number, targetLufs: number, variant: 0 | 1): stri
     `radio = ladspa.master_me(`,
     `  bypass = false, brickwall_bypass = false, eq_bypass = false, gate_bypass = true,`,
     `  kneecomp_bypass = false, leveler_bypass = false, limiter_bypass = false, mscomp_bypass = false,`,
-    `  target = ${targetLufs.toFixed(2)}, brickwall_ceiling = -1.00, brickwall_release = 75.00,`,
+    `  target = ${Math.round(targetLufs)}, brickwall_ceiling = -1.00, brickwall_release = 75.00,`,
     `  eq_highpass_freq = 5.00, eq_side_bandwidth = 1.00, eq_side_freq = 600.00, eq_side_gain = 1.00, eq_tilt_gain = 0.00,`,
     `  gate_attack = 0.00, gate_hold = 50.00, gate_release = 430.50, gate_threshold = -90.00,`,
     `  kneecomp_attack = 20.00, kneecomp_dry_wet = 50, kneecomp_ff_fb = 50, kneecomp_knee = 6.00, kneecomp_link = 60,`,

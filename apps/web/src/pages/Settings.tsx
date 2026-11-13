@@ -380,26 +380,12 @@ function SettingsForm({ view }: { view: View }) {
           {f.audioPreset === 'master_me' && (
             <label className="field">
               <span>Volume alvo do master_me: {f.audioMasterTarget} LUFS</span>
-              <select
-                value={[-14, -16, -18, -23].includes(f.audioMasterTarget) ? String(f.audioMasterTarget) : 'custom'}
-                onChange={(e) => e.target.value !== 'custom' && setF({ ...f, audioMasterTarget: Number(e.target.value) })}
-                disabled={!isAdmin || f.stereoEnabled}
-              >
+              <select value={f.audioMasterTarget} onChange={(e) => setF({ ...f, audioMasterTarget: Number(e.target.value) })} disabled={!isAdmin || f.stereoEnabled}>
                 <option value="-14">-14 LUFS — streaming/YouTube (mais alto)</option>
                 <option value="-16">-16 LUFS — música geral, podcasts Apple (recomendado)</option>
                 <option value="-18">-18 LUFS — mais dinâmico</option>
                 <option value="-23">-23 LUFS — padrão EBU R128 de TV/rádio europeu</option>
-                <option value="custom">Personalizado…</option>
               </select>
-              <input
-                type="number"
-                min={-30}
-                max={-6}
-                step={1}
-                value={f.audioMasterTarget}
-                onChange={(e) => setF({ ...f, audioMasterTarget: Number(e.target.value) })}
-                disabled={!isAdmin || f.stereoEnabled}
-              />
               <small className="hint">Quanto mais perto de 0, mais alto (e menos dinâmico) fica o som. Valores entre -14 e -18 LUFS são comuns para rádio pela internet.</small>
             </label>
           )}
