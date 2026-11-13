@@ -25,6 +25,15 @@ RUN (apt-get update && apt-get install -y --no-install-recommends espeak-ng \
       && (liquidsoap --list-functions > /dev/null 2>&1 || (echo "espeak-ng quebrou o Liquidsoap: removendo" && apt-get purge -y espeak-ng))) \
     || echo "espeak-ng não instalado: hora certa indisponível"; \
     rm -rf /var/lib/apt/lists/*
+# Plugins LADSPA (LSP: compressor multibanda, equalizador etc.) para o processador de áudio. Instalação à parte e protegida,
+# como o espeak-ng: se quebrar o Liquidsoap (teste abaixo), é removida e a imagem segue sem os plugins.
+RUN (apt-get update && apt-get install -y --no-install-recommends lsp-plugins-ladspa \
+      && (liquidsoap --list-functions > /dev/null 2>&1 || (echo "lsp-plugins quebrou o Liquidsoap: removendo" && apt-get purge -y lsp-plugins-ladspa))) \
+    || echo "lsp-plugins-ladspa não instalado"; \
+    rm -rf /var/lib/apt/lists/*
+# Só informa no log do build o que o Liquidsoap enxerga de plugins (não falha o build).
+RUN echo "== plugins LADSPA/LV2 no Liquidsoap"; (liquidsoap --list-functions 2>&1 | grep -iE "ladspa|lv2" | head -80) || echo "(nenhum)"; \
+    for f in $(liquidsoap --list-functions 2>&1 | grep -iE "^ladspa\..*(mb_comp|multiband)" | head -3); do echo "== $f"; liquidsoap -h "$f" 2>&1 | head -70; done; true
 COPY --from=node:24-bookworm-slim /usr/local/bin/node /usr/local/bin/node
 # Mostra no log do build a versão de cada programa (não falha o build: só informa).
 RUN for c in "node --version" "liquidsoap --version" "icecast2 -v" "liquidsoap --list-functions"; do echo "== $c"; $c 2>&1 | head -2 || true; done
