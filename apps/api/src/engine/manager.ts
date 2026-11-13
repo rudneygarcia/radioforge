@@ -253,6 +253,40 @@ function rememberChecked(file: string) {
   }
 }
 
+/**
+ * `liquidsoap --check` SEM travar a thread do Node (ao contrário de `spawnSync`). O painel repassa o áudio de TODAS as
+ * estações numa thread só (o "front" de portas, em portfront.ts); se esta checagem travasse, o áudio de todo mundo
+ * pausaria toda vez que uma estação fosse salva/reiniciada, até achar a primeira versão do script que o Liquidsoap aceita.
+ */
+function runLiquidsoapCheck(file: string): Promise<{ status: number | null; stdout: string; stderr: string; error?: Error }> {
+  return new Promise((resolve) => {
+    let child: ChildProcess;
+    try {
+      child = spawn(config.engine.liquidsoapBin, ['--check', file], { stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (e) {
+      resolve({ status: null, stdout: '', stderr: '', error: e as Error });
+      return;
+    }
+    let stdout = '';
+    let stderr = '';
+    let done = false;
+    const finish = (status: number | null, error?: Error) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve({ status, stdout, stderr, error });
+    };
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      finish(null, new Error('tempo esgotado (60 s)'));
+    }, 60_000);
+    child.stdout?.on('data', (d: Buffer) => (stdout += d.toString('utf8')));
+    child.stderr?.on('data', (d: Buffer) => (stderr += d.toString('utf8')));
+    child.on('error', (e) => finish(null, e));
+    child.on('close', (code) => finish(code));
+  });
+}
+
 export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn?: boolean; root?: boolean } = {}) {
   const skipStereo = !!skip.stereo;
   if (!config.engine.enabled) throw new Error('Engine desativada (ENGINE_ENABLED=false)');
@@ -290,8 +324,10 @@ export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn
     dispatch(st.id, 'station_start', {});
     return;
   }
-  const runCheck = () =>
-    spawnSync(config.engine.liquidsoapBin, ['--check', path.join(base, 'config', 'radio.liq')], { encoding: 'utf8', timeout: 60_000 });
+  // Assíncrono de propósito: o painel atende os ouvintes de TODAS as estações numa única thread (o "front" de portas
+  // repassa o áudio); se isto travasse a thread (como `spawnSync`), o áudio de todo mundo pausaria enquanto o Liquidsoap
+  // confere o script (pode acontecer várias vezes numa só troca de estação, até achar a primeira versão aceita).
+  const runCheck = () => runLiquidsoapCheck(path.join(base, 'config', 'radio.liq'));
 
   // Valida o script antes de subir: erros de sintaxe/tipo aparecem direto no painel.
   // Se o erro for do processador de áudio, tenta uma versão mais simples e por fim sem processamento,
@@ -345,7 +381,7 @@ export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn
     dynPlaylists = writeConfigs(st, v);
     // Script idêntico já validado neste contêiner: não compila de novo (a verificação custa CPU a cada início/reinício).
     const checked = checkedOk(path.join(base, 'config', 'radio.liq'));
-    const check = checked ? { status: 0, stdout: '', stderr: '', error: undefined } : runCheck();
+    const check = checked ? { status: 0, stdout: '', stderr: '', error: undefined } : await runCheck();
     if (check.error) throw startError(`Não foi possível executar o Liquidsoap: ${check.error.message}`);
     if (check.status === 0) {
       if (!checked) rememberChecked(path.join(base, 'config', 'radio.liq'));
