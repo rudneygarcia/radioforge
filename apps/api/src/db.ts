@@ -290,9 +290,7 @@ addColumn('stations', 'cover', 'TEXT'); // capa/logo da rádio (arquivo dentro d
 addColumn('stations', 'no_repeat_minutes', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('history', 'media_id', 'INTEGER'); // música tocada (para a regra de não repetir); null em vinhetas/antigos
 addColumn('stations', 'audio_gain', 'REAL NOT NULL DEFAULT 0'); // ganho extra em dB (0 a 12), antes do limitador
-addColumn('stations', 'audio_eq', "TEXT NOT NULL DEFAULT 'flat'"); // equalizador: flat | voice | bass | bright | rock
-addColumn('stations', 'audio_width', "TEXT NOT NULL DEFAULT 'normal'"); // largura estéreo: normal | wide | mono
-addColumn('stations', 'audio_multiband', 'INTEGER NOT NULL DEFAULT 0'); // compressor multibanda
+addColumn('stations', 'audio_multiband', 'INTEGER NOT NULL DEFAULT 0'); // compressor multibanda do plugin LSP: 0 desligado, 1 suave, 2 forte (FM)
 // Migração única (user_version 1): quem estava sem processador passa ao "Equilibrado", que nivela o volume (o áudio original saía baixo).
 if ((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version < 1) {
   db.exec("UPDATE stations SET audio_preset = 'balanced' WHERE audio_preset = 'off'");
@@ -459,8 +457,6 @@ export interface StationRow {
   history_limit: number;
   audio_preset: 'off' | 'balanced' | 'loud';
   audio_gain: number;
-  audio_eq: string;
-  audio_width: string;
   audio_multiband: number;
   no_repeat_minutes: number;
   live_timeout: number;

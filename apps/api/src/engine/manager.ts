@@ -366,8 +366,8 @@ export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn
   if (stereoProblem) notes.push(stereoProblem + ' Usando o processador interno.');
   if (wantsStereo && !chosen.stereo) notes.push('O Stereo Tool NÃO foi carregado (o Liquidsoap recusou o script: verifique se esta versão do Liquidsoap tem o suporte a Stereo Tool). Usando o processador interno.');
   if (!skip.dyn && !chosen.dyn) notes.push('A rotação pela API (regras exatas de não repetir música/artista) não foi aceita pelo Liquidsoap: usando as playlists comuns.');
-  if (!chosen.stereo && fx.skipped.length) notes.push(`Esta versão do Liquidsoap não aceitou: ${fx.skipped.join(', ')}. Essas etapas do processador ficaram de fora.`);
-  if (hasFx && !chosen.stereo && chosen.audio !== 3) notes.push(`As etapas extras do processador (equalizador, estéreo, multibanda) foram desligadas porque o Liquidsoap recusou o script.`);
+  if (!chosen.stereo && fx.skipped.length) notes.push(`Não foi possível usar: ${fx.skipped.join(", ")}. Essa etapa do processador ficou de fora.`);
+  if (hasFx && !chosen.stereo && chosen.audio !== 3) notes.push(`O compressor multibanda (plugin LSP) foi desligado porque o Liquidsoap recusou o script.`);
   if (wantsChain && !chosen.stereo && chosen.audio === 1) notes.push(`O processador de áudio roda só com valores padrão (os ajustes finos não foram aceitos pelo Liquidsoap).`);
   if (wantsChain && !chosen.stereo && chosen.audio === 2) notes.push(`O processador de áudio foi DESLIGADO porque o Liquidsoap recusou o script.`);
   if (wantsAutocue && chosen.autocue && !chosen.tuned && st.autocue_custom) notes.push(`O AutoCue roda com a configuração padrão (os valores personalizados de duração/fade não foram aceitos pelo Liquidsoap).`);

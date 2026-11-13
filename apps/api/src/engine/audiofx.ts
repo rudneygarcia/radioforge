@@ -7,45 +7,43 @@ import { config } from '../config.js';
 import type { StationRow } from '../db.js';
 
 /**
- * Etapas extras do processador de áudio (antes do compressor/limitador): equalizador, largura estéreo e multibanda.
- * Usam só o que o Liquidsoap já traz (sem plugins externos). Como os nomes dos parâmetros mudam entre versões, cada etapa
- * tem alguns jeitos de escrever; o painel testa cada um com `liquidsoap --check` num script mínimo e usa o primeiro que
- * o Liquidsoap aceita (o resultado fica em cache). Etapa que nenhum jeito passa simplesmente não entra.
+ * Compressor multibanda com o plugin LADSPA da LSP (`lsp-plugins-ladspa`, instalado na imagem), entre o AutoDJ/DJ e o
+ * compressor/limitador do painel. 4 bandas (cortes em 120 Hz, 1 kHz e 5 kHz). Os valores de limiar e ganho do plugin são
+ * LINEARES (0,08 ≈ -22 dB). Antes de usar, o painel testa o trecho num script mínimo com `liquidsoap --check`; se o plugin
+ * não existir ou o Liquidsoap recusar, a etapa fica de fora e a rádio sobe normalmente.
  */
-export const EQ_PRESETS = {
-  flat: { label: 'Neutro', bass: 0, treble: 0 },
-  voice: { label: 'Voz (menos grave, mais clareza)', bass: -4, treble: 2 },
-  bass: { label: 'Graves reforçados', bass: 4, treble: 0 },
-  bright: { label: 'Agudos brilhantes', bass: 0, treble: 4 },
-  rock: { label: 'Rock / Pop (graves e agudos)', bass: 3, treble: 3 },
-} as const;
-export type EqPreset = keyof typeof EQ_PRESETS;
-export const WIDTHS = { normal: { label: 'Normal', value: 0 }, wide: { label: 'Mais aberto', value: 0.4 }, mono: { label: 'Mono', value: -1 } } as const;
-export type Width = keyof typeof WIDTHS;
+export const MB_LEVELS = [
+  { level: 0, label: 'Desligado' },
+  { level: 1, label: 'Suave (compressão leve, som natural)' },
+  { level: 2, label: 'Forte, estilo FM (compressão firme, som cheio)' },
+] as const;
 
-const gainFor = (db: number) => (Math.pow(10, db / 20) - 1).toFixed(3);
+const PLUGIN = 'ladspa.lsp_mb_compressor_stereo';
+const f3 = (n: number) => n.toFixed(3);
 
-/** Jeitos de escrever cada etapa, do mais provável ao menos. `radio` é a variável do script. */
-function eqCandidates(bass: number, treble: number): string[][] {
-  const out: string[][] = [];
-  const mk = (low: (g: string) => string, high: (g: string) => string) => {
-    const lines: string[] = [];
-    if (bass !== 0) lines.push(`radio = add(normalize = false, [radio, amplify(${gainFor(bass)}, ${low('radio')})])`);
-    if (treble !== 0) lines.push(`radio = add(normalize = false, [radio, amplify(${gainFor(treble)}, ${high('radio')})])`);
-    return lines;
-  };
-  out.push(mk((s) => `filter.iir.butterworth.low(frequency = 150., order = 2, ${s})`, (s) => `filter.iir.butterworth.high(frequency = 5000., order = 2, ${s})`));
-  out.push(mk((s) => `filter.iir.butterworth.low(frequency = 150., ${s})`, (s) => `filter.iir.butterworth.high(frequency = 5000., ${s})`));
-  out.push(mk((s) => `filter(freq = 150., q = 1., mode = "low", ${s})`, (s) => `filter(freq = 5000., q = 1., mode = "high", ${s})`));
-  return out;
+function mbCandidates(level: number): string[][] {
+  const p =
+    level === 2
+      ? { ratio: 3.5, threshold: 0.08, attack: [40, 30, 20, 10], release: [400, 300, 250, 200], makeup: [1.3, 1.2, 1.2, 1.3] }
+      : { ratio: 2, threshold: 0.12, attack: [40, 30, 20, 10], release: [400, 300, 250, 200], makeup: [1.12, 1.0, 1.0, 1.12] };
+  const args: string[] = ['split_frequency_1 = 120.', 'split_frequency_2 = 1000.', 'split_frequency_3 = 5000.'];
+  for (let b = 1; b <= 7; b++) args.push(`compression_band_enable_${b} = ${b <= 3 ? 'true' : 'false'}`);
+  for (let b = 0; b <= 3; b++) {
+    args.push(
+      `compressor_enable_${b} = true`,
+      `ratio_${b} = ${f3(p.ratio)}`,
+      `attack_threshold_${b} = ${f3(p.threshold)}`,
+      `attack_time_${b} = ${f3(p.attack[b])}`,
+      `release_time_${b} = ${f3(p.release[b])}`,
+      `makeup_gain_${b} = ${f3(p.makeup[b])}`,
+    );
+  }
+  return [
+    [`radio = ${PLUGIN}(`, ...args.map((a) => `  ${a},`), `  radio)`],
+    // Plano B: só os cortes entre as bandas e o resto no padrão do plugin.
+    [`radio = ${PLUGIN}(split_frequency_1 = 120., split_frequency_2 = 1000., split_frequency_3 = 5000., radio)`],
+  ];
 }
-const widthCandidates = (w: number): string[][] => [[`radio = stereo.width(width = ${w.toFixed(2)}, radio)`], [`radio = stereo.width(${w.toFixed(2)}, radio)`]];
-// Assinatura real (Liquidsoap 2.3): compress.multiband(~limit=true, ~wet=1., s, bandas). Cada banda: frequency (corte superior, crescente), attack, release, ratio, threshold, gain.
-const band = (frequency: number, threshold: number, gain: number) => `{frequency = ${frequency}., attack = 30., release = 300., ratio = 3., threshold = ${threshold}., gain = ${gain}.}`;
-const multibandCandidates = (): string[][] => [
-  [`radio = compress.multiband(radio, [${band(200, -22, 2)}, ${band(3000, -22, 1)}, ${band(20000, -22, 1)}])`],
-  [`radio = compress.multiband(limit = false, radio, [${band(200, -22, 2)}, ${band(3000, -22, 1)}, ${band(20000, -22, 1)}])`],
-];
 
 const probeFile = path.join(os.tmpdir(), 'radioforge-fx-probe.json');
 const readProbe = (): Record<string, boolean> => {
@@ -88,50 +86,21 @@ function accepts(lines: string[]): boolean {
 
 const firstAccepted = (cands: string[][]): string[] | null => cands.find((c) => c.length > 0 && accepts(c)) ?? null;
 
-export interface FxChoice {
-  eq: EqPreset;
-  width: Width;
-  multiband: boolean;
-}
-export const fxOf = (st: StationRow): FxChoice => ({
-  eq: (st.audio_eq in EQ_PRESETS ? st.audio_eq : 'flat') as EqPreset,
-  width: (st.audio_width in WIDTHS ? st.audio_width : 'normal') as Width,
-  multiband: !!st.audio_multiband,
-});
-export const wantsFx = (st: StationRow) => {
-  const f = fxOf(st);
-  return f.eq !== 'flat' || f.width !== 'normal' || f.multiband;
-};
+export const multibandLevel = (st: StationRow): number => (st.audio_multiband === 1 || st.audio_multiband === 2 ? st.audio_multiband : 0);
+export const wantsFx = (st: StationRow) => multibandLevel(st) > 0;
 
 /** Linhas do script das etapas pedidas que o Liquidsoap aceita, e o que ficou de fora. */
 export function resolveFx(st: StationRow): { lines: string[]; skipped: string[] } {
-  const f = fxOf(st);
   const lines: string[] = [];
   const skipped: string[] = [];
-  if (f.eq !== 'flat') {
-    const p = EQ_PRESETS[f.eq];
-    const c = firstAccepted(eqCandidates(p.bass, p.treble));
+  const level = multibandLevel(st);
+  if (level > 0) {
+    const c = firstAccepted(mbCandidates(level));
     if (c) lines.push(...c);
-    else skipped.push('equalizador');
-  }
-  if (f.width !== 'normal') {
-    const c = firstAccepted(widthCandidates(WIDTHS[f.width].value));
-    if (c) lines.push(...c);
-    else skipped.push('largura estéreo');
-  }
-  if (f.multiband) {
-    const c = firstAccepted(multibandCandidates());
-    if (c) lines.push(...c);
-    else skipped.push('multibanda');
+    else skipped.push('compressor multibanda (plugin LSP)');
   }
   return { lines, skipped };
 }
 
-/** Quais etapas esta versão do Liquidsoap suporta (para a tela desabilitar o que não funciona). */
-export function fxSupport() {
-  return {
-    eq: !!firstAccepted(eqCandidates(4, 4)),
-    width: !!firstAccepted(widthCandidates(0.4)),
-    multiband: !!firstAccepted(multibandCandidates()),
-  };
-}
+/** O plugin está instalado e o Liquidsoap o aceita? (para a tela desabilitar o que não funciona) */
+export const fxSupport = () => ({ multiband: !!firstAccepted(mbCandidates(1)) });
