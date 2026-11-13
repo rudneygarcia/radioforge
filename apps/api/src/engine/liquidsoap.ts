@@ -54,20 +54,22 @@ export function audioChain(preset: 'off' | 'balanced' | 'loud', gainDb = 0, vari
     return out;
   }
   if (preset === 'balanced') {
-    // O alvo do normalizador (-10 dB) fica acima do que a maioria das músicas já masterizadas traz, e o compressor
-    // devolve com folga (gain = makeup) o que a compressão tira: o resultado fica igual ou mais alto que o áudio
-    // original, nunca mais baixo (antes o alvo de -13 dB podia abaixar música já alta e não devolver o volume).
+    // `gain_min = 0` trava o normalizador para só AUMENTAR quem está fraco (nunca abaixar quem já está forte): com
+    // música já masterizada perto do teto, antes ele reduzia para bater no alvo e o resto da cadeia não devolvia esse
+    // volume. O compressor agora só toca perto do teto (-6 dB) e bem de leve, só para segurar picos isolados.
     out.push(
-      `radio = normalize(target = -10., radio)`,
-      `radio = compress(threshold = -20., ratio = 3., attack = 20., release = 250., gain = 5., radio)`,
+      `radio = normalize(target = -10., gain_min = 0., gain_max = 14., radio)`,
+      `radio = compress(threshold = -6., ratio = 2., attack = 15., release = 150., gain = 1., radio)`,
     );
   } else if (preset === 'loud') {
     out.push(
-      `radio = normalize(target = -8., radio)`,
-      `radio = compress(threshold = -24., ratio = 5., attack = 15., release = 200., gain = 7., radio)`,
+      `radio = normalize(target = -8., gain_min = 0., gain_max = 16., radio)`,
+      `radio = compress(threshold = -8., ratio = 2.5, attack = 10., release = 120., gain = 2., radio)`,
     );
   }
-  out.push(...gain, `radio = limit(threshold = -1., radio)`);
+  // Limitador rápido (ataque/liberação curtos) e com proporção mais branda: só segura o pico que passar do teto,
+  // sem ficar "preso" reduzindo o resto da música por perto demais do teto.
+  out.push(...gain, `radio = limit(threshold = -1., attack = 5., release = 80., ratio = 6., radio)`);
   return out;
 }
 
