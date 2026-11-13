@@ -25,6 +25,22 @@ RUN (apt-get update && apt-get install -y --no-install-recommends espeak-ng \
       && (liquidsoap --list-functions > /dev/null 2>&1 || (echo "espeak-ng quebrou o Liquidsoap: removendo" && apt-get purge -y espeak-ng))) \
     || echo "espeak-ng não instalado: hora certa indisponível"; \
     rm -rf /var/lib/apt/lists/*
+# master_me (processador de volume/loudness usado no AzuraCast, https://github.com/trummerschlunk/master_me):
+# baixa o .so LADSPA já compilado e coloca em /usr/lib/ladspa (mesma pasta dos plugins da LSP). Instalação à parte
+# e protegida, como o espeak-ng: se não puder baixar ou quebrar o Liquidsoap (teste abaixo), é removido e a imagem
+# continua sem ele (o processador interno continua disponível).
+RUN set -e; \
+    (apt-get update && apt-get install -y --no-install-recommends curl xz-utils \
+      && curl -fsSL -o /tmp/master_me.tar.xz "https://github.com/trummerschlunk/master_me/releases/download/1.3.1/master_me-1.3.1-linux-x86_64.tar.xz" \
+      && mkdir -p /usr/lib/ladspa \
+      && tar -xJf /tmp/master_me.tar.xz -C /tmp master_me-1.3.1/master_me-ladspa.so \
+      && mv /tmp/master_me-1.3.1/master_me-ladspa.so /usr/lib/ladspa/ \
+      && (liquidsoap --list-functions > /dev/null 2>&1 || (echo "master_me quebrou o Liquidsoap: removendo" && rm -f /usr/lib/ladspa/master_me-ladspa.so)) \
+      && apt-get purge -y curl xz-utils) \
+    || echo "master_me não instalado"; \
+    rm -rf /tmp/master_me* /var/lib/apt/lists/*
+# Só informa no log do build se o Liquidsoap enxergou o master_me (não falha o build).
+RUN echo "== master_me"; (liquidsoap --list-functions 2>&1 | grep -i master_me) || echo "(não encontrado)"
 COPY --from=node:24-bookworm-slim /usr/local/bin/node /usr/local/bin/node
 # Mostra no log do build a versão de cada programa (não falha o build: só informa).
 RUN for c in "node --version" "liquidsoap --version" "icecast2 -v" "liquidsoap --list-functions"; do echo "== $c"; $c 2>&1 | head -2 || true; done

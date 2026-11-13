@@ -37,15 +37,45 @@ export function schedulePredicate(s: NonNullable<LiqPlaylist['schedule']>): stri
 }
 
 /**
+ * Chamada do plugin LADSPA `master_me` (https://github.com/trummerschlunk/master_me), o mesmo processador de volume
+ * que o AzuraCast usa. Precisa do arquivo `master_me-ladspa.so` instalado na imagem (Dockerfile). Os valores abaixo
+ * são os mesmos do preset padrão do AzuraCast ("Music General"), testados por muita gente: leveler + compressor +
+ * multibanda + limitador num só plugin — por isso, ao contrário do processador interno, ele entra SOZINHO (sem o
+ * normalizador/compressor/limitador do painel). `gainDb` (Volume extra) vira o ganho de entrada do próprio plugin.
+ */
+function masterMeChain(gainDb: number, variant: 0 | 1): string[] {
+  if (variant === 1) return [`radio = ladspa.master_me(radio)`]; // só os valores padrão do próprio plugin
+  return [
+    `radio = ladspa.master_me(`,
+    `  bypass = false, brickwall_bypass = false, eq_bypass = false, gate_bypass = true,`,
+    `  kneecomp_bypass = false, leveler_bypass = false, limiter_bypass = false, mscomp_bypass = false,`,
+    `  target = -14., brickwall_ceiling = -1.00, brickwall_release = 75.00,`,
+    `  eq_highpass_freq = 5.00, eq_side_bandwidth = 1.00, eq_side_freq = 600.00, eq_side_gain = 1.00, eq_tilt_gain = 0.00,`,
+    `  gate_attack = 0.00, gate_hold = 50.00, gate_release = 430.50, gate_threshold = -90.00,`,
+    `  kneecomp_attack = 20.00, kneecomp_dry_wet = 50, kneecomp_ff_fb = 50, kneecomp_knee = 6.00, kneecomp_link = 60,`,
+    `  kneecomp_makeup = 0.00, kneecomp_release = 340.00, kneecomp_strength = 20, kneecomp_tar_thresh = -4.00,`,
+    `  leveler_brake_threshold = -10.00, leveler_max = 10.00, leveler_max__ = 10.00, leveler_speed = 20,`,
+    `  limiter_attack = 3.00, limiter_ff_fb = 50, limiter_knee = 3.00, limiter_makeup = 0.00, limiter_release = 40.00,`,
+    `  limiter_strength = 80, limiter_tar_thresh = 6.00,`,
+    `  high_attack = 8.00, high_crossover = 8000.00, high_knee = 12.00, high_link = 30, high_release = 30.00, high_strength = 30, high_tar_thresh = -12.00,`,
+    `  low_attack = 15.00, low_crossover = 60.00, low_knee = 12.00, low_link = 70, low_release = 150.00, low_strength = 10, low_tar_thresh = -3.00,`,
+    `  makeup = 1.00, dc_blocker = false, input_gain = ${gainDb.toFixed(2)},`,
+    `  mono = false, phase_l = false, phase_r = false, stereo_correct = false,`,
+    `  radio)`,
+  ];
+}
+
+/**
  * Cadeia de processamento de áudio (estilo "rádio"): normalizador (nivela o volume entre faixas),
  * compressor (aproxima o baixo do alto), ganho extra opcional e LIMITADOR no fim, que impede o som de
- * estourar/distorcer mesmo com volume alto. Presets: balanced (padrão) e loud (estilo FM).
+ * estourar/distorcer mesmo com volume alto. Presets: balanced (padrão), loud (estilo FM) e master_me (plugin externo).
  *
  * `variant`: 0 = completa (com parâmetros); 1 = só valores padrão do Liquidsoap (se algum nome de
  * parâmetro não existir nesta versão); o manager tenta 0, depois 1, e por fim sem processamento.
  */
-export function audioChain(preset: 'off' | 'balanced' | 'loud', gainDb = 0, variant: 0 | 1 = 0): string[] {
+export function audioChain(preset: 'off' | 'balanced' | 'loud' | 'master_me', gainDb = 0, variant: 0 | 1 = 0): string[] {
   if (preset === 'off' && gainDb <= 0) return [];
+  if (preset === 'master_me') return masterMeChain(gainDb, variant);
   const out: string[] = [];
   const gain = gainDb > 0 ? [`radio = amplify(${Math.pow(10, gainDb / 20).toFixed(3)}, radio)`] : [];
   if (variant === 1) {

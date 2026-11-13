@@ -239,7 +239,13 @@ function SettingsForm({ view }: { view: View }) {
         {show('proc') && (
           <button type="button" className="setting-card" onClick={() => setOpen('proc')}>
             <strong>Processador de áudio</strong>
-            <span>{f.stereoEnabled ? 'Desativado: o Stereo Tool está em uso' : f.audioPreset === 'off' ? 'Desligado' : `${f.audioPreset === 'loud' ? 'Forte (FM)' : 'Equilibrado'}${f.audioGain ? ` · +${f.audioGain} dB` : ''}`}</span>
+            <span>
+              {f.stereoEnabled
+                ? 'Desativado: o Stereo Tool está em uso'
+                : f.audioPreset === 'off'
+                  ? 'Desligado'
+                  : `${f.audioPreset === 'master_me' ? 'master_me (como no AzuraCast)' : f.audioPreset === 'loud' ? 'Forte (FM)' : 'Equilibrado'}${f.audioGain ? ` · +${f.audioGain} dB` : ''}`}
+            </span>
           </button>
         )}
         {show('stereo') && can('system') && (
@@ -362,8 +368,13 @@ function SettingsForm({ view }: { view: View }) {
               <option value="off">Desligado (áudio original, sem nivelar)</option>
               <option value="balanced">Equilibrado (normaliza + compressão + limitador) — recomendado</option>
               <option value="loud">Forte, estilo FM (normaliza + compressão firme + limitador)</option>
+              <option value="master_me">master_me (o mesmo processador do AzuraCast)</option>
             </select>
-            <small className="hint">Só no modo completo (Icecast + Liquidsoap). O limitador no final impede a distorção mesmo com o volume alto.</small>
+            <small className="hint">
+              {f.audioPreset === 'master_me'
+                ? 'Plugin externo (master_me/AzuraCast): leveler + compressor multibanda + limitador num só processo. Só funciona se o arquivo tiver sido instalado na imagem do servidor; se não, o painel avisa e a rádio sobe sem processamento.'
+                : 'Só no modo completo (Icecast + Liquidsoap). O limitador no final impede a distorção mesmo com o volume alto.'}
+            </small>
           </label>
           <label className="field">
             <span>Volume extra: {f.audioGain === 0 ? 'sem ganho' : `+${f.audioGain} dB`}</span>

@@ -43,7 +43,7 @@ const settings = z.object({
   /** Quantas músicas recentes o player público mostra. */
   historyLimit: z.number().int().min(1).max(50).default(5),
   /** Processador de áudio (Liquidsoap): off | balanced | loud. */
-  audioPreset: z.enum(['off', 'balanced', 'loud']).default('balanced'),
+  audioPreset: z.enum(['off', 'balanced', 'loud', 'master_me']).default('balanced'),
   /** Ganho extra em dB (antes do limitador, que evita distorção). */
   audioGain: z.number().min(0).max(12).default(0),
   /** Não repetir a mesma música por N minutos (0 = desligado). */

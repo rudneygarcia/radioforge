@@ -142,7 +142,7 @@ export interface Station {
   format: 'mp3' | 'ogg' | 'aac';
   bitrate: number;
   historyLimit: number;
-  audioPreset: 'off' | 'balanced' | 'loud';
+  audioPreset: 'off' | 'balanced' | 'loud' | 'master_me';
   audioGain: number;
   audioWarning: string | null;
   noRepeatMinutes: number;

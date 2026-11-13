@@ -454,7 +454,7 @@ export interface StationRow {
   normalize: number;
   record_live: number;
   history_limit: number;
-  audio_preset: 'off' | 'balanced' | 'loud';
+  audio_preset: 'off' | 'balanced' | 'loud' | 'master_me';
   audio_gain: number;
   no_repeat_minutes: number;
   live_timeout: number;
