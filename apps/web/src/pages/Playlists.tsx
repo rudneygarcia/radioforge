@@ -12,8 +12,11 @@ function summary(p: Playlist, hasDefault: boolean): string[] {
   if (p.isDefault) return [...out, 'Toca sempre (base da programação)'];
   if (p.jingle) out.push('Jingle');
   if (p.requestable) out.push('Permite pedidos');
-  if (p.scheduleEnabled) out.push(`${p.startTime}–${p.endTime} · ${p.days.length === 7 ? 'todos os dias' : p.days.map((d) => DAYS[d]).join(', ')}`);
-  else if (p.everyMinutes > 0) out.push(`1 faixa a cada ${p.everyMinutes} min`);
+  if (p.scheduleEnabled) {
+    out.push(`${p.startTime}–${p.endTime} · ${p.days.length === 7 ? 'todos os dias' : p.days.map((d) => DAYS[d]).join(', ')}`);
+    // Vinheta agendada com "a cada N": só entra dentro de uma playlist com o MESMO horário (ver ajuda).
+    if (p.jingle && p.everySongs > 0) out.push(`1 a cada ${p.everySongs} músicas, só nesse horário`);
+  } else if (p.everyMinutes > 0) out.push(`1 faixa a cada ${p.everyMinutes} min`);
   else if (p.everySongs > 0) out.push(`1 faixa a cada ${p.everySongs} músicas`);
   else if (hasDefault) out.push('⚠ Sem regra: não toca');
   else out.push(`Peso ${p.weight}`);
@@ -32,6 +35,7 @@ export default function Playlists() {
   const [name, setName] = useState('');
   const [filter, setFilter] = useState('');
   const [busy, setBusy] = useState(false);
+  const [help, setHelp] = useState(false);
   const base = `/api/stations/${station.id}`;
 
   const load = async () => {
@@ -99,8 +103,39 @@ export default function Playlists() {
     <>
       <div className="section-title">
         <h3>Playlists <span className="muted">({lists?.length ?? 0})</span></h3>
-        <button onClick={() => setCreating(true)}><Icon name="plus" /> Nova playlist</button>
+        <div className="row" style={{ margin: 0 }}>
+          <button type="button" className="ghost small" onClick={() => setHelp(true)}><Icon name="info" size={14} /> Ajuda: horários e vinhetas</button>
+          <button onClick={() => setCreating(true)}><Icon name="plus" /> Nova playlist</button>
+        </div>
       </div>
+
+      <Modal open={help} title="Horários e vinhetas, passo a passo" onClose={() => setHelp(false)} size="lg" footer={<button type="button" onClick={() => setHelp(false)}>Entendi</button>}>
+        <div className="fields">
+          <div className="card" style={{ margin: 0 }}>
+            <h4 style={{ marginTop: 0 }}>1. Uma playlist só para um horário (ex.: 00h às 5h)</h4>
+            <ol style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+              <li>Crie (ou edite) a playlist que deve tocar nesse horário.</li>
+              <li>Em <strong>Quando tocar</strong>, ligue <strong>Agendar por dia e horário</strong> e escolha os dias, o início e o fim.</li>
+              <li>Pronto: enquanto esse horário durar, <strong>só ela toca</strong> — a padrão e as outras ficam esperando e voltam sozinhas assim que a janela terminar (sem cortar a música no meio).</li>
+            </ol>
+          </div>
+          <div className="card" style={{ margin: 0 }}>
+            <h4 style={{ marginTop: 0 }}>2. Vinhetas que só tocam nesse mesmo horário</h4>
+            <p className="muted" style={{ marginTop: -4 }}>Por padrão, as vinhetas de "a cada N músicas" também ficam de fora durante um horário agendado (porque a rotação toda fica de fora). Para ter vinhetas próprias desse horário:</p>
+            <ol style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+              <li>Crie uma playlist com as vinhetas (ou use uma que já tenha) e marque <strong>Jingle (vinheta)</strong>.</li>
+              <li>Ligue <strong>Agendar por dia e horário</strong> nela também, com <strong>os mesmos dias e o mesmo horário</strong> da playlist de música do passo 1 (tem que bater certinho).</li>
+              <li>Preencha <strong>"Entra a cada N músicas da padrão"</strong> com de quantas em quantas músicas a vinheta toca (ex.: 3).</li>
+              <li>Pronto: só durante essa janela, essa vinheta entra a cada N músicas da playlist do passo 1 — as vinhetas comuns continuam fora do ar nesse período, e voltam depois.</li>
+            </ol>
+            <p className="muted small-text" style={{ marginBottom: 0 }}>Se o horário não bater exatamente com o de nenhuma playlist de música, a vinheta fica pronta mas não entra em lugar nenhum.</p>
+          </div>
+          <div className="card" style={{ margin: 0 }}>
+            <h4 style={{ marginTop: 0 }}>3. Vinhetas de entrada e saída dos comerciais</h4>
+            <p className="muted" style={{ margin: '4px 0 0' }}>Isso fica na página <strong>Comerciais</strong> (botão de ajuda lá em cima dela): a vinheta que avisa "vêm os comerciais" e a que avisa "voltamos com a programação".</p>
+          </div>
+        </div>
+      </Modal>
 
       {lists && lists.length > 0 && (
         <div className="card notice">
@@ -214,8 +249,12 @@ export default function Playlists() {
               <div className="field-row">
                 <label className="field">
                   <span>{hasDefault ? 'Entra a cada N músicas da padrão' : 'Intercalar a cada N músicas'} <em className="hint">(0 = desligado)</em></span>
-                  <input type="number" min={0} max={50} disabled={editing.scheduleEnabled} value={editing.everySongs} onChange={(e) => patch({ everySongs: Math.max(0, Math.min(50, Number(e.target.value) || 0)) })} />
-                  <small className="hint">Para vinhetas e avisos. Só no modo completo.</small>
+                  <input type="number" min={0} max={50} disabled={editing.scheduleEnabled && !editing.jingle} value={editing.everySongs} onChange={(e) => patch({ everySongs: Math.max(0, Math.min(50, Number(e.target.value) || 0)) })} />
+                  <small className="hint">
+                    {editing.jingle && editing.scheduleEnabled
+                      ? 'Com agendamento, vale dentro da playlist de música com o MESMO horário (dias e hora iguais): esta vinheta entra nela e as vinhetas comuns ficam de fora enquanto essa janela durar.'
+                      : 'Para vinhetas e avisos. Só no modo completo.'}
+                  </small>
                 </label>
                 <label className="field">
                   <span>Por tempo, a cada N minutos <em className="hint">(0 = desligado)</em></span>
@@ -225,7 +264,10 @@ export default function Playlists() {
               </div>
               <label className="check-line" style={{ marginTop: 12 }}>
                 <input type="checkbox" checked={editing.scheduleEnabled} onChange={(e) => patch({ scheduleEnabled: e.target.checked })} />
-                <span>Agendar por dia e horário <small>Toca só nessa janela e tem prioridade sobre a rotação.</small></span>
+                <span>
+                  Agendar por dia e horário{' '}
+                  <small>{editing.jingle ? 'Fora de uma música com o mesmo horário, esta vinheta não entra em lugar nenhum (veja "a cada N músicas" acima).' : 'Toca só nessa janela e tem prioridade sobre a rotação: a padrão e as demais ficam de fora enquanto durar.'}</small>
+                </span>
               </label>
               {editing.scheduleEnabled && (
                 <div className="fields" style={{ marginTop: 12 }}>

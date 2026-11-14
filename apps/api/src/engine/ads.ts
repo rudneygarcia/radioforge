@@ -1,9 +1,29 @@
 import path from 'node:path';
 import { config } from '../config.js';
-import { all, get, run, type MediaRow, type StationRow } from '../db.js';
+import { all, get, playlistMedia, run, type MediaRow, type StationRow } from '../db.js';
 import { localTime } from './announce.js';
 import { isRunning, pushRequest } from './manager.js';
 import { getLive } from './nowplaying.js';
+
+/**
+ * Vinheta de bloco (saída: antes do comercial; entrada: depois, antes de voltar à música). Cada disparo toca a
+ * PRÓXIMA faixa da playlist escolhida (cursor salvo na estação): com uma só, toca sempre ela; com várias, intercala.
+ */
+async function fireBlockJingle(st: StationRow, which: 'exit' | 'entry') {
+  const playlistId = which === 'exit' ? st.ad_exit_playlist_id : st.ad_entry_playlist_id;
+  if (!playlistId) return;
+  const media = playlistMedia(playlistId);
+  if (media.length === 0) return;
+  const cursorCol = which === 'exit' ? 'ad_exit_cursor' : 'ad_entry_cursor';
+  const cursor = (which === 'exit' ? st.ad_exit_cursor : st.ad_entry_cursor) % media.length;
+  const m = media[cursor];
+  run(`UPDATE stations SET ${cursorCol} = ? WHERE id = ?`, (cursor + 1) % media.length, st.id);
+  try {
+    await pushRequest(st.id, path.join(config.dataDir, m.path), true, m.duration);
+  } catch (e) {
+    console.error(`[comerciais] ${st.slug}: vinheta de ${which === 'exit' ? 'saída' : 'entrada'} de bloco:`, (e as Error).message);
+  }
+}
 
 /**
  * Blocos comerciais: grupos de comerciais (arquivos de uma pasta da Biblioteca) que entram nos horários programados.
@@ -47,6 +67,8 @@ export async function fireBlock(st: StationRow, b: AdBlockRow, reason: 'horario'
     } else {
       chosen = [...media].sort(() => Math.random() - 0.5).slice(0, n);
     }
+    // Vinheta de saída de bloco: toca ANTES dos comerciais (a música atual termina, ela entra, depois vem o bloco).
+    await fireBlockJingle(st, 'exit');
     let count = 0;
     for (const m of chosen) {
       // O registro nasce antes do envio: o id vai junto na faixa e o Liquidsoap confirma quando ela começa a tocar.
@@ -59,6 +81,8 @@ export async function fireBlock(st: StationRow, b: AdBlockRow, reason: 'horario'
         run("UPDATE ad_plays SET status = 'erro', note = ? WHERE id = ?", (e as Error).message.slice(0, 200), playId);
       }
     }
+    // Vinheta de entrada de bloco: toca DEPOIS do último comercial, antes de a música voltar.
+    if (count > 0) await fireBlockJingle(st, 'entry');
     return count;
   } finally {
     firing.delete(b.id);

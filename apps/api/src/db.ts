@@ -291,6 +291,12 @@ addColumn('stations', 'no_repeat_minutes', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('history', 'media_id', 'INTEGER'); // música tocada (para a regra de não repetir); null em vinhetas/antigos
 addColumn('stations', 'audio_gain', 'REAL NOT NULL DEFAULT 0'); // ganho extra em dB (0 a 12), antes do limitador
 addColumn('stations', 'audio_master_target', 'REAL NOT NULL DEFAULT -14'); // volume alvo do master_me, em LUFS (ex.: -14, -16, -23)
+// Vinhetas de bloco comercial: tocam antes (saída) e depois (entrada) de QUALQUER bloco disparado. Com mais de uma
+// música na playlist escolhida, cada disparo toca a próxima (cursor), não a mesma sempre nem ao acaso.
+addColumn('stations', 'ad_exit_playlist_id', 'INTEGER REFERENCES playlists(id) ON DELETE SET NULL');
+addColumn('stations', 'ad_exit_cursor', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('stations', 'ad_entry_playlist_id', 'INTEGER REFERENCES playlists(id) ON DELETE SET NULL');
+addColumn('stations', 'ad_entry_cursor', 'INTEGER NOT NULL DEFAULT 0');
 // Migração única (user_version 1): quem estava sem processador passa ao "Equilibrado", que nivela o volume (o áudio original saía baixo).
 if ((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version < 1) {
   db.exec("UPDATE stations SET audio_preset = 'balanced' WHERE audio_preset = 'off'");
@@ -458,6 +464,10 @@ export interface StationRow {
   audio_preset: 'off' | 'balanced' | 'loud' | 'master_me';
   audio_gain: number;
   audio_master_target: number;
+  ad_exit_playlist_id: number | null;
+  ad_exit_cursor: number;
+  ad_entry_playlist_id: number | null;
+  ad_entry_cursor: number;
   no_repeat_minutes: number;
   live_timeout: number;
   live_continue: number;

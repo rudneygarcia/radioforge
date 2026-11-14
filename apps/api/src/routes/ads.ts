@@ -103,4 +103,26 @@ export async function adRoutes(app: FastifyInstance) {
       limit,
     );
   });
+
+  // Vinhetas de bloco: tocam antes (saída) e depois (entrada) de QUALQUER comercial disparado, nessa estação.
+  // Com mais de uma música na playlist escolhida, cada disparo toca a próxima (não ao acaso, não sempre a mesma).
+  app.get('/api/stations/:id/ad-vinhetas', async (req) => {
+    const { id } = idParam.parse(req.params);
+    const st = stationFor(req, id) as StationRow;
+    const jingles = all<{ id: number; name: string }>('SELECT id, name FROM playlists WHERE station_id = ? AND is_jingle = 1 ORDER BY name', st.id);
+    return { exitPlaylistId: st.ad_exit_playlist_id, entryPlaylistId: st.ad_entry_playlist_id, jingles };
+  });
+
+  app.put('/api/stations/:id/ad-vinhetas', async (req) => {
+    const { id } = idParam.parse(req.params);
+    const st = stationFor(req, id);
+    const b = z.object({ exitPlaylistId: z.number().int().nullable(), entryPlaylistId: z.number().int().nullable() }).parse(req.body);
+    for (const pid of [b.exitPlaylistId, b.entryPlaylistId]) {
+      if (pid !== null && !get('SELECT 1 AS ok FROM playlists WHERE id = ? AND station_id = ? AND is_jingle = 1', pid, st.id)) {
+        throw new HttpError(400, 'Playlist de vinheta não encontrada (precisa ser marcada como vinheta)');
+      }
+    }
+    run('UPDATE stations SET ad_exit_playlist_id = ?, ad_exit_cursor = 0, ad_entry_playlist_id = ?, ad_entry_cursor = 0 WHERE id = ?', b.exitPlaylistId, b.entryPlaylistId, st.id);
+    return { ok: true, ...b };
+  });
 }

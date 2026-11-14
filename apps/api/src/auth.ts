@@ -128,6 +128,7 @@ function neededPermission(method: string, route: string): Permission | null {
       return 'djs';
     case 'ad-blocks':
     case 'ad-plays':
+    case 'ad-vinhetas':
       return 'ads';
     case 'reports':
       return 'reports';

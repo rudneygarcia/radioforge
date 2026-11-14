@@ -36,6 +36,9 @@ export function schedulePredicate(s: NonNullable<LiqPlaylist['schedule']>): stri
   return `{ ${parts.join(' and ')} }`;
 }
 
+/** Mesmo horário (dias + início + fim) = mesma chave: usado para casar uma vinheta agendada com a playlist que toca na mesma janela. */
+export const scheduleKey = (s: NonNullable<LiqPlaylist['schedule']>) => JSON.stringify({ days: [...s.days].sort((a, b) => a - b), start: s.start, end: s.end });
+
 /**
  * Chamada do plugin LADSPA `master_me` (https://github.com/trummerschlunk/master_me), o mesmo processador de volume
  * que o AzuraCast usa. Precisa do arquivo `master_me-ladspa.so` instalado na imagem (Dockerfile). Os valores abaixo
@@ -182,14 +185,17 @@ export function buildLiquidsoapScript(
 
   const names: string[] = [];
   const weights: number[] = [];
-  const scheduled: string[] = [];
+  const scheduled: { key: string; pred: string; n: string }[] = [];
+  // Vinhetas com o MESMO horário de uma playlist agendada: entram só dentro dela (ver mais abaixo), não na rotação comum.
+  const scheduledInserts: { key: string; n: string; every: number }[] = [];
   const inserts: { n: string; every: number }[] = [];
   // Com playlist padrão, a rotação é SÓ ela; as outras entram por regra e, sem regra, não tocam (não se misturam).
   const hasDefault = playlists.some((p) => p.isDefault && !p.schedule);
   for (const p of playlists) {
     const n = `pl_${p.id}`;
-    let role: 'scheduled' | 'insert' | 'rotation' | 'skip';
-    if (p.schedule) role = 'scheduled';
+    let role: 'scheduled' | 'scheduledInsert' | 'insert' | 'rotation' | 'skip';
+    if (p.schedule && p.jingle && p.everySongs > 0) role = 'scheduledInsert';
+    else if (p.schedule) role = 'scheduled';
     else if (hasDefault) role = p.isDefault ? 'rotation' : p.everySongs > 0 ? 'insert' : 'skip';
     else role = p.everySongs > 0 ? 'insert' : 'rotation';
     if (role === 'skip') continue;
@@ -208,7 +214,8 @@ export function buildLiquidsoapScript(
         `${n} = playlist(id = ${q(n)}, mode = ${q(p.mode === 'shuffle' ? 'randomize' : 'normal')}, reload_mode = "watch", ${q(p.m3uPath)})`,
       );
     }
-    if (role === 'scheduled') scheduled.push(`(${schedulePredicate(p.schedule!)}, ${n})`);
+    if (role === 'scheduled') scheduled.push({ key: scheduleKey(p.schedule!), pred: schedulePredicate(p.schedule!), n });
+    else if (role === 'scheduledInsert') scheduledInserts.push({ key: scheduleKey(p.schedule!), n, every: p.everySongs });
     else if (role === 'insert') inserts.push({ n, every: p.everySongs });
     else {
       names.push(n);
@@ -237,8 +244,15 @@ export function buildLiquidsoapScript(
   lines.push(`requests = request.queue(id = "requests")`);
   // Playlists agendadas ficam indisponíveis fora da janela, então o fallback cai na rotação geral.
   const auto = ['requests'];
-  if (scheduled.length > 0) {
-    lines.push(`scheduled = switch(id = "scheduled", track_sensitive = true, [${scheduled.join(', ')}])`);
+  // Cada playlist agendada entra sozinha na sua janela; se houver vinheta com o MESMO horário, ela entra "a cada N"
+  // dentro dessa janela (no lugar das vinhetas comuns, que ficam fora porque a rotação toda fica fora também).
+  const scheduledFinal = scheduled.map((s) => {
+    let src = s.n;
+    for (const ins of scheduledInserts.filter((i) => i.key === s.key)) src = `rotate(id = "ins_${ins.n}", weights = [${ins.every}, 1], [${src}, ${ins.n}])`;
+    return `(${s.pred}, ${src})`;
+  });
+  if (scheduledFinal.length > 0) {
+    lines.push(`scheduled = switch(id = "scheduled", track_sensitive = true, [${scheduledFinal.join(', ')}])`);
     auto.push('scheduled');
   }
   auto.push('rotation');

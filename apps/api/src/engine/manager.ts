@@ -183,7 +183,9 @@ export function writePlaylists(stationId: number): LiqPlaylist[] {
       weight: p.weight,
       jingle: !!p.is_jingle,
       isDefault: !!p.is_default,
-      everySongs: p.schedule_enabled || p.is_default ? 0 : p.every_songs, // agendada tem prioridade: ignora "a cada N"
+      // Playlist de música agendada ignora "a cada N" (ela toca sozinha); vinheta agendada é o contrário: "a cada N"
+      // é o que diz como ela entra na janela (junto com a música que tiver o MESMO horário — ver liquidsoap.ts).
+      everySongs: p.is_default || (p.schedule_enabled && !p.is_jingle) ? 0 : p.every_songs,
       m3uPath,
       schedule: p.schedule_enabled
         ? { days: p.days.split(',').filter(Boolean).map(Number), start: p.start_time, end: p.end_time }

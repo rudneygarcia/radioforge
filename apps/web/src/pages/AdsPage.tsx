@@ -4,6 +4,12 @@ import { api, type Folder } from '../api';
 import { Empty, Icon, Modal, useUi } from '../ui';
 import type { StationCtx } from './StationLayout';
 
+interface Vinhetas {
+  exitPlaylistId: number | null;
+  entryPlaylistId: number | null;
+  jingles: { id: number; name: string }[];
+}
+
 interface Block {
   id: number;
   name: string;
@@ -50,10 +56,13 @@ export default function AdsPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [time, setTime] = useState('');
   const [busy, setBusy] = useState(false);
+  const [vinhetas, setVinhetas] = useState<Vinhetas | null>(null);
+  const [help, setHelp] = useState(false);
 
   const load = useCallback(() => {
     api<Block[]>(`/api/stations/${station.id}/ad-blocks`).then(setBlocks).catch((e) => toast((e as Error).message, 'error'));
     api<Play[]>(`/api/stations/${station.id}/ad-plays?limit=60`).then(setPlays).catch(() => {});
+    api<Vinhetas>(`/api/stations/${station.id}/ad-vinhetas`).then(setVinhetas).catch(() => {});
   }, [station.id, toast]);
   useEffect(() => {
     load();
@@ -61,6 +70,16 @@ export default function AdsPage() {
     const t = setInterval(() => { if (!document.hidden) load(); }, 15000);
     return () => clearInterval(t);
   }, [load, station.id]);
+
+  async function saveVinhetas(next: Vinhetas) {
+    setVinhetas(next);
+    try {
+      await api(`/api/stations/${station.id}/ad-vinhetas`, { method: 'PUT', body: { exitPlaylistId: next.exitPlaylistId, entryPlaylistId: next.entryPlaylistId } });
+      toast('Vinhetas de bloco salvas');
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
+  }
 
   const addTime = () => {
     if (!draft || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time) || draft.times.includes(time)) return;
@@ -109,6 +128,58 @@ export default function AdsPage() {
   return (
     <>
       {!station.autodj && <div className="card notice">Esta estação está sem AutoDJ (só ao vivo): os blocos comerciais não tocam. Ligue o AutoDJ em Editar estação.</div>}
+
+      <div className="section-title">
+        <h3>Comerciais</h3>
+        <button type="button" className="ghost small" onClick={() => setHelp(true)}><Icon name="info" size={14} /> Ajuda: vinhetas de bloco</button>
+      </div>
+
+      {vinhetas && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h4 style={{ marginTop: 0 }}>Vinhetas de bloco</h4>
+          <p className="muted" style={{ marginTop: -4 }}>Tocam em TODO comercial disparado, não importa o bloco. Com mais de uma música na playlist, cada disparo toca a próxima (não a mesma sempre).</p>
+          <div className="field-row">
+            <label className="field">
+              <span>Vinheta de saída de bloco <em className="hint">(antes do comercial)</em></span>
+              <select value={vinhetas.exitPlaylistId ?? ''} onChange={(e) => saveVinhetas({ ...vinhetas, exitPlaylistId: e.target.value ? Number(e.target.value) : null })}>
+                <option value="">— nenhuma —</option>
+                {vinhetas.jingles.map((j) => <option key={j.id} value={j.id}>{j.name}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Vinheta de entrada de bloco <em className="hint">(depois do comercial)</em></span>
+              <select value={vinhetas.entryPlaylistId ?? ''} onChange={(e) => saveVinhetas({ ...vinhetas, entryPlaylistId: e.target.value ? Number(e.target.value) : null })}>
+                <option value="">— nenhuma —</option>
+                {vinhetas.jingles.map((j) => <option key={j.id} value={j.id}>{j.name}</option>)}
+              </select>
+            </label>
+          </div>
+          {vinhetas.jingles.length === 0 && (
+            <p className="muted small-text" style={{ marginBottom: 0 }}>Nenhuma playlist marcada como "Jingle (vinheta)" ainda. Crie uma em Playlists e adicione os arquivos da vinheta nela.</p>
+          )}
+        </div>
+      )}
+
+      <Modal open={help} title="Vinhetas de bloco, passo a passo" onClose={() => setHelp(false)} size="lg" footer={<button type="button" onClick={() => setHelp(false)}>Entendi</button>}>
+        <div className="fields">
+          <div className="card" style={{ margin: 0 }}>
+            <h4 style={{ marginTop: 0 }}>Como funciona</h4>
+            <ol style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+              <li>Quando QUALQUER bloco comercial dispara, a <strong>vinheta de saída</strong> toca primeiro (a música atual termina, ela entra, depois vêm os comerciais).</li>
+              <li>Depois do último comercial, a <strong>vinheta de entrada</strong> toca, e só então a programação normal volta.</li>
+              <li>Nenhuma das duas aparece em "Tocando agora" nem no histórico (como qualquer vinheta).</li>
+            </ol>
+          </div>
+          <div className="card" style={{ margin: 0 }}>
+            <h4 style={{ marginTop: 0 }}>Para configurar</h4>
+            <ol style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+              <li>Em <strong>Playlists</strong>, crie uma playlist, marque <strong>Jingle (vinheta)</strong> e adicione o(s) arquivo(s) de áudio da vinheta de saída. Repita para a de entrada (pode ser a mesma playlist nas duas, se quiser).</li>
+              <li>Volte aqui e escolha cada playlist nos campos <strong>Vinheta de saída</strong> e <strong>Vinheta de entrada</strong> acima.</li>
+              <li>Se a playlist escolhida tiver só um arquivo, ele toca sempre. Com dois ou mais, cada vez que um comercial disparar, toca o próximo da lista (não ao acaso).</li>
+            </ol>
+          </div>
+        </div>
+      </Modal>
 
       <div className="dash">
         <div className="dash-col">
