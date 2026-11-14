@@ -61,7 +61,7 @@ export default function AdsPage() {
 
   const load = useCallback(() => {
     api<Block[]>(`/api/stations/${station.id}/ad-blocks`).then(setBlocks).catch((e) => toast((e as Error).message, 'error'));
-    api<Play[]>(`/api/stations/${station.id}/ad-plays?limit=60`).then(setPlays).catch(() => {});
+    api<Play[]>(`/api/stations/${station.id}/ad-plays?limit=3`).then(setPlays).catch(() => {});
     api<Vinhetas>(`/api/stations/${station.id}/ad-vinhetas`).then(setVinhetas).catch(() => {});
   }, [station.id, toast]);
   useEffect(() => {
@@ -224,7 +224,7 @@ export default function AdsPage() {
 
         <div className="dash-col">
           <section className="pcard">
-            <header className="pcard-hd"><h3>Veiculações recentes</h3></header>
+            <header className="pcard-hd"><h3>Últimas veiculações</h3></header>
             <div className="pcard-bd" style={{ padding: 0 }}>
               {plays.length === 0 ? (
                 <p className="muted" style={{ margin: 16 }}>Nada foi ao ar ainda. Cada comercial colocado na fila fica registrado aqui, com data e hora.</p>
