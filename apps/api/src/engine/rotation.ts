@@ -35,7 +35,7 @@ export function notePick(stationId: number, m: Pick<MediaRow, 'id' | 'artist'>) 
   picks.set(stationId, list.filter((p) => p.at >= cut).slice(-300));
 }
 
-function recentSets(st: StationRow) {
+export function recentSets(st: StationRow) {
   const songMs = st.no_repeat_minutes * 60_000;
   const artMs = st.no_repeat_artist_minutes * 60_000;
   const now = Date.now();
@@ -63,6 +63,19 @@ function recentSets(st: StationRow) {
     }
   }
   return { songs, artists, last };
+}
+
+/**
+ * A mesma regra de não repetir (música/artista) que a rotação do AutoDJ já usa, mas para um pedido de ouvinte
+ * verificar ANTES de entrar na fila. Olha o histórico (o que já tocou) E o que acabou de ser escolhido/pedido
+ * ainda não tocou (picks em memória) — por isso pega até pedidos repetidos feitos em segundos um do outro, coisa
+ * que olhar só o histórico de tocadas não pega (o histórico só é gravado quando a faixa realmente começa a tocar).
+ */
+export function repeatBlock(st: StationRow, m: Pick<MediaRow, 'id' | 'artist'>): 'song' | 'artist' | null {
+  const { songs, artists } = recentSets(st);
+  if (st.no_repeat_minutes > 0 && songs.has(m.id)) return 'song';
+  if (st.no_repeat_artist_minutes > 0 && artists.has(artistKey(m.artist))) return 'artist';
+  return null;
 }
 
 /** Próxima faixa de uma playlist, respeitando as regras de repetição (relaxa o artista e depois a música antes de ficar sem faixa). */

@@ -6,9 +6,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { HttpError } from '../auth.js';
 import { config } from '../config.js';
-import { all, get, mountsFor, recentMedia, requestableMedia, run, type MediaRow, type StationRow } from '../db.js';
+import { all, get, mountsFor, requestableMedia, run, type MediaRow, type StationRow } from '../db.js';
 import { isRunning, pushRequest, usesDynamic, writePlaylists } from '../engine/manager.js';
-import { nextUri, notePick } from '../engine/rotation.js';
+import { artistKey, nextUri, notePick, recentSets, repeatBlock } from '../engine/rotation.js';
 import { isHiddenTrack } from '../engine/hide.js';
 import { PROXY_MARK, registerProxyConn } from '../engine/listeners.js';
 import { coverFile, coverMime, historyView, nowPlayingView, stationCoverPath, stationCoverUrl } from '../engine/covers.js';
@@ -188,8 +188,9 @@ export async function publicRoutes(app: FastifyInstance) {
     const st = stationBySlug(slugParam.parse(req.params).slug);
     if (!st.requests_enabled) return [];
     // Só as músicas de playlists com "Permitir pedidos" ligado (e que não são vinhetas).
-    const recent = recentMedia(st.id, st.no_repeat_minutes);
-    return requestableMedia(st.id).map((m) => ({ id: m.id, title: m.title, artist: m.artist, recent: recent.ids.has(m.id) }));
+    // "recent" cobre música E artista tocados há pouco (a mesma regra que bloqueia o pedido): o player já mostra cinza certo.
+    const { songs, artists } = recentSets(st);
+    return requestableMedia(st.id).map((m) => ({ id: m.id, title: m.title, artist: m.artist, recent: songs.has(m.id) || artists.has(artistKey(m.artist)) }));
   });
 
   app.post('/api/public/stations/:slug/request', async (req, reply) => {
@@ -209,9 +210,11 @@ export async function publicRoutes(app: FastifyInstance) {
     // Só pode pedir quem está em playlist com pedidos ligados.
     const m = requestableMedia(st.id).find((x) => x.id === mediaId);
     if (!m) throw new HttpError(404, 'Música não disponível para pedido');
-    if (st.no_repeat_minutes > 0 && recentMedia(st.id, st.no_repeat_minutes).ids.has(m.id)) {
-      throw new HttpError(409, 'Essa música tocou há pouco. Peça outra ou tente mais tarde.');
-    }
+    // A mesma regra que o AutoDJ usa pra não repetir: olha o que já tocou E o que acabou de ser escolhido/pedido
+    // (ainda não tocou), senão dois pedidos da mesma música em segundos um do outro passavam os dois.
+    const blocked = repeatBlock(st, m);
+    if (blocked === 'song') throw new HttpError(409, 'Essa música tocou há pouco. Peça outra ou tente mais tarde.');
+    if (blocked === 'artist') throw new HttpError(409, `Uma música de ${m.artist || 'esse artista'} tocou há pouco. Peça de outro artista ou tente mais tarde.`);
     // Sem atraso: entra na fila do AutoDJ agora. Com atraso: fica agendado e o servidor coloca na fila no horário (timed.ts).
     const delay = st.request_delay;
     notePick(st.id, m); // conta para a regra de não repetir música/artista
