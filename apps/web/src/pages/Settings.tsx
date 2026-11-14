@@ -429,15 +429,36 @@ function SettingsForm({ view }: { view: View }) {
           <div className="field-row">
             <label className="field">
               <span>Avisar a hora</span>
-              <select value={f.timeAnnounce} onChange={(e) => setF({ ...f, timeAnnounce: Number(e.target.value) as typeof f.timeAnnounce })} disabled={!isAdmin}>
-                <option value={0}>Desligada</option>
-                <option value={60}>A cada hora (:00)</option>
-                <option value={30}>A cada 30 minutos</option>
-                <option value={20}>A cada 20 minutos</option>
-                <option value={15}>A cada 15 minutos</option>
-                <option value={10}>A cada 10 minutos</option>
-                <option value={5}>A cada 5 minutos</option>
+              <select
+                value={[0, 5, 10, 15, 20, 30, 60].includes(f.timeAnnounce) ? String(f.timeAnnounce) : 'custom'}
+                onChange={(e) => {
+                  if (e.target.value === 'custom') {
+                    if ([0, 5, 10, 15, 20, 30, 60].includes(f.timeAnnounce)) setF({ ...f, timeAnnounce: 7 });
+                  } else setF({ ...f, timeAnnounce: Number(e.target.value) });
+                }}
+                disabled={!isAdmin}
+              >
+                <option value="0">Desligada</option>
+                <option value="60">A cada hora (:00)</option>
+                <option value="30">A cada 30 minutos</option>
+                <option value="20">A cada 20 minutos</option>
+                <option value="15">A cada 15 minutos</option>
+                <option value="10">A cada 10 minutos</option>
+                <option value="5">A cada 5 minutos</option>
+                <option value="custom">Personalizado…</option>
               </select>
+              {![0, 5, 10, 15, 20, 30, 60].includes(f.timeAnnounce) && (
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={f.timeAnnounce}
+                  onChange={(e) => setF({ ...f, timeAnnounce: Math.max(1, Math.min(60, Number(e.target.value) || 1)) })}
+                  disabled={!isAdmin}
+                  style={{ marginTop: 6 }}
+                />
+              )}
+              <small className="hint">A cada quantos minutos (1 a 60), de hora em hora.</small>
             </label>
             <label className="field">
               <span>Fuso horário</span>

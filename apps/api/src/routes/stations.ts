@@ -57,7 +57,8 @@ const settings = z.object({
   /** Hora certa: 0 desligada, ou avisa a hora a cada 15, 30 ou 60 minutos. */
   /** Sem arquivo enviado para o horário, usa a voz sintética (senão, não avisa). */
   timeAnnounceVoice: z.boolean().default(true),
-  timeAnnounce: z.union([z.literal(0), z.literal(5), z.literal(10), z.literal(15), z.literal(20), z.literal(30), z.literal(60)]).default(0),
+  /** De quantos em quantos minutos avisa a hora (0 = desligada); até 60 (a cada hora), inclusive valores personalizados. */
+  timeAnnounce: z.number().int().min(0).max(60).default(0),
   /** Voz dos áudios enviados (vazio = a mais completa). */
   timeVoice: z.string().max(40).default(''),
   /** AutoCue: passagens profissionais entre músicas, vinhetas e hora certa (Liquidsoap). */

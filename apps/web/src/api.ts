@@ -149,7 +149,7 @@ export interface Station {
   noRepeatMinutes: number;
   liveTimeout: number;
   liveContinue: boolean;
-  timeAnnounce: 0 | 5 | 10 | 15 | 20 | 30 | 60;
+  timeAnnounce: number;
   timeVoice: string;
   autocue: boolean;
   autocueCustom: boolean;
