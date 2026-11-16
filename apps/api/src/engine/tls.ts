@@ -134,6 +134,25 @@ export function loadTls(): boolean {
   return true;
 }
 
+/**
+ * O domínio chega a ESTE painel pela porta 80? Testa com um desafio falso (sem gastar o limite do Let's Encrypt).
+ * true = chega; false = não chega (DNS errado, outro servidor, porta 80 fechada); null = redirecionou (não dá para saber, deixa o Let's Encrypt decidir).
+ */
+async function reachesPanel(host: string): Promise<boolean | null> {
+  const token = `probe-${crypto.randomBytes(8).toString('hex')}`;
+  const value = crypto.randomBytes(8).toString('hex');
+  acmeTokens.set(token, value);
+  try {
+    const r = await fetch(`http://${host}/.well-known/acme-challenge/${token}`, { redirect: 'manual', signal: AbortSignal.timeout(7000) });
+    if (r.status >= 300 && r.status < 400) return null;
+    return r.status === 200 && (await r.text()).trim() === value;
+  } catch {
+    return false;
+  } finally {
+    acmeTokens.delete(token);
+  }
+}
+
 /** Pede (ou renova) o certificado para os domínios salvos. Lança erro com o motivo se falhar. */
 export async function issueTls(): Promise<void> {
   const s = tlsSettings();
@@ -141,6 +160,18 @@ export async function issueTls(): Promise<void> {
   if (busy) throw new Error('Já há uma emissão em andamento.');
   busy = true;
   try {
+    // Com vários domínios, um domínio errado derrubaria a emissão de todos. Testa antes e emite só para os que chegam
+    // ao painel (o resto é avisado). Se nenhum passar no teste (ex.: o servidor não alcança o próprio IP), tenta todos como antes.
+    let hosts = s.hosts;
+    let skipped: string[] = [];
+    if (hosts.length > 1) {
+      const res = await Promise.all(hosts.map(reachesPanel));
+      const ok = hosts.filter((_, i) => res[i] !== false);
+      if (ok.length > 0 && ok.length < hosts.length) {
+        skipped = hosts.filter((_, i) => res[i] === false);
+        hosts = ok;
+      }
+    }
     fs.mkdirSync(dir(), { recursive: true });
     let accountKey: string;
     try {
@@ -150,7 +181,7 @@ export async function issueTls(): Promise<void> {
       fs.writeFileSync(file('account.key'), accountKey, { mode: 0o600 });
     }
     const client = new acme.Client({ directoryUrl: s.staging ? acme.directory.letsencrypt.staging : acme.directory.letsencrypt.production, accountKey });
-    const [key, csr] = await acme.crypto.createCsr({ commonName: s.hosts[0], altNames: s.hosts.slice(1) });
+    const [key, csr] = await acme.crypto.createCsr({ commonName: hosts[0], altNames: hosts.slice(1) });
     const cert = await client.auto({
       csr,
       email: s.email || undefined,
@@ -165,7 +196,8 @@ export async function issueTls(): Promise<void> {
     });
     fs.writeFileSync(file('key.pem'), key.toString(), { mode: 0o600 });
     fs.writeFileSync(file('cert.pem'), cert);
-    save('tls_last_error', '');
+    // Domínios que não chegaram ao painel ficam de fora do certificado e aparecem como aviso (o resto já funciona).
+    save('tls_last_error', skipped.length ? `Certificado emitido, mas SEM: ${skipped.join(', ')} (não chegam a este painel pela porta 80; confira o DNS e se o domínio aponta para este servidor).` : '');
     save('tls_last_ok', new Date().toISOString());
     save('tls_source', 'lets-encrypt');
     loadTls();

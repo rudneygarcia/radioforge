@@ -26,7 +26,7 @@ export async function tlsRoutes(app: FastifyInstance) {
 
   app.put('/api/system/tls', async (req) => {
     requireAdmin(req);
-    const b = z.object({ hosts: z.array(host).max(5), email: z.union([z.string().email(), z.literal('')]).default('') }).parse(req.body);
+    const b = z.object({ hosts: z.array(host).max(50), email: z.union([z.string().email(), z.literal('')]).default('') }).parse(req.body);
     saveTlsSettings(b.hosts.map((h) => h.toLowerCase()), b.email);
     return tlsInfo();
   });

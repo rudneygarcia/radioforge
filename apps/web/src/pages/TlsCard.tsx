@@ -94,8 +94,8 @@ export default function TlsCard() {
       <div className="fields">
         <label className="field">
           <span>Domínio(s) das rádios (um por linha)</span>
-          <textarea rows={3} value={hosts} onChange={(e) => setHosts(e.target.value)} placeholder="stm.seudominio.com.br" />
-          <small className="hint">O domínio precisa apontar para o IP deste servidor e estar no Velix (a porta 80 do domínio precisa chegar ao painel). Para as portas (8070…) funcionarem, o registro no Cloudflare deve estar em “somente DNS” (nuvem cinza): o Cloudflare não repassa essas portas.</small>
+          <textarea rows={5} value={hosts} onChange={(e) => setHosts(e.target.value)} placeholder={'stm.seudominio.com.br\nradio.outrodominio.com'} />
+          <small className="hint">Pode colocar vários domínios (até 50), todos num só certificado. Cada um precisa apontar para o IP deste servidor, com a porta 80 chegando ao painel. Se algum não chegar, ele fica de fora e os outros são emitidos mesmo assim (o painel avisa quais ficaram de fora). Para as portas (8070…) funcionarem, o registro no Cloudflare deve estar em “somente DNS” (nuvem cinza): o Cloudflare não repassa essas portas.</small>
         </label>
         <label className="field">
           <span>E-mail para avisos do Let’s Encrypt <em className="hint">(opcional)</em></span>
@@ -105,7 +105,7 @@ export default function TlsCard() {
           <button type="button" onClick={issue} disabled={busy || info.busy || !hosts.trim()}>{busy || info.busy ? 'Emitindo… (até 1 min)' : info.issued ? 'Renovar agora' : 'Salvar e emitir certificado'}</button>
           {info.notAfter && <span className="muted small-text">Válido até {new Date(info.notAfter).toLocaleDateString()} · renova sozinho 30 dias antes</span>}
         </div>
-        {info.lastError && <p className="error">Última tentativa: {info.lastError}</p>}
+        {info.lastError && <p className="error">{info.lastError.startsWith('Certificado emitido') ? 'Atenção: ' : 'Última tentativa: '}{info.lastError}</p>}
         {info.issued && <p className="muted small-text" style={{ margin: 0 }}>Origem do certificado: {info.source === 'traefik' ? 'Traefik (acme.json)' : info.source === 'manual' ? 'colado manualmente' : 'Let’s Encrypt (emitido pelo painel)'}</p>}
         <details>
           <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Já tenho o certificado (Traefik do Velix ou outro)</summary>
