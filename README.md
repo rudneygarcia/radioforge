@@ -42,7 +42,7 @@ Depois use `radioforge update | status | logs | restart | stop | start | uninsta
 2. Rode o instalador com a pasta do HD: `RF_MEDIA_DIR=/mnt/hd/radioforge` (o valor fica guardado em `.env` e vale nas próximas vezes). Ele cria a pasta, dá acesso ao contêiner e avisa se o HD não parece montado.
 3. Se já havia músicas no disco do sistema, copie antes de usar: `radioforge stop`, depois `docker run --rm -v radioforge_radioforge-data:/from -v /mnt/hd/radioforge:/to alpine sh -c 'cp -a /from/stations/. /to/stations/ && chown -R 1001:1001 /to/stations'` e `radioforge start`.
 
-Cuidado: se o HD estiver desligado ou desmontado, as rádios ficam sem músicas até ele voltar (confira com `df -h /mnt/hd`). Não precisa de nada a mais no painel: as músicas enviadas pelo painel ou por SFTP passam a ser gravadas no HD.
+Para conferir: em **Sistema → Armazenamento das músicas** o painel mostra se as músicas estão em outro disco ou no disco do sistema, o dispositivo e o tipo do sistema de arquivos (ext4, ntfs...), o espaço livre e se ele consegue gravar na pasta. No servidor: `df -h /mnt/hd` (deve mostrar o HD) e `docker exec radio_radioforge df -h /data/stations`. Cuidado: se o HD estiver desligado ou desmontado, as rádios ficam sem músicas até ele voltar (confira com `df -h /mnt/hd`). Não precisa de nada a mais no painel: as músicas enviadas pelo painel ou por SFTP passam a ser gravadas no HD.
 
 Desenvolvimento (Windows/Linux, sem streaming):
 

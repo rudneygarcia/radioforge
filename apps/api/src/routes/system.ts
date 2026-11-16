@@ -1,7 +1,36 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { authenticate, HttpError, requireAdmin } from '../auth.js';
+import { config } from '../config.js';
+import { get } from '../db.js';
 import { engineMode } from '../engine/manager.js';
+
+/** Disco (ponto de montagem mais específico) em que uma pasta está: dispositivo e sistema de arquivos, lidos de /proc/self/mounts. */
+function mountOf(dir: string): { device: string; fsType: string; mountPoint: string } | null {
+  try {
+    const real = fs.realpathSync(dir);
+    let best: { device: string; fsType: string; mountPoint: string } | null = null;
+    for (const line of fs.readFileSync('/proc/self/mounts', 'utf8').split('\n')) {
+      const [device, mountPoint, fsType] = line.split(' ');
+      if (!device || !mountPoint) continue;
+      const mp = mountPoint.replace(/\\040/g, ' ');
+      if ((real === mp || real.startsWith(mp.endsWith('/') ? mp : `${mp}/`)) && (!best || mp.length >= best.mountPoint.length)) best = { device, fsType, mountPoint: mp };
+    }
+    return best;
+  } catch {
+    return null; // sem /proc (Windows, desenvolvimento)
+  }
+}
+
+function diskUsage(dir: string) {
+  try {
+    const s = fs.statfsSync(dir);
+    return { total: s.blocks * s.bsize, free: s.bavail * s.bsize };
+  } catch {
+    return { total: 0, free: 0 };
+  }
+}
 
 const REPO = process.env.UPDATE_REPO ?? 'rudneygarcia/radioforge';
 const BRANCH = process.env.UPDATE_BRANCH ?? 'main';
@@ -73,6 +102,32 @@ export async function systemRoutes(app: FastifyInstance) {
     branch: BRANCH,
     canUpdate: !!UPDATE_WEBHOOK_URL,
   }));
+
+  // Onde as músicas estão gravadas: no disco do sistema ou em outro (HD externo montado em /data/stations), com espaço livre e teste de escrita.
+  app.get('/api/system/storage', async () => {
+    const stationsDir = path.join(config.dataDir, 'stations');
+    fs.mkdirSync(stationsDir, { recursive: true });
+    let writable = true;
+    try {
+      const probe = path.join(stationsDir, `.write-test-${process.pid}`);
+      fs.writeFileSync(probe, 'ok');
+      fs.rmSync(probe, { force: true });
+    } catch {
+      writable = false;
+    }
+    const sys = mountOf(config.dataDir);
+    const mus = mountOf(stationsDir);
+    return {
+      dataDir: config.dataDir,
+      stationsDir,
+      // O mesmo "st_dev" = mesmo disco/partição. Diferente = as músicas estão em outro disco.
+      separateDisk: fs.statSync(config.dataDir).dev !== fs.statSync(stationsDir).dev,
+      writable,
+      system: { ...diskUsage(config.dataDir), device: sys?.device ?? null, fsType: sys?.fsType ?? null },
+      music: { ...diskUsage(stationsDir), device: mus?.device ?? null, fsType: mus?.fsType ?? null },
+      mediaBytes: get<{ n: number }>('SELECT COALESCE(SUM(size), 0) AS n FROM media')?.n ?? 0,
+    };
+  });
 
   app.post('/api/system/check', async () => {
     const latest = await fetchLatest();
