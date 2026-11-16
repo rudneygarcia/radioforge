@@ -42,8 +42,24 @@ export function createBackup(): BackupInfo {
   // O caminho vai como parâmetro, então não há injeção de SQL.
   db.prepare('VACUUM INTO ?').run(file);
   fs.chmodSync(file, 0o600);
-  for (const old of listBackups().slice(KEEP_BACKUPS)) fs.rmSync(path.join(backupsDir, old.name), { force: true });
+  pruneBackups();
   return { name, size: fs.statSync(file).size, createdAt: new Date().toISOString() };
+}
+
+/** Apaga as cópias mais antigas além do limite. */
+export function pruneBackups() {
+  for (const old of listBackups().slice(KEEP_BACKUPS)) fs.rmSync(path.join(backupsDir, old.name), { force: true });
+}
+
+/** Nome livre no padrão dos backups (para o arquivo enviado de outro servidor). */
+export function newBackupName(): string {
+  let t = Date.now();
+  for (;;) {
+    const stamp = new Date(t).toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+    const name = `radioforge-${stamp}.db`;
+    if (!fs.existsSync(path.join(backupsDir, name))) return name;
+    t += 1000;
+  }
 }
 
 /** Cria uma cópia por dia: confere a cada hora se a última tem mais de 24 h. */

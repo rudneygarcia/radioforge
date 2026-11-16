@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { api, downloadFile } from '../api';
+import { useEffect, useRef, useState } from 'react';
+import { api, downloadFile, uploadForm } from '../api';
 import { Empty, Icon, PageHeader, useUi } from '../ui';
 
 interface Backup {
@@ -16,6 +16,26 @@ export default function BackupsPage() {
   const [keep, setKeep] = useState(7);
   const [busy, setBusy] = useState(false);
   const [restarting, setRestarting] = useState(false);
+  const [sending, setSending] = useState<number | null>(null); // % do envio em andamento
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  /** Envia um backup baixado de outro servidor; ele entra na lista e aí é só clicar em Restaurar. */
+  async function upload(file: File | undefined) {
+    if (!file) return;
+    const form = new FormData();
+    form.append('file', file);
+    setSending(0);
+    try {
+      await uploadForm('/api/backups/upload', form, (loaded, total) => setSending(Math.round((loaded / total) * 100))).promise;
+      toast('Backup enviado: clique em Restaurar para usá-lo');
+      await load();
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setSending(null);
+      if (fileInput.current) fileInput.current.value = '';
+    }
+  }
 
   const load = () =>
     api<{ keep: number; backups: Backup[] }>('/api/backups')
@@ -87,11 +107,27 @@ export default function BackupsPage() {
       <PageHeader
         title="Backups"
         subtitle={`Uma cópia do banco é criada todo dia; ficam as ${keep} mais recentes.`}
-        actions={<button onClick={create} disabled={busy}><Icon name="plus" /> {busy ? 'Criando…' : 'Fazer backup agora'}</button>}
+        actions={
+          <div className="row" style={{ margin: 0 }}>
+            <input ref={fileInput} type="file" accept=".db,application/octet-stream" hidden onChange={(e) => void upload(e.target.files?.[0])} />
+            <button type="button" className="ghost" onClick={() => fileInput.current?.click()} disabled={sending !== null || restarting}><Icon name="upload" /> {sending !== null ? `Enviando… ${sending}%` : 'Enviar backup'}</button>
+            <button onClick={create} disabled={busy}><Icon name="plus" /> {busy ? 'Criando…' : 'Fazer backup agora'}</button>
+          </div>
+        }
       />
       <div className="card notice">
         Inclui usuários, estações, playlists, relatórios, chaves de API e webhooks. <strong>Não inclui músicas nem gravações</strong>: para elas, copie o volume de dados do Docker.
         O arquivo contém dados sensíveis (hashes de senha, senhas de DJ): guarde-o em local seguro.
+      </div>
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h4 style={{ marginTop: 0 }}>Levar as configurações para outro servidor</h4>
+        <ol style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+          <li>Neste painel, clique em <strong>Baixar</strong> no backup mais recente (ou em <strong>Fazer backup agora</strong> e depois Baixar).</li>
+          <li>No servidor novo, crie um administrador qualquer na primeira tela e entre. Vá em <strong>Backups → Enviar backup</strong> e escolha o arquivo baixado.</li>
+          <li>Clique em <strong>Restaurar</strong> no arquivo enviado. A API reinicia em alguns segundos.</li>
+          <li>Depois de restaurar, entre com o <strong>usuário e a senha do servidor antigo</strong> (o administrador temporário deixa de existir).</li>
+        </ol>
+        <p className="muted small-text" style={{ marginBottom: 0 }}>Vão junto: usuários, estações (portas, senhas de DJ, configurações), playlists, comerciais, relatórios e chaves de API. Não vão: as músicas e o certificado HTTPS (emita de novo em Sistema → HTTPS). Depois, copie as músicas para o servidor novo (SFTP ou volume do Docker) e reenvie o preset/biblioteca do Stereo Tool, se usar.</p>
       </div>
       {restarting && <div className="card notice">Restaurando… a API está reiniciando. Esta página recarrega sozinha quando ela voltar.</div>}
       <div className="card tight">

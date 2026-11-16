@@ -1,10 +1,15 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authenticate, HttpError, requireAdmin } from '../auth.js';
-import { backupsDir, createBackup, KEEP_BACKUPS, listBackups, SAFE_BACKUP } from '../engine/backups.js';
+import { backupsDir, createBackup, KEEP_BACKUPS, listBackups, newBackupName, pruneBackups, SAFE_BACKUP } from '../engine/backups.js';
 import { stageRestore, validateBackupFile } from '../engine/restore.js';
+
+/** Tamanho máximo do arquivo de backup enviado. */
+const MAX_UPLOAD = 500 * 1024 * 1024;
 
 const fileParam = z.object({ file: z.string() });
 
@@ -27,6 +32,32 @@ export async function backupRoutes(app: FastifyInstance) {
   app.get('/api/backups', async () => ({ keep: KEEP_BACKUPS, backups: listBackups() }));
 
   app.post('/api/backups', async (_req, reply) => reply.code(201).send(createBackup()));
+
+  /**
+   * Recebe um arquivo de backup baixado de OUTRO servidor (ex.: para levar as configurações para uma instalação nova).
+   * Só confere e guarda na lista; quem substitui o banco é o "Restaurar", como nos demais backups.
+   */
+  app.post('/api/backups/upload', async (req, reply) => {
+    const part = await req.file({ limits: { fileSize: MAX_UPLOAD } });
+    if (!part) throw new HttpError(400, 'Envie o arquivo do backup (.db)');
+    fs.mkdirSync(backupsDir, { recursive: true });
+    const tmp = path.join(backupsDir, `upload-${crypto.randomUUID()}.tmp`);
+    try {
+      await pipeline(part.file, fs.createWriteStream(tmp, { mode: 0o600 }));
+      if (part.file.truncated) throw new HttpError(413, `Arquivo grande demais (máximo ${MAX_UPLOAD / 1048576} MB)`);
+      try {
+        validateBackupFile(tmp);
+      } catch (e) {
+        throw new HttpError(422, `Esse arquivo não é um backup válido do RadioForge: ${(e as Error).message}`);
+      }
+      const name = newBackupName();
+      fs.renameSync(tmp, path.join(backupsDir, name));
+      pruneBackups();
+      return reply.code(201).send({ name, size: fs.statSync(path.join(backupsDir, name)).size, createdAt: new Date().toISOString() });
+    } finally {
+      fs.rmSync(tmp, { force: true });
+    }
+  });
 
   app.get('/api/backups/:file', async (req, reply) => {
     const abs = backupFile(fileParam.parse(req.params).file);
