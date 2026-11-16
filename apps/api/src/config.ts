@@ -23,6 +23,8 @@ function secret(envName: string, file: string): string {
 export const config = {
   dataDir,
   port: Number(process.env.PORT ?? 3000),
+  /** Porta HTTPS do próprio painel (certificado emitido em Sistema → HTTPS). 0 = desligada. Instalação sem proxy publica 443 -> esta. */
+  httpsPort: Number(process.env.HTTPS_PORT ?? 3443),
   host: process.env.HOST ?? '0.0.0.0',
   jwtSecret: secret('JWT_SECRET', 'jwt'),
   /** Token que o Liquidsoap usa para avisar a API sobre troca de faixa. */

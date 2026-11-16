@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import https from 'node:https';
 import path from 'node:path';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
@@ -9,6 +10,7 @@ import { ZodError } from 'zod';
 import { config, hostContext } from './config.js';
 import './db.js';
 import { engineMode, startAutostart, stopAll } from './engine/manager.js';
+import { getTlsContext } from './engine/portfront.js';
 import { startBackupScheduler } from './engine/backups.js';
 import { backfillCovers } from './engine/covers.js';
 import { startTimedPlaylists } from './engine/timed.js';
@@ -114,6 +116,17 @@ process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
 await app.listen({ port: config.port, host: config.host });
+// HTTPS do próprio painel (como o AzuraCast na 443): mesmo certificado das portas das rádios, escolhido por SNI. Sem certificado ainda,
+// a conexão HTTPS simplesmente não completa (o painel segue em HTTP até emitir em Sistema → HTTPS).
+if (config.httpsPort > 0) {
+  const secure = https.createServer(
+    { SNICallback: (_name, cb) => { const ctx = getTlsContext(); ctx ? cb(null, ctx) : cb(new Error('sem certificado')); } },
+    (req, res) => app.routing(req, res),
+  );
+  secure.on('tlsClientError', () => {});
+  secure.on('error', (e) => app.log.error(`HTTPS do painel: ${e.message}`));
+  secure.listen(config.httpsPort, config.host);
+}
 // Modo Icecast+Liquidsoap: as portas das estações passam a ser atendidas pelo painel (HTTP e HTTPS) e o Icecast fica só em 127.0.0.1.
 setPortFront(engineMode() === 'liquidsoap');
 startTlsRenewal();

@@ -85,11 +85,14 @@ export default function TlsCard() {
   return (
     <div className="card section">
       <div className="section-title">
-        <h3>HTTPS nas portas das rádios</h3>
+        <h3>HTTPS do painel e das portas das rádios</h3>
         <span className={`badge ${info.issued ? 'on' : 'off'}`}>{info.issued ? `certificado ok · ${info.daysLeft} dias` : 'sem certificado'}</span>
       </div>
       <p className="muted" style={{ marginTop: -4 }}>
         Faz funcionar <code>https://{first}:PORTA/stream</code> (além do <code>http://</code>) na porta de cada rádio, como no AzuraCast. Vale para todas as rádios, novas e antigas, usando a porta de cada uma. O painel pede e renova o certificado Let’s Encrypt sozinho.
+      </p>
+      <p className="muted small-text" style={{ marginTop: -4 }}>
+        Em servidor instalado com o <code>install.sh</code> (portas 80 e 443 direto no painel, como no AzuraCast), o mesmo certificado também liga o <strong>HTTPS do painel</strong> em <code>https://{first}</code>, para todos os domínios da lista, sem reiniciar. No Velix, o HTTPS da tela continua vindo do Traefik.
       </p>
       <div className="fields">
         <label className="field">

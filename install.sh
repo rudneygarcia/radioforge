@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# RadioForge: instalador para servidores Linux SEM o Velix (Docker Compose + Caddy opcional para HTTPS).
+# RadioForge: instalador para servidores Linux SEM o Velix (Docker Compose). Funciona como o AzuraCast: o painel
+# atende direto nas portas 80 (HTTP) e 443 (HTTPS), por qualquer domínio (ou IP) que aponte para o servidor, e o
+# certificado Let's Encrypt (um ou vários domínios) é emitido DENTRO do painel, em Sistema -> HTTPS. Sem perguntas.
 #
 # Uso (como root, em Debian/Ubuntu/CentOS/Fedora com acesso à internet):
 #   curl -fsSL https://raw.githubusercontent.com/rudneygarcia/radioforge/main/install.sh | sudo bash
@@ -12,20 +14,24 @@
 #   uninstall          remove contêineres (pergunta antes de apagar os dados)
 #
 # Variáveis opcionais (para rodar sem perguntas):
-#   RF_DOMAIN=radio.exemplo.com   domínio do painel; ligado = HTTPS automático (Caddy nas portas 80/443)
+#   RF_DOMAIN=a.com,b.com         domínio(s) já apontados para este servidor: o certificado é pedido sozinho ao subir
+#                                 (opcional: dá para fazer depois, no painel, em Sistema -> HTTPS)
+#   RF_EMAIL=voce@exemplo.com     e-mail dos avisos do Let's Encrypt (opcional)
 #   RF_DIR=/opt/radioforge        pasta de instalação
 #   RF_REPO=rudneygarcia/radioforge  RF_BRANCH=main
 #   GITHUB_TOKEN=...              só se o repositório for privado (token de leitura)
-#   RF_PANEL_PORT=3000            porta do painel quando NÃO há domínio
+#   RF_HTTP_PORT=80  RF_HTTPS_PORT=443   portas do painel no servidor (mude só se 80/443 já estiverem em uso)
 #   RF_TZ=America/Sao_Paulo
 set -euo pipefail
 
 RF_DIR="${RF_DIR:-/opt/radioforge}"
 RF_REPO="${RF_REPO:-rudneygarcia/radioforge}"
 RF_BRANCH="${RF_BRANCH:-main}"
-RF_PANEL_PORT="${RF_PANEL_PORT:-3000}"
+RF_HTTP_PORT="${RF_HTTP_PORT:-80}"
+RF_HTTPS_PORT="${RF_HTTPS_PORT:-443}"
 RF_TZ="${RF_TZ:-America/Sao_Paulo}"
 RF_DOMAIN="${RF_DOMAIN:-}"
+RF_EMAIL="${RF_EMAIL:-}"
 CMD="${1:-install}"
 
 c_ok=$'\033[32m'; c_warn=$'\033[33m'; c_err=$'\033[31m'; c_off=$'\033[0m'
@@ -90,72 +96,33 @@ fetch_code() {
 
 # Gera .env e docker-compose.override.yml (arquivos locais, fora do git: ver .git/info/exclude).
 write_config() {
-  local public_host="$RF_DOMAIN" origin=""
-  if [ -z "$public_host" ]; then
-    public_host="$(curl -fsS -m 5 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')"
-  else
-    origin="https://${RF_DOMAIN}"
-  fi
-
+  # Sem PUBLIC_HOST/PUBLIC_ORIGIN de propósito: os links de stream e de player seguem o endereço pelo qual a pessoa abriu o painel
+  # (qualquer domínio ou o IP, como no AzuraCast). TLS_HOSTS só preenche a lista de domínios do certificado na primeira subida.
   cat > "$RF_DIR/.env" <<EOF
-PUBLIC_HOST=${public_host}
-PUBLIC_ORIGIN=${origin}
 TZ=${RF_TZ}
+TLS_HOSTS=${RF_DOMAIN}
+TLS_EMAIL=${RF_EMAIL}
 EOF
   chmod 600 "$RF_DIR/.env"
 
-  if [ -n "$RF_DOMAIN" ]; then
-    # Com domínio: Caddy nas portas 80/443 (HTTPS automático) -> painel. A porta 80 também serve o
-    # desafio ACME do "HTTPS nas portas das rádios" (/.well-known/acme-challenge/ chega ao painel).
-    cat > "$RF_DIR/Caddyfile" <<EOF
-${RF_DOMAIN} {
-	reverse_proxy radioforge:3000
-}
-http://${RF_DOMAIN} {
-	reverse_proxy radioforge:3000
-}
-EOF
-    cat > "$RF_DIR/docker-compose.override.yml" <<EOF
+  # O painel atende direto nas portas 80 (HTTP) e 443 (HTTPS): a 80 também recebe o desafio do Let's Encrypt
+  # (/.well-known/acme-challenge/), e o certificado emitido em Sistema -> HTTPS vale para o painel e para as portas das rádios.
+  cat > "$RF_DIR/docker-compose.override.yml" <<EOF
 services:
   radioforge:
     environment:
-      PUBLIC_ORIGIN: \${PUBLIC_ORIGIN:-}
+      PUBLIC_HOST: ""
+      PUBLIC_ORIGIN: ""
       TZ: \${TZ:-America/Sao_Paulo}
+      TLS_HOSTS: \${TLS_HOSTS:-}
+      TLS_EMAIL: \${TLS_EMAIL:-}
     ports: !override
-      - "8000-8499:8000-8499"
-      - "2222:2222"
-    expose:
-      - "3000"
-  caddy:
-    image: caddy:2
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
-    depends_on:
-      - radioforge
-volumes:
-  caddy-data:
-  caddy-config:
-EOF
-  else
-    cat > "$RF_DIR/docker-compose.override.yml" <<EOF
-services:
-  radioforge:
-    environment:
-      PUBLIC_ORIGIN: \${PUBLIC_ORIGIN:-}
-      TZ: \${TZ:-America/Sao_Paulo}
-    ports: !override
-      - "${RF_PANEL_PORT}:3000"
+      - "${RF_HTTP_PORT}:3000"
+      - "${RF_HTTPS_PORT}:3443"
       - "8000-8499:8000-8499"
       - "2222:2222"
 EOF
-    rm -f "$RF_DIR/Caddyfile"
-  fi
+  rm -f "$RF_DIR/Caddyfile"
 
   local excl="$RF_DIR/.git/info/exclude"
   for f in .env docker-compose.override.yml Caddyfile; do
@@ -168,16 +135,15 @@ open_firewall() {
     say "Liberando portas no ufw..."
     ufw allow 8000:8499/tcp >/dev/null
     ufw allow 2222/tcp >/dev/null
-    if [ -n "$RF_DOMAIN" ]; then ufw allow 80/tcp >/dev/null; ufw allow 443/tcp >/dev/null
-    else ufw allow "${RF_PANEL_PORT}/tcp" >/dev/null; fi
+    ufw allow "${RF_HTTP_PORT}/tcp" >/dev/null
+    ufw allow "${RF_HTTPS_PORT}/tcp" >/dev/null
   elif command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
     say "Liberando portas no firewalld..."
     firewall-cmd --permanent --add-port=8000-8499/tcp --add-port=2222/tcp >/dev/null
-    if [ -n "$RF_DOMAIN" ]; then firewall-cmd --permanent --add-port=80/tcp --add-port=443/tcp >/dev/null
-    else firewall-cmd --permanent --add-port="${RF_PANEL_PORT}/tcp" >/dev/null; fi
+    firewall-cmd --permanent --add-port="${RF_HTTP_PORT}/tcp" --add-port="${RF_HTTPS_PORT}/tcp" >/dev/null
     firewall-cmd --reload >/dev/null
   else
-    warn "Nenhum firewall ativo detectado. Se o provedor tiver firewall externo, libere: 8000-8499, 2222 e $( [ -n "$RF_DOMAIN" ] && echo '80, 443' || echo "$RF_PANEL_PORT" ) (TCP)."
+    warn "Nenhum firewall ativo detectado. Se o provedor tiver firewall externo, libere: ${RF_HTTP_PORT}, ${RF_HTTPS_PORT}, 8000-8499 e 2222 (TCP)."
   fi
 }
 
@@ -194,10 +160,11 @@ do_install() {
   install_docker
   install_git
 
-  if [ -z "$RF_DOMAIN" ] && [ ! -f "$RF_DIR/.env" ]; then
-    RF_DOMAIN="$(ask 'Domínio do painel (ex.: radio.exemplo.com; vazio = sem HTTPS, acesso por IP:porta)' '')"
-  elif [ -z "$RF_DOMAIN" ] && grep -q '^PUBLIC_ORIGIN=https://' "$RF_DIR/.env" 2>/dev/null; then
-    RF_DOMAIN="$(grep '^PUBLIC_ORIGIN=' "$RF_DIR/.env" | sed 's#PUBLIC_ORIGIN=https://##')"
+  # Reinstalar/atualizar mantém o que já estava (domínios e e-mail do .env; instalações antigas guardavam o domínio em PUBLIC_ORIGIN).
+  if [ -f "$RF_DIR/.env" ]; then
+    [ -n "$RF_DOMAIN" ] || RF_DOMAIN="$(grep '^TLS_HOSTS=' "$RF_DIR/.env" 2>/dev/null | cut -d= -f2- || true)"
+    [ -n "$RF_DOMAIN" ] || RF_DOMAIN="$(grep '^PUBLIC_ORIGIN=https://' "$RF_DIR/.env" 2>/dev/null | sed 's#PUBLIC_ORIGIN=https://##' || true)"
+    [ -n "$RF_EMAIL" ] || RF_EMAIL="$(grep '^TLS_EMAIL=' "$RF_DIR/.env" 2>/dev/null | cut -d= -f2- || true)"
   fi
 
   fetch_code
@@ -206,15 +173,18 @@ do_install() {
   install_cli
 
   say "Construindo e subindo (o primeiro build leva alguns minutos)..."
-  compose up -d --build
+  compose up -d --build --remove-orphans
 
-  local url
-  if [ -n "$RF_DOMAIN" ]; then url="https://${RF_DOMAIN}"
-  else url="http://$(grep '^PUBLIC_HOST=' "$RF_DIR/.env" | cut -d= -f2):${RF_PANEL_PORT}"; fi
+  local ip port=""
+  ip="$(curl -fsS -m 5 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')"
+  [ "$RF_HTTP_PORT" = "80" ] || port=":${RF_HTTP_PORT}"
   echo
-  say "Pronto! Painel: ${url}"
+  say "Pronto! Painel: http://${ip}${port}"
   echo "   Primeiro acesso: crie o administrador na tela inicial."
-  [ -n "$RF_DOMAIN" ] && echo "   Aponte o DNS (registro A) de ${RF_DOMAIN} para este servidor; o certificado sai sozinho."
+  echo "   HTTPS (como no AzuraCast): aponte o DNS (registro A) dos seus domínios para este servidor e, no painel,"
+  echo "   em Sistema -> HTTPS, informe os domínios e clique em 'Salvar e emitir certificado'. Vale para o painel (porta ${RF_HTTPS_PORT})"
+  echo "   e para as portas das rádios. Qualquer domínio que aponte para o IP abre o painel."
+  [ -n "$RF_DOMAIN" ] && echo "   Domínio(s) já informado(s): ${RF_DOMAIN} (o certificado é pedido sozinho assim que o DNS responder)."
   echo "   Dados (músicas, banco, configurações): volume Docker 'radioforge_radioforge-data'."
   echo "   Comandos: radioforge update | status | logs | restart | stop | start | uninstall"
 }

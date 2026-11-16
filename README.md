@@ -27,14 +27,14 @@ PUBLIC_HOST=radio.seudominio.com docker compose up -d --build
 
 Abra `http://SERVIDOR:3000`. Na primeira visita o painel pede para criar o administrador. Libere as portas `3000` e `8000-8499` no firewall (ideal: colocar um proxy reverso com HTTPS na frente do `3000`).
 
-**Instalador para servidores sem o Velix** (Debian/Ubuntu/CentOS/Fedora, como root): instala o Docker, baixa o projeto em `/opt/radioforge`, gera `.env`, libera as portas no firewall e sobe tudo. Se você informar um domínio, sobe também um Caddy (portas 80/443) com HTTPS automático na frente do painel.
+**Instalador para servidores sem o Velix** (Debian/Ubuntu/CentOS/Fedora, como root), no estilo do AzuraCast: instala o Docker, baixa o projeto em `/opt/radioforge`, gera `.env`, libera as portas no firewall e sobe tudo, **sem perguntas**. O painel atende direto nas portas **80** (HTTP) e **443** (HTTPS), por qualquer domínio ou pelo IP; as portas das rádios são 8000–8499 e o SFTP é 2222. Para o HTTPS, aponte o DNS dos seus domínios (um ou vários) para o servidor e, no painel, em **Sistema → HTTPS**, informe os domínios e clique em *Salvar e emitir certificado*: um certificado só vale para o painel (443) e para as portas das rádios, e renova sozinho.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rudneygarcia/radioforge/main/install.sh | sudo bash
-# sem perguntas:  RF_DOMAIN=radio.seudominio.com  (ou vazio = painel em http://IP:3000)
+# opcional, sem abrir o painel:  RF_DOMAIN=a.com,b.com  RF_EMAIL=voce@exemplo.com  (o certificado é pedido ao subir)
 ```
 
-Depois use `radioforge update | status | logs | restart | stop | start | uninstall`. Variáveis: `RF_DOMAIN`, `RF_DIR`, `RF_REPO`, `RF_BRANCH`, `GITHUB_TOKEN` (repositório privado), `RF_PANEL_PORT`, `RF_TZ`. Requer Docker Compose 2.24+ (o instalador do Docker já traz). Fora do Velix o botão "Atualizar agora" do painel não tem webhook: atualize com `radioforge update`.
+Depois use `radioforge update | status | logs | restart | stop | start | uninstall`. Variáveis: `RF_DOMAIN`, `RF_EMAIL`, `RF_DIR`, `RF_REPO`, `RF_BRANCH`, `GITHUB_TOKEN` (repositório privado), `RF_HTTP_PORT` e `RF_HTTPS_PORT` (padrão 80 e 443; mude só se já estiverem em uso), `RF_TZ`. Quem instalou antes com o Caddy: rode o comando de instalação de novo (os dados são mantidos) para passar ao modelo novo. Requer Docker (o script instala).
 
 Desenvolvimento (Windows/Linux, sem streaming):
 

@@ -16,6 +16,8 @@ export function setTlsContext(ctx: tls.SecureContext | null) {
   secureContext = ctx;
 }
 export const tlsReady = () => secureContext !== null;
+/** Contexto TLS em uso (o mesmo certificado serve as portas das rádios e o HTTPS do painel). */
+export const getTlsContext = () => secureContext;
 
 const servers = new Map<number, net.Server>();
 const MAX_HEAD = 16 * 1024;

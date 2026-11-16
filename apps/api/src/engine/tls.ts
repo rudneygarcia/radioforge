@@ -212,6 +212,11 @@ export async function issueTls(): Promise<void> {
 
 /** Ao subir: carrega o certificado salvo; todo dia confere a validade e renova quando faltar menos de 30 dias. */
 export function startTlsRenewal() {
+  // Instalação já com domínio (TLS_HOSTS=a.com,b.com no .env): preenche a lista uma vez, se ainda estiver vazia; o certificado sai sozinho.
+  if (tlsSettings().hosts.length === 0 && process.env.TLS_HOSTS) {
+    const list = process.env.TLS_HOSTS.split(/[\s,;]+/).map((h) => h.trim().toLowerCase()).filter((h) => /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(h)).slice(0, 50);
+    if (list.length) saveTlsSettings(list, process.env.TLS_EMAIL ?? '');
+  }
   loadTls();
   const check = () => {
     const i = tlsInfo();

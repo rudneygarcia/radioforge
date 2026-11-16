@@ -59,7 +59,7 @@ USER radio
 # Fuso dos logs do servidor (troque pela variável TZ no Velix, se precisar).
 ENV TZ=America/Sao_Paulo
 ENV NODE_ENV=production DATA_DIR=/data WEB_DIR=/app/apps/web/dist PORT=3000
-EXPOSE 3000 2222 8000-8499
+EXPOSE 3000 3443 2222 8000-8499
 VOLUME /data
 ENTRYPOINT []
 CMD ["node", "apps/api/dist/index.js"]
