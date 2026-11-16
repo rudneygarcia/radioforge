@@ -36,6 +36,14 @@ curl -fsSL https://raw.githubusercontent.com/rudneygarcia/radioforge/main/instal
 
 Depois use `radioforge update | status | logs | restart | stop | start | uninstall`. Variáveis: `RF_DOMAIN`, `RF_EMAIL`, `RF_DIR`, `RF_REPO`, `RF_BRANCH`, `GITHUB_TOKEN` (repositório privado), `RF_HTTP_PORT` e `RF_HTTPS_PORT` (padrão 80 e 443; mude só se já estiverem em uso), `RF_TZ`. Quem instalou antes com o Caddy: rode o comando de instalação de novo (os dados são mantidos) para passar ao modelo novo. Requer Docker (o script instala).
 
+**Músicas em outro disco (HD externo).** Tudo fica no volume `/data` do contêiner: as músicas em `/data/stations/<id>/media/`, e o banco, os backups e o certificado na raiz de `/data`. Para as músicas irem para um HD, aponte só a pasta `stations` para ele (o banco fica no disco do sistema, que é mais rápido e mais seguro):
+
+1. Monte o HD no servidor, de preferência em **ext4** (NTFS/exFAT não guardam permissões do Linux), e faça o `/etc/fstab` montar por UUID com `nofail`, para o servidor subir mesmo se o HD não estiver ligado. Ex.: `UUID=... /mnt/hd ext4 defaults,nofail 0 2`.
+2. Rode o instalador com a pasta do HD: `RF_MEDIA_DIR=/mnt/hd/radioforge` (o valor fica guardado em `.env` e vale nas próximas vezes). Ele cria a pasta, dá acesso ao contêiner e avisa se o HD não parece montado.
+3. Se já havia músicas no disco do sistema, copie antes de usar: `radioforge stop`, depois `docker run --rm -v radioforge_radioforge-data:/from -v /mnt/hd/radioforge:/to alpine sh -c 'cp -a /from/stations/. /to/stations/ && chown -R 1001:1001 /to/stations'` e `radioforge start`.
+
+Cuidado: se o HD estiver desligado ou desmontado, as rádios ficam sem músicas até ele voltar (confira com `df -h /mnt/hd`). Não precisa de nada a mais no painel: as músicas enviadas pelo painel ou por SFTP passam a ser gravadas no HD.
+
 Desenvolvimento (Windows/Linux, sem streaming):
 
 ```bash

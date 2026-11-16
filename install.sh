@@ -21,6 +21,8 @@
 #   RF_REPO=rudneygarcia/radioforge  RF_BRANCH=main
 #   GITHUB_TOKEN=...              só se o repositório for privado (token de leitura)
 #   RF_HTTP_PORT=80  RF_HTTPS_PORT=443   portas do painel no servidor (mude só se 80/443 já estiverem em uso)
+#   RF_MEDIA_DIR=/mnt/hd/radioforge      guarda as MÚSICAS (pasta stations) neste disco (ex.: HD externo já montado), em vez do
+#                                        volume do Docker no disco do sistema. O banco, os backups e o certificado ficam no disco do sistema.
 #   RF_TZ=America/Sao_Paulo
 set -euo pipefail
 
@@ -32,6 +34,7 @@ RF_HTTPS_PORT="${RF_HTTPS_PORT:-443}"
 RF_TZ="${RF_TZ:-America/Sao_Paulo}"
 RF_DOMAIN="${RF_DOMAIN:-}"
 RF_EMAIL="${RF_EMAIL:-}"
+RF_MEDIA_DIR="${RF_MEDIA_DIR:-}"
 CMD="${1:-install}"
 
 c_ok=$'\033[32m'; c_warn=$'\033[33m'; c_err=$'\033[31m'; c_off=$'\033[0m'
@@ -96,12 +99,20 @@ fetch_code() {
 
 # Gera .env e docker-compose.override.yml (arquivos locais, fora do git: ver .git/info/exclude).
 write_config() {
+  # Músicas em outro disco (ex.: HD externo): só a pasta "stations" vai para lá; banco, backups e certificado ficam no disco do sistema.
+  local media_vol=""
+  if [ -n "$RF_MEDIA_DIR" ]; then
+    media_vol="    volumes:
+      - \"${RF_MEDIA_DIR}/stations:/data/stations\""
+  fi
+
   # Sem PUBLIC_HOST/PUBLIC_ORIGIN de propósito: os links de stream e de player seguem o endereço pelo qual a pessoa abriu o painel
   # (qualquer domínio ou o IP, como no AzuraCast). TLS_HOSTS só preenche a lista de domínios do certificado na primeira subida.
   cat > "$RF_DIR/.env" <<EOF
 TZ=${RF_TZ}
 TLS_HOSTS=${RF_DOMAIN}
 TLS_EMAIL=${RF_EMAIL}
+RF_MEDIA_DIR=${RF_MEDIA_DIR}
 EOF
   chmod 600 "$RF_DIR/.env"
 
@@ -121,6 +132,7 @@ services:
       - "${RF_HTTPS_PORT}:3443"
       - "8000-8499:8000-8499"
       - "2222:2222"
+${media_vol}
 EOF
   rm -f "$RF_DIR/Caddyfile"
 
@@ -147,6 +159,23 @@ open_firewall() {
   fi
 }
 
+# Prepara a pasta das músicas no disco escolhido (RF_MEDIA_DIR): cria, dá acesso ao usuário do contêiner (uid 1001) e avisa dos riscos.
+prepare_media_dir() {
+  [ -n "$RF_MEDIA_DIR" ] || return 0
+  case "$RF_MEDIA_DIR" in /*) ;; *) die "RF_MEDIA_DIR precisa ser um caminho completo (ex.: /mnt/hd/radioforge).";; esac
+  mkdir -p "$RF_MEDIA_DIR/stations"
+  chown -R 1001:1001 "$RF_MEDIA_DIR/stations"
+  # Se a pasta está no mesmo disco da raiz, o HD provavelmente não está montado: as músicas iriam para o disco do sistema do mesmo jeito.
+  if [ "$(stat -c %d "$RF_MEDIA_DIR" 2>/dev/null)" = "$(stat -c %d / 2>/dev/null)" ]; then
+    warn "$RF_MEDIA_DIR está no MESMO disco do sistema. O HD externo está montado? (confira com 'df -h $RF_MEDIA_DIR')"
+  fi
+  # Já havia músicas no volume do Docker e a pasta nova está vazia: elas não aparecem até serem copiadas.
+  if docker volume inspect radioforge_radioforge-data >/dev/null 2>&1 && [ -z "$(ls -A "$RF_MEDIA_DIR/stations" 2>/dev/null)" ]; then
+    warn "Há dados no volume do Docker e a pasta nova está vazia. Para levar as músicas que já existem, rode ANTES de usar: radioforge stop &&"
+    warn "  docker run --rm -v radioforge_radioforge-data:/from -v ${RF_MEDIA_DIR}:/to alpine sh -c 'cp -a /from/stations/. /to/stations/ && chown -R 1001:1001 /to/stations'"
+  fi
+}
+
 install_cli() {
   cat > /usr/local/bin/radioforge <<EOF
 #!/usr/bin/env bash
@@ -165,9 +194,11 @@ do_install() {
     [ -n "$RF_DOMAIN" ] || RF_DOMAIN="$(grep '^TLS_HOSTS=' "$RF_DIR/.env" 2>/dev/null | cut -d= -f2- || true)"
     [ -n "$RF_DOMAIN" ] || RF_DOMAIN="$(grep '^PUBLIC_ORIGIN=https://' "$RF_DIR/.env" 2>/dev/null | sed 's#PUBLIC_ORIGIN=https://##' || true)"
     [ -n "$RF_EMAIL" ] || RF_EMAIL="$(grep '^TLS_EMAIL=' "$RF_DIR/.env" 2>/dev/null | cut -d= -f2- || true)"
+    [ -n "$RF_MEDIA_DIR" ] || RF_MEDIA_DIR="$(grep '^RF_MEDIA_DIR=' "$RF_DIR/.env" 2>/dev/null | cut -d= -f2- || true)"
   fi
 
   fetch_code
+  prepare_media_dir
   write_config
   open_firewall
   install_cli
