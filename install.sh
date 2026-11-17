@@ -23,6 +23,8 @@
 #   RF_HTTP_PORT=80  RF_HTTPS_PORT=443   portas do painel no servidor (mude só se 80/443 já estiverem em uso)
 #   RF_MEDIA_DIR=/mnt/hd/radioforge      guarda as MÚSICAS (pasta stations) neste disco (ex.: HD externo já montado), em vez do
 #                                        volume do Docker no disco do sistema. O banco, os backups e o certificado ficam no disco do sistema.
+#   RF_DISKS_DIR=/mnt                    pasta do servidor cujas SUBPASTAS são HDs já montados (ex.: /mnt/hd1, /mnt/hd2). No painel, cada estação
+#                                        escolhe em qual deles guardar as músicas (ao criar e depois, movendo). Aparecem como /disks no contêiner.
 #   RF_TZ=America/Sao_Paulo
 set -euo pipefail
 
@@ -35,6 +37,7 @@ RF_TZ="${RF_TZ:-America/Sao_Paulo}"
 RF_DOMAIN="${RF_DOMAIN:-}"
 RF_EMAIL="${RF_EMAIL:-}"
 RF_MEDIA_DIR="${RF_MEDIA_DIR:-}"
+RF_DISKS_DIR="${RF_DISKS_DIR:-}"
 CMD="${1:-install}"
 
 c_ok=$'\033[32m'; c_warn=$'\033[33m'; c_err=$'\033[31m'; c_off=$'\033[0m'
@@ -106,6 +109,17 @@ write_config() {
       - \"${RF_MEDIA_DIR}/stations:/data/stations\""
   fi
 
+  # Vários discos: a pasta com os HDs montados vai inteira para /disks (rslave: HD montado depois também aparece).
+  local disks_vol=""
+  if [ -n "$RF_DISKS_DIR" ]; then
+    if [ -n "$media_vol" ]; then
+      disks_vol="      - \"${RF_DISKS_DIR}:/disks:rslave\""
+    else
+      disks_vol="    volumes:
+      - \"${RF_DISKS_DIR}:/disks:rslave\""
+    fi
+  fi
+
   # Sem PUBLIC_HOST/PUBLIC_ORIGIN de propósito: os links de stream e de player seguem o endereço pelo qual a pessoa abriu o painel
   # (qualquer domínio ou o IP, como no AzuraCast). TLS_HOSTS só preenche a lista de domínios do certificado na primeira subida.
   cat > "$RF_DIR/.env" <<EOF
@@ -113,6 +127,7 @@ TZ=${RF_TZ}
 TLS_HOSTS=${RF_DOMAIN}
 TLS_EMAIL=${RF_EMAIL}
 RF_MEDIA_DIR=${RF_MEDIA_DIR}
+RF_DISKS_DIR=${RF_DISKS_DIR}
 EOF
   chmod 600 "$RF_DIR/.env"
 
@@ -133,6 +148,7 @@ services:
       - "8000-8499:8000-8499"
       - "2222:2222"
 ${media_vol}
+${disks_vol}
 EOF
   rm -f "$RF_DIR/Caddyfile"
 
@@ -176,6 +192,20 @@ prepare_media_dir() {
   fi
 }
 
+# Prepara os discos extras (subpastas de RF_DISKS_DIR): cria "stations" em cada um e dá acesso ao usuário do contêiner (uid 1001).
+prepare_disks_dir() {
+  [ -n "$RF_DISKS_DIR" ] || return 0
+  case "$RF_DISKS_DIR" in /*) ;; *) die "RF_DISKS_DIR precisa ser um caminho completo (ex.: /mnt).";; esac
+  [ -d "$RF_DISKS_DIR" ] || die "$RF_DISKS_DIR não existe."
+  local d n=0
+  for d in "$RF_DISKS_DIR"/*/; do
+    [ -d "$d" ] || continue
+    mkdir -p "${d}stations" && chown 1001:1001 "${d}stations" "${d%/}" 2>/dev/null || warn "Não consegui preparar $d (somente leitura?)"
+    n=$((n+1))
+  done
+  [ "$n" -gt 0 ] || warn "Nenhuma subpasta em $RF_DISKS_DIR: monte os HDs em pastas dentro dela (ex.: $RF_DISKS_DIR/hd1)."
+}
+
 install_cli() {
   cat > /usr/local/bin/radioforge <<EOF
 #!/usr/bin/env bash
@@ -195,10 +225,12 @@ do_install() {
     [ -n "$RF_DOMAIN" ] || RF_DOMAIN="$(grep '^PUBLIC_ORIGIN=https://' "$RF_DIR/.env" 2>/dev/null | sed 's#PUBLIC_ORIGIN=https://##' || true)"
     [ -n "$RF_EMAIL" ] || RF_EMAIL="$(grep '^TLS_EMAIL=' "$RF_DIR/.env" 2>/dev/null | cut -d= -f2- || true)"
     [ -n "$RF_MEDIA_DIR" ] || RF_MEDIA_DIR="$(grep '^RF_MEDIA_DIR=' "$RF_DIR/.env" 2>/dev/null | cut -d= -f2- || true)"
+    [ -n "$RF_DISKS_DIR" ] || RF_DISKS_DIR="$(grep '^RF_DISKS_DIR=' "$RF_DIR/.env" 2>/dev/null | cut -d= -f2- || true)"
   fi
 
   fetch_code
   prepare_media_dir
+  prepare_disks_dir
   write_config
   open_firewall
   install_cli

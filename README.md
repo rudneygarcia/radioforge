@@ -44,6 +44,8 @@ Depois use `radioforge update | status | logs | restart | stop | start | uninsta
 
 Para conferir: em **Sistema → Armazenamento das músicas** o painel mostra se as músicas estão em outro disco ou no disco do sistema, o dispositivo e o tipo do sistema de arquivos (ext4, ntfs...), o espaço livre e se ele consegue gravar na pasta. No servidor: `df -h /mnt/hd` (deve mostrar o HD) e `docker exec radio_radioforge df -h /data/stations`. Cuidado: se o HD estiver desligado ou desmontado, as rádios ficam sem músicas até ele voltar (confira com `df -h /mnt/hd`). Não precisa de nada a mais no painel: as músicas enviadas pelo painel ou por SFTP passam a ser gravadas no HD.
 
+**Vários HDs, um por estação.** Monte cada HD numa subpasta de uma mesma pasta (ex.: `/mnt/hd1`, `/mnt/hd2`) e rode o instalador com `RF_DISKS_DIR=/mnt` (fica guardado em `.env`; ele prepara a pasta `stations` de cada HD para o contêiner). No painel, ao **criar a estação** aparece "Disco das músicas", e nas **Configurações** de cada estação ativa (só administrador) dá para **mudar o disco**: o painel para a rádio, copia as músicas para o disco novo, confere e só então apaga do antigo (o andamento aparece na própria tela; os caminhos no banco não mudam, a pasta `media` da estação vira um atalho para o HD). Ao excluir a estação, as músicas do outro disco também são apagadas.
+
 Desenvolvimento (Windows/Linux, sem streaming):
 
 ```bash

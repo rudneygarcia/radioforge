@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type Station } from '../api';
 import { useAuth } from '../auth';
+import { DiskSelect, useDisks } from '../DiskSelect';
 import { Cover, Empty, Icon, Modal, PageHeader, useUi } from '../ui';
 
 export default function Stations() {
@@ -18,6 +19,8 @@ export default function Stations() {
   const [port, setPort] = useState('');
   const [secret, setSecret] = useState('');
   const [autodj, setAutodj] = useState(true);
+  const [disk, setDisk] = useState('');
+  const disks = useDisks();
   const genSecret = () => setSecret(Array.from(crypto.getRandomValues(new Uint8Array(14)), (b) => 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 56]).join(''));
   const toSlug = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, 40);
   const [busy, setBusy] = useState(false);
@@ -35,7 +38,7 @@ export default function Stations() {
     setBusy(true);
     setError('');
     try {
-      await api('/api/stations', { method: 'POST', body: { name, description, mount, slug: slug.replace(/-+$/, '') || undefined, port: port.trim() ? Number(port) : undefined, sourcePassword: secret.trim() || undefined, autodj } });
+      await api('/api/stations', { method: 'POST', body: { name, description, mount, slug: slug.replace(/-+$/, '') || undefined, port: port.trim() ? Number(port) : undefined, sourcePassword: secret.trim() || undefined, autodj, disk } });
       setOpen(false);
       setName('');
       setDescription('');
@@ -45,6 +48,7 @@ export default function Stations() {
       setPort('');
       setSecret('');
       setAutodj(true);
+      setDisk('');
       toast('Estação criada');
       load();
     } catch (err) {
@@ -169,6 +173,13 @@ export default function Stations() {
             </div>
             <small className="hint">É a senha que o DJ usa no programa de transmissão (usuário <code>source</code>). Mínimo 6 caracteres, sem espaços. Em branco, o painel cria uma senha forte. Dá para trocar depois em Editar estação.</small>
           </label>
+          {disks && disks.length > 1 && (
+            <label className="field span-all">
+              <span>Disco das músicas</span>
+              <DiskSelect disks={disks} value={disk} onChange={setDisk} />
+              <small className="hint">Em qual HD os arquivos de música desta estação ficam gravados. Dá para mudar depois em Editar estação (as músicas são copiadas para o disco novo).</small>
+            </label>
+          )}
           <label className="check-line span-all">
             <input type="checkbox" checked={autodj} onChange={(e) => setAutodj(e.target.checked)} />
             <span>Usar AutoDJ (músicas automáticas)<small>Desmarque se o cliente só transmite ao vivo: a estação roda só com o Icecast (o DJ conecta direto nele) e todo o processamento de áudio e o Liquidsoap ficam desligados, economizando CPU. Dá para ligar o AutoDJ depois em Editar estação.</small></span>

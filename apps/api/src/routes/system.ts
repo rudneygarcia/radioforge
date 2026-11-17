@@ -5,32 +5,7 @@ import { authenticate, HttpError, requireAdmin } from '../auth.js';
 import { config } from '../config.js';
 import { get } from '../db.js';
 import { engineMode } from '../engine/manager.js';
-
-/** Disco (ponto de montagem mais específico) em que uma pasta está: dispositivo e sistema de arquivos, lidos de /proc/self/mounts. */
-function mountOf(dir: string): { device: string; fsType: string; mountPoint: string } | null {
-  try {
-    const real = fs.realpathSync(dir);
-    let best: { device: string; fsType: string; mountPoint: string } | null = null;
-    for (const line of fs.readFileSync('/proc/self/mounts', 'utf8').split('\n')) {
-      const [device, mountPoint, fsType] = line.split(' ');
-      if (!device || !mountPoint) continue;
-      const mp = mountPoint.replace(/\\040/g, ' ');
-      if ((real === mp || real.startsWith(mp.endsWith('/') ? mp : `${mp}/`)) && (!best || mp.length >= best.mountPoint.length)) best = { device, fsType, mountPoint: mp };
-    }
-    return best;
-  } catch {
-    return null; // sem /proc (Windows, desenvolvimento)
-  }
-}
-
-function diskUsage(dir: string) {
-  try {
-    const s = fs.statfsSync(dir);
-    return { total: s.blocks * s.bsize, free: s.bavail * s.bsize };
-  } catch {
-    return { total: 0, free: 0 };
-  }
-}
+import { diskUsage, mountOf } from '../engine/disks.js';
 
 const REPO = process.env.UPDATE_REPO ?? 'rudneygarcia/radioforge';
 const BRANCH = process.env.UPDATE_BRANCH ?? 'main';

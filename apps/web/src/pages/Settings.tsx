@@ -5,6 +5,7 @@ import { useCan } from '../auth';
 import { Cover, Icon, Modal, useUi } from '../ui';
 import TimeClips from './TimeClips';
 import StereoTool from './StereoTool';
+import StationDiskCard from './StationDiskCard';
 import type { StationCtx } from './StationLayout';
 
 const TIMEZONES = ['America/Sao_Paulo', 'America/Manaus', 'America/Cuiaba', 'America/Belem', 'America/Fortaleza', 'America/Recife', 'America/Bahia', 'America/Rio_Branco', 'America/Noronha', 'Europe/Lisbon', 'America/New_York', 'UTC'];
@@ -280,6 +281,8 @@ function SettingsForm({ view }: { view: View }) {
           </button>
         )}
       </div>
+
+      {view === 'edit' && can('system') && <StationDiskCard station={station} reload={reload} />}
 
       {view === 'edit' && (
         <div className="card section">

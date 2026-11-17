@@ -3,13 +3,14 @@ import fs from 'node:fs';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authenticate, HttpError, requireAdmin, stationFor } from '../auth.js';
-import { config, stationDir } from '../config.js';
+import { config } from '../config.js';
 import { all, db, get, mountsFor, run, type StationRow } from '../db.js';
 import { historyView, nowPlayingView, removeStationCover, saveStationCover, sniffImage, stationCoverUrl } from '../engine/covers.js';
 import { tlsReady } from '../engine/portfront.js';
 import { tlsSettings } from '../engine/tls.js';
 import { announceNow, isValidTimezone, localTime, resolveClip } from '../engine/announce.js';
 import { audioWarningFor, engineLogTail, telnetRun, kickLive, engineMode, ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
+import { clearMoveError, listDisks, moveState, placeNewStation, prepareMove, removeStationFiles, stationDisk } from '../engine/disks.js';
 import { harborPort } from '../engine/liquidsoap.js';
 import { icecastError, liveListeners } from '../engine/listeners.js';
 import { clearLive, getHistory, getListeners, getLive, getNowPlaying } from '../engine/nowplaying.js';
@@ -98,6 +99,8 @@ const settings = z.object({
   /** Não repetir o mesmo artista por N minutos (0 = desligado). */
   /** Fuso horário (IANA) usado na hora certa e nos horários da estação. */
   timezone: z.string().max(64).refine(isValidTimezone, 'Fuso horário inválido').default('America/Sao_Paulo'),
+  /** Disco das músicas (só ao criar): '' = disco principal, ou o nome de um disco extra. Para mudar depois: PUT /api/stations/:id/disk. */
+  disk: z.string().max(100).default(''),
   /** Mountpoint principal. Na criação, o padrão é /radio.mp3 (ou /radio.ogg); na edição, vazio mantém o atual. */
   mount: mountName.optional(),
   mounts: z
@@ -208,6 +211,8 @@ export async function stationView(st: StationRow) {
     noRepeatArtistMinutes: st.no_repeat_artist_minutes,
     timezone: st.timezone,
     audioWarning: audioWarningFor(st.id),
+    disk: stationDisk(st.id),
+    diskMove: moveState(st.id),
     mounts: mountsFor(st.id).map((m) => ({ mount: m.mount, format: m.format, bitrate: m.bitrate })),
     streams: streamsOf(st),
     running: isRunning(st.id),
@@ -272,6 +277,11 @@ export async function stationRoutes(app: FastifyInstance) {
   app.post('/api/stations', async (req, reply) => {
     requireAdmin(req);
     const body = settings.parse(req.body);
+    if (body.disk) {
+      const d = listDisks().find((x) => x.id === body.disk);
+      if (!d) throw new HttpError(400, `O disco "${body.disk}" não está disponível no servidor`);
+      if (!d.writable) throw new HttpError(400, `Sem permissão para gravar no disco "${body.disk}" (a pasta precisa pertencer ao usuário 1001)`);
+    }
     let slug = slugify(body.slug?.trim() ? body.slug : body.name);
     if (get('SELECT 1 AS ok FROM stations WHERE slug = ?', slug)) {
       // Endereço escolhido pela pessoa: não troca por outro sem avisar.
@@ -327,6 +337,13 @@ export async function stationRoutes(app: FastifyInstance) {
     );
     const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', Number(r.lastInsertRowid))!;
     saveMounts(st.id, st.mount, body.mounts);
+    try {
+      placeNewStation(st.id, body.disk);
+    } catch (e) {
+      run('DELETE FROM stations WHERE id = ?', st.id);
+      removeStationFiles(st.id);
+      throw new HttpError(400, (e as Error).message);
+    }
     ensureStationDirs(st.id);
     if (config.engine.enabled && st.autostart) {
       // Falha ao iniciar (ex.: porta ocupada) não deve impedir a criação da estação.
@@ -480,13 +497,42 @@ export async function stationRoutes(app: FastifyInstance) {
     return stationView(get<StationRow>('SELECT * FROM stations WHERE id = ?', st.id)!);
   });
 
+  // Discos disponíveis para guardar as músicas (o principal e os HDs extras montados em /disks). Só administrador.
+  app.get('/api/disks', async (req) => {
+    requireAdmin(req);
+    return listDisks();
+  });
+
+  // Muda o disco das músicas de uma estação: copia tudo para o disco novo, confere e só então apaga do antigo.
+  // A estação fica parada durante a cópia (em segundo plano); o andamento aparece em "diskMove" da estação.
+  app.put('/api/stations/:id/disk', async (req, reply) => {
+    requireAdmin(req);
+    const { id } = idParam.parse(req.params);
+    const st = stationFor(req, id);
+    const { disk } = z.object({ disk: z.string().max(100) }).parse(req.body);
+    clearMoveError(st.id);
+    let job: (() => Promise<void>) | null;
+    try {
+      job = prepareMove(st.id, disk);
+    } catch (e) {
+      throw new HttpError(409, (e as Error).message);
+    }
+    if (!job) return reply.send(await stationView(st));
+    const wasRunning = config.engine.enabled && isRunning(st.id);
+    if (wasRunning) await stopStation(st.id);
+    void job().then(async () => {
+      if (wasRunning) await startStation(get<StationRow>('SELECT * FROM stations WHERE id = ?', st.id)!).catch((e) => app.log.error(e, 'falha ao religar a estação após mover as músicas'));
+    });
+    return reply.code(202).send(await stationView(st));
+  });
+
   app.delete('/api/stations/:id', async (req) => {
     requireAdmin(req);
     const { id } = idParam.parse(req.params);
     const st = stationFor(req, id);
     await stopStation(st.id);
     run('DELETE FROM stations WHERE id = ?', st.id);
-    fs.rmSync(stationDir(st.id), { recursive: true, force: true });
+    removeStationFiles(st.id);
     return { ok: true };
   });
 
