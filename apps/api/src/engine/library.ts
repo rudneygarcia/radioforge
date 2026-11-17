@@ -5,6 +5,7 @@ import { parseFile } from 'music-metadata';
 import { config } from '../config.js';
 import { get, run, type MediaRow, type StationRow } from '../db.js';
 import { extractCover } from './covers.js';
+import { mediaDirFor } from './disks.js';
 import { ensureStationDirs } from './manager.js';
 
 export const AUDIO_EXTENSIONS = new Set(['.mp3', '.ogg', '.opus', '.flac', '.wav', '.m4a', '.aac']);
@@ -16,9 +17,15 @@ export const AUDIO_EXTENSIONS = new Set(['.mp3', '.ogg', '.opus', '.flac', '.wav
 export async function importMediaFile(st: StationRow, tmpAbs: string, originalName: string, folderId: number | null): Promise<MediaRow> {
   ensureStationDirs(st.id);
   const ext = path.extname(originalName).toLowerCase();
-  const rel = path.join('stations', String(st.id), 'media', `${crypto.randomUUID()}${ext}`);
+  const rel = path.join(mediaDirFor(st), `${crypto.randomUUID()}${ext}`);
   const abs = path.join(config.dataDir, rel);
-  fs.renameSync(tmpAbs, abs);
+  try {
+    fs.renameSync(tmpAbs, abs);
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'EXDEV') throw e; // temporário e destino em discos diferentes
+    fs.copyFileSync(tmpAbs, abs);
+    fs.rmSync(tmpAbs, { force: true });
+  }
   let title = path.basename(originalName, ext);
   let artist = '';
   let album = '';

@@ -10,7 +10,7 @@ import { tlsReady } from '../engine/portfront.js';
 import { tlsSettings } from '../engine/tls.js';
 import { announceNow, isValidTimezone, localTime, resolveClip } from '../engine/announce.js';
 import { audioWarningFor, engineLogTail, telnetRun, kickLive, engineMode, ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
-import { clearMoveError, listDisks, moveState, placeNewStation, prepareMove, removeStationFiles, stationDisk } from '../engine/disks.js';
+import { checkDisk, listDisks, removeStationFiles } from '../engine/disks.js';
 import { harborPort } from '../engine/liquidsoap.js';
 import { icecastError, liveListeners } from '../engine/listeners.js';
 import { clearLive, getHistory, getListeners, getLive, getNowPlaying } from '../engine/nowplaying.js';
@@ -211,8 +211,7 @@ export async function stationView(st: StationRow) {
     noRepeatArtistMinutes: st.no_repeat_artist_minutes,
     timezone: st.timezone,
     audioWarning: audioWarningFor(st.id),
-    disk: stationDisk(st.id),
-    diskMove: moveState(st.id),
+    disk: st.disk,
     mounts: mountsFor(st.id).map((m) => ({ mount: m.mount, format: m.format, bitrate: m.bitrate })),
     streams: streamsOf(st),
     running: isRunning(st.id),
@@ -277,10 +276,10 @@ export async function stationRoutes(app: FastifyInstance) {
   app.post('/api/stations', async (req, reply) => {
     requireAdmin(req);
     const body = settings.parse(req.body);
-    if (body.disk) {
-      const d = listDisks().find((x) => x.id === body.disk);
-      if (!d) throw new HttpError(400, `O disco "${body.disk}" não está disponível no servidor`);
-      if (!d.writable) throw new HttpError(400, `Sem permissão para gravar no disco "${body.disk}" (a pasta precisa pertencer ao usuário 1001)`);
+    try {
+      checkDisk(body.disk);
+    } catch (e) {
+      throw new HttpError(400, (e as Error).message);
     }
     let slug = slugify(body.slug?.trim() ? body.slug : body.name);
     if (get('SELECT 1 AS ok FROM stations WHERE slug = ?', slug)) {
@@ -337,19 +336,13 @@ export async function stationRoutes(app: FastifyInstance) {
     );
     const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', Number(r.lastInsertRowid))!;
     saveMounts(st.id, st.mount, body.mounts);
-    try {
-      placeNewStation(st.id, body.disk);
-    } catch (e) {
-      run('DELETE FROM stations WHERE id = ?', st.id);
-      removeStationFiles(st.id);
-      throw new HttpError(400, (e as Error).message);
-    }
     ensureStationDirs(st.id);
+    if (body.disk) run('UPDATE stations SET disk = ? WHERE id = ?', body.disk, st.id);
     if (config.engine.enabled && st.autostart) {
       // Falha ao iniciar (ex.: porta ocupada) não deve impedir a criação da estação.
       await startStation(st).catch((e) => app.log.error(e, 'falha ao iniciar a estação recém-criada'));
     }
-    return reply.code(201).send(await stationView(st));
+    return reply.code(201).send(await stationView(get<StationRow>('SELECT * FROM stations WHERE id = ?', st.id)!));
   });
 
   app.get('/api/stations/:id', async (req) => {
@@ -503,27 +496,19 @@ export async function stationRoutes(app: FastifyInstance) {
     return listDisks();
   });
 
-  // Muda o disco das músicas de uma estação: copia tudo para o disco novo, confere e só então apaga do antigo.
-  // A estação fica parada durante a cópia (em segundo plano); o andamento aparece em "diskMove" da estação.
-  app.put('/api/stations/:id/disk', async (req, reply) => {
+  // Escolhe em qual disco entram as músicas NOVAS (envios pelo painel e por SFTP). As que já existem não são movidas.
+  app.put('/api/stations/:id/disk', async (req) => {
     requireAdmin(req);
     const { id } = idParam.parse(req.params);
     const st = stationFor(req, id);
     const { disk } = z.object({ disk: z.string().max(100) }).parse(req.body);
-    clearMoveError(st.id);
-    let job: (() => Promise<void>) | null;
     try {
-      job = prepareMove(st.id, disk);
+      checkDisk(disk);
     } catch (e) {
-      throw new HttpError(409, (e as Error).message);
+      throw new HttpError(400, (e as Error).message);
     }
-    if (!job) return reply.send(await stationView(st));
-    const wasRunning = config.engine.enabled && isRunning(st.id);
-    if (wasRunning) await stopStation(st.id);
-    void job().then(async () => {
-      if (wasRunning) await startStation(get<StationRow>('SELECT * FROM stations WHERE id = ?', st.id)!).catch((e) => app.log.error(e, 'falha ao religar a estação após mover as músicas'));
-    });
-    return reply.code(202).send(await stationView(st));
+    run('UPDATE stations SET disk = ? WHERE id = ?', disk, st.id);
+    return stationView(get<StationRow>('SELECT * FROM stations WHERE id = ?', st.id)!);
   });
 
   app.delete('/api/stations/:id', async (req) => {

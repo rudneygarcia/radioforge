@@ -177,7 +177,7 @@ export default function Stations() {
             <label className="field span-all">
               <span>Disco das músicas</span>
               <DiskSelect disks={disks} value={disk} onChange={setDisk} />
-              <small className="hint">Em qual HD os arquivos de música desta estação ficam gravados. Dá para mudar depois em Editar estação (as músicas são copiadas para o disco novo).</small>
+              <small className="hint">Em qual HD ficam as músicas que forem enviadas para a biblioteca (painel e SFTP). Dá para trocar depois em Editar estação; as músicas já enviadas não são movidas.</small>
             </label>
           )}
           <label className="check-line span-all">

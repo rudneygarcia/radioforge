@@ -230,6 +230,8 @@ addColumn('stations', 'stereo_preset', "TEXT NOT NULL DEFAULT ''");
 addColumn('stations', 'no_repeat_artist_minutes', 'INTEGER NOT NULL DEFAULT 0');
 // AutoDJ ligado (1) ou só transmissão ao vivo (0): sem AutoDJ roda apenas o Icecast (o DJ conecta direto nele) e o Liquidsoap fica desligado.
 addColumn('stations', 'autodj', 'INTEGER NOT NULL DEFAULT 1');
+// Disco onde entram as músicas novas ('' = principal; senão o nome de uma subpasta de /disks).
+addColumn('stations', 'disk', "TEXT NOT NULL DEFAULT ''");
 
 // Configurações gerais (ex.: e-mail SMTP) e pedidos de recuperação de senha (só o hash do código é guardado).
 db.exec(`
@@ -487,6 +489,7 @@ export interface StationRow {
   request_interval: number;
   request_delay: number;
   stereo_enabled: number;
+  disk: string;
   stereo_key: string;
   stereo_preset: string;
   no_repeat_artist_minutes: number;

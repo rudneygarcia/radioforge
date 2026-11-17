@@ -10,6 +10,7 @@ import { config, stationDir } from '../config.js';
 import { all, db, get, run, type FolderRow, type MediaRow } from '../db.js';
 import { clearCueCache } from '../engine/cuecache.js';
 import { coversDir, extractCover } from '../engine/covers.js';
+import { mediaDirFor } from '../engine/disks.js';
 import { ensureStationDirs, writePlaylists } from '../engine/manager.js';
 
 const ALLOWED = new Set(['.mp3', '.ogg', '.opus', '.flac', '.wav', '.m4a', '.aac']);
@@ -60,7 +61,14 @@ export async function mediaRoutes(app: FastifyInstance) {
         throw new HttpError(400, `Formato não suportado: ${ext || part.filename}`);
       }
       // Nome em disco é sempre gerado por nós: evita path traversal e colisões.
-      const rel = path.join('stations', String(st.id), 'media', `${crypto.randomUUID()}${ext}`);
+      let dir: string;
+      try {
+        dir = mediaDirFor(st);
+      } catch (e) {
+        part.file.resume();
+        throw new HttpError(507, (e as Error).message);
+      }
+      const rel = path.join(dir, `${crypto.randomUUID()}${ext}`);
       const abs = path.join(config.dataDir, rel);
       await pipeline(part.file, fs.createWriteStream(abs));
       if (part.file.truncated) {

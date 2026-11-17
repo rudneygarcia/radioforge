@@ -169,9 +169,8 @@ export interface Station {
   noRepeatArtistMinutes: number;
   streamPort: number;
   autodj: boolean;
-  /** Disco das músicas ('' = principal) e, se estiverem sendo movidas, o andamento. */
+  /** Disco onde entram as músicas novas ('' = principal). */
   disk: string;
-  diskMove: { to: string; state: 'moving' | 'error'; error?: string } | null;
   timeAnnounceVoice: boolean;
   timezone: string;
   liveEnabled: boolean;
