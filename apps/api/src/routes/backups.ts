@@ -5,7 +5,7 @@ import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authenticate, HttpError, requireAdmin } from '../auth.js';
-import { backupsDir, createBackup, KEEP_BACKUPS, listBackups, newBackupName, pruneBackups, SAFE_BACKUP } from '../engine/backups.js';
+import { backupsDir, createBackup, getKeepBackups, listBackups, MAX_KEEP_BACKUPS, MIN_KEEP_BACKUPS, newBackupName, pruneBackups, SAFE_BACKUP, setKeepBackups } from '../engine/backups.js';
 import { stageRestore, validateBackupFile } from '../engine/restore.js';
 
 /** Tamanho máximo do arquivo de backup enviado. */
@@ -29,7 +29,15 @@ export async function backupRoutes(app: FastifyInstance) {
     if (req.viaApiKey) throw new HttpError(403, 'Backups só podem ser acessados pelo painel (com login).');
   });
 
-  app.get('/api/backups', async () => ({ keep: KEEP_BACKUPS, backups: listBackups() }));
+  app.get('/api/backups', async () => ({ keep: getKeepBackups(), min: MIN_KEEP_BACKUPS, max: MAX_KEEP_BACKUPS, backups: listBackups() }));
+
+  // Quantos backups guardar. Diminuir apaga já os mais antigos além do novo limite.
+  app.put('/api/backups/settings', async (req) => {
+    const b = z.object({ keep: z.number().int().min(MIN_KEEP_BACKUPS).max(MAX_KEEP_BACKUPS) }).parse(req.body);
+    setKeepBackups(b.keep);
+    pruneBackups();
+    return { keep: getKeepBackups(), min: MIN_KEEP_BACKUPS, max: MAX_KEEP_BACKUPS, backups: listBackups() };
+  });
 
   app.post('/api/backups', async (_req, reply) => reply.code(201).send(createBackup()));
 
@@ -79,8 +87,8 @@ export async function backupRoutes(app: FastifyInstance) {
     } catch (e) {
       throw new HttpError(422, `Backup inválido: ${(e as Error).message}`);
     }
+    stageRestore(abs); // antes da cópia de segurança: ela pode podar backups antigos, inclusive este
     const safety = createBackup();
-    stageRestore(abs);
     console.log(`[restore] agendada a partir de ${path.basename(abs)}; cópia de segurança: ${safety.name}`);
     // Dá tempo de a resposta chegar; o SIGTERM passa pelo desligamento normal (para as estações).
     setTimeout(() => process.kill(process.pid, 'SIGTERM'), 1500).unref();

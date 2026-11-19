@@ -14,6 +14,9 @@ export default function BackupsPage() {
   const { confirm, toast } = useUi();
   const [backups, setBackups] = useState<Backup[] | null>(null);
   const [keep, setKeep] = useState(7);
+  const [keepInput, setKeepInput] = useState(7);
+  const [limits, setLimits] = useState({ min: 1, max: 90 });
+  const [savingKeep, setSavingKeep] = useState(false);
   const [busy, setBusy] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [sending, setSending] = useState<number | null>(null); // % do envio em andamento
@@ -38,15 +41,36 @@ export default function BackupsPage() {
   }
 
   const load = () =>
-    api<{ keep: number; backups: Backup[] }>('/api/backups')
+    api<{ keep: number; min: number; max: number; backups: Backup[] }>('/api/backups')
       .then((r) => {
         setBackups(r.backups);
         setKeep(r.keep);
+        setKeepInput(r.keep);
+        setLimits({ min: r.min, max: r.max });
       })
       .catch((e) => toast((e as Error).message, 'error'));
   useEffect(() => {
     load();
   }, []);
+
+  /** Quantos backups guardar. Diminuir apaga já os mais antigos além do novo limite, então pede confirmação. */
+  async function saveKeep() {
+    const n = Math.max(limits.min, Math.min(limits.max, Math.round(keepInput) || limits.min));
+    const extra = Math.max(0, (backups?.length ?? 0) - n);
+    if (extra > 0 && !(await confirm({ title: `Guardar só ${n} backup${n === 1 ? '' : 's'}?`, message: `Isso apaga agora os ${extra} backup${extra === 1 ? '' : 's'} mais antigo${extra === 1 ? '' : 's'}.`, confirmLabel: 'Apagar e salvar', danger: true }))) return;
+    setSavingKeep(true);
+    try {
+      const r = await api<{ keep: number; backups: Backup[] }>('/api/backups/settings', { method: 'PUT', body: { keep: n } });
+      setKeep(r.keep);
+      setKeepInput(r.keep);
+      setBackups(r.backups);
+      toast(`Vai guardar os ${r.keep} backup${r.keep === 1 ? '' : 's'} mais recente${r.keep === 1 ? '' : 's'}`);
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setSavingKeep(false);
+    }
+  }
 
   async function create() {
     setBusy(true);
@@ -106,7 +130,7 @@ export default function BackupsPage() {
     <>
       <PageHeader
         title="Backups"
-        subtitle={`Uma cópia do banco é criada todo dia; ficam as ${keep} mais recentes.`}
+        subtitle={`Uma cópia do banco é criada todo dia; ficam as ${keep} mais recentes (você escolhe quantas abaixo).`}
         actions={
           <div className="row" style={{ margin: 0 }}>
             <input ref={fileInput} type="file" accept=".db,application/octet-stream" hidden onChange={(e) => void upload(e.target.files?.[0])} />
@@ -118,6 +142,15 @@ export default function BackupsPage() {
       <div className="card notice">
         Inclui usuários, estações, playlists, relatórios, chaves de API e webhooks. <strong>Não inclui músicas nem gravações</strong>: para elas, copie o volume de dados do Docker.
         O arquivo contém dados sensíveis (hashes de senha, senhas de DJ): guarde-o em local seguro.
+      </div>
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h4 style={{ marginTop: 0 }}>Quantos backups guardar</h4>
+        <div className="row" style={{ margin: 0, alignItems: 'center' }}>
+          <input type="number" min={limits.min} max={limits.max} value={keepInput} onChange={(e) => setKeepInput(Number(e.target.value))} style={{ width: 110 }} />
+          <button type="button" onClick={saveKeep} disabled={savingKeep || keepInput === keep}>{savingKeep ? 'Salvando…' : 'Salvar'}</button>
+          <span className="muted small-text">de {limits.min} a {limits.max}. Hoje: {backups?.length ?? 0} guardado{(backups?.length ?? 0) === 1 ? '' : 's'}.</span>
+        </div>
+        <p className="muted small-text" style={{ marginBottom: 0 }}>Cada backup ocupa o tamanho do banco (hoje {backups && backups[0] ? fmtSize(backups[0].size) : '—'}). Quando passa do limite, o mais antigo é apagado, e isso vale para os backups automáticos, os manuais e os enviados de outro servidor.</p>
       </div>
       <div className="card" style={{ marginBottom: 16 }}>
         <h4 style={{ marginTop: 0 }}>Levar as configurações para outro servidor</h4>

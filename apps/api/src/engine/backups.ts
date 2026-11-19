@@ -1,10 +1,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config.js';
-import { db } from '../db.js';
+import { db, get, run } from '../db.js';
 
-/** Quantas cópias automáticas/manuais ficam guardadas (as mais antigas são apagadas). */
-export const KEEP_BACKUPS = 7;
+/** Quantas cópias ficam guardadas por padrão (o administrador muda na tela de Backups; as mais antigas são apagadas). */
+export const DEFAULT_KEEP_BACKUPS = 7;
+export const MIN_KEEP_BACKUPS = 1;
+export const MAX_KEEP_BACKUPS = 90;
+
+/** Quantos backups guardar agora (configuração salva; 7 se ninguém mudou). */
+export function getKeepBackups(): number {
+  const n = Number(get<{ value: string }>("SELECT value FROM app_settings WHERE key = 'backup_keep'")?.value);
+  return Number.isInteger(n) && n >= MIN_KEEP_BACKUPS && n <= MAX_KEEP_BACKUPS ? n : DEFAULT_KEEP_BACKUPS;
+}
+
+export function setKeepBackups(n: number) {
+  run("INSERT INTO app_settings (key, value) VALUES ('backup_keep', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", String(n));
+}
 const DAY_MS = 24 * 3600_000;
 export const SAFE_BACKUP = /^radioforge-\d{8}-\d{6}\.db$/;
 
@@ -48,7 +60,7 @@ export function createBackup(): BackupInfo {
 
 /** Apaga as cópias mais antigas além do limite. */
 export function pruneBackups() {
-  for (const old of listBackups().slice(KEEP_BACKUPS)) fs.rmSync(path.join(backupsDir, old.name), { force: true });
+  for (const old of listBackups().slice(getKeepBackups())) fs.rmSync(path.join(backupsDir, old.name), { force: true });
 }
 
 /** Nome livre no padrão dos backups (para o arquivo enviado de outro servidor). */
