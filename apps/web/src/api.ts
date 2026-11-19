@@ -132,6 +132,8 @@ export interface StreamInfo extends MountCfg {
   secureUrl?: string | null;
 }
 export interface Station {
+  /** Há mudança salva (ex.: playlist nova ou agendada) que a rádio no ar só conhece depois de reiniciar. */
+  pendingRestart?: boolean;
   id: number;
   name: string;
   slug: string;

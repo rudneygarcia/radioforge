@@ -9,7 +9,7 @@ import { historyView, nowPlayingView, removeStationCover, saveStationCover, snif
 import { tlsReady } from '../engine/portfront.js';
 import { tlsSettings } from '../engine/tls.js';
 import { announceNow, isValidTimezone, localTime, resolveClip } from '../engine/announce.js';
-import { audioWarningFor, engineLogTail, telnetRun, kickLive, engineMode, ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
+import { audioWarningFor, engineLogTail, engineSignature, pendingRestart, writePlaylists, telnetRun, kickLive, engineMode, ensureStationDirs, isRunning, restartStation, startStation, stopStation } from '../engine/manager.js';
 import { checkDisk, listDisks, removeStationFiles } from '../engine/disks.js';
 import { harborPort } from '../engine/liquidsoap.js';
 import { icecastError, liveListeners } from '../engine/listeners.js';
@@ -169,6 +169,8 @@ export function streamsOf(st: StationRow) {
 
 export async function stationView(st: StationRow) {
   return {
+    /** Há mudança salva que a rádio no ar ainda não conhece (ex.: playlist nova ou agendada): só vale depois de reiniciar. */
+    pendingRestart: pendingRestart(st),
     id: st.id,
     name: st.name,
     slug: st.slug,
@@ -354,6 +356,8 @@ export async function stationRoutes(app: FastifyInstance) {
     const { id } = idParam.parse(req.params);
     const st = stationFor(req, id);
     const b = settings.parse(req.body);
+    // O que o motor (Icecast + Liquidsoap) enxerga ANTES de salvar: só reinicia se isso mudar (ver engineSignature).
+    const engineBefore = engineSignature(st);
     const newMount = b.mount ?? st.mount;
     // Senha da transmissão ao vivo: só troca se uma nova for informada; a estação reinicia ao salvar.
     const newSecret = liveSecret(b.sourcePassword);
@@ -422,8 +426,13 @@ export async function stationRoutes(app: FastifyInstance) {
     );
     saveMounts(st.id, newMount, b.mounts);
     const updated = get<StationRow>('SELECT * FROM stations WHERE id = ?', st.id)!;
-    if (config.engine.enabled && isRunning(st.id)) await restartStation(updated);
-    return stationView(updated);
+    // Reinicia SÓ se algo que o motor enxerga mudou (qualidade, nome do stream, portas, AutoCue, processador, DJ ao vivo, playlists
+    // agendadas...). Texto, pedidos, hora certa, regras de repetição etc. valem na hora, sem derrubar o áudio nem os ouvintes.
+    const needsRestart = config.engine.enabled && isRunning(st.id) && engineSignature(updated) !== engineBefore;
+    if (needsRestart) await restartStation(updated);
+    // Sem reiniciar: as playlists .m3u (modo de reserva) usam nomes ocultos, regra de repetição etc.; regrava só o que mudou.
+    else if (config.engine.enabled && isRunning(st.id)) writePlaylists(updated.id);
+    return { ...(await stationView(updated)), restarted: needsRestart };
   });
 
   // Hora certa: ouvir um exemplo no painel (gera e devolve o áudio) e tocar o aviso agora na rádio.

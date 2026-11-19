@@ -154,29 +154,32 @@ export function hiddenUri(abs: string) {
 }
 
 /** Reescreve os arquivos .m3u de cada playlist; o Liquidsoap recarrega sozinho (reload_mode=watch). */
-export function writePlaylists(stationId: number): LiqPlaylist[] {
-  ensureStationDirs(stationId);
+export function writePlaylists(stationId: number, opts: { dry?: boolean } = {}): LiqPlaylist[] {
+  const dry = !!opts.dry; // dry: só monta a estrutura (para comparar com o que está no ar), sem gravar arquivo nenhum
+  if (!dry) ensureStationDirs(stationId);
   const playlists = all<PlaylistRow>('SELECT * FROM playlists WHERE station_id = ? AND enabled = 1', stationId);
   const out: LiqPlaylist[] = [];
   // Regra "não repetir por N minutos": as tocadas há pouco ficam fora do arquivo (o Liquidsoap recarrega sozinho).
   const st = get<StationRow>('SELECT * FROM stations WHERE id = ?', stationId);
   const recent = recentMedia(stationId, st?.no_repeat_minutes ?? 0);
-  const cues = st ? cueMap(st) : new Map<number, string>(); // análises do AutoCue já salvas
+  const cues = st && !dry ? cueMap(st) : new Map<number, string>(); // análises do AutoCue já salvas
   for (const p of playlists) {
     if (p.every_minutes > 0) continue; // entra por tempo (ver timed.ts), não na rotação
     const full = playlistMedia(p.id);
     const media = p.is_jingle ? full : avoidRecent(full, recent); // vinhetas não entram na regra
     if (media.length === 0) continue;
     const m3uPath = path.join(stationDir(stationId), 'playlists', `${p.id}.m3u`);
-    // Vinheta: o prefixo annotate marca a faixa para o Liquidsoap não avisar o servidor do nome dela.
-    const uri = (m: MediaRow) => {
-      const abs = path.join(config.dataDir, m.path);
-      if (st && isHiddenTrack(st, m)) return hiddenUri(abs);
-      return p.is_jingle && st ? jingleUri(st, abs, m.duration) : songUri(abs, m.title, m.artist, cues.get(m.id) ?? '');
-    };
-    const content = media.map(uri).join('\n') + '\n';
-    // Só regrava se mudou: cada gravação faz o Liquidsoap recarregar a playlist.
-    if (!fs.existsSync(m3uPath) || fs.readFileSync(m3uPath, 'utf8') !== content) fs.writeFileSync(m3uPath, content);
+    if (!dry) {
+      // Vinheta: o prefixo annotate marca a faixa para o Liquidsoap não avisar o servidor do nome dela.
+      const uri = (m: MediaRow) => {
+        const abs = path.join(config.dataDir, m.path);
+        if (st && isHiddenTrack(st, m)) return hiddenUri(abs);
+        return p.is_jingle && st ? jingleUri(st, abs, m.duration) : songUri(abs, m.title, m.artist, cues.get(m.id) ?? '');
+      };
+      const content = media.map(uri).join('\n') + '\n';
+      // Só regrava se mudou: cada gravação faz o Liquidsoap recarregar a playlist.
+      if (!fs.existsSync(m3uPath) || fs.readFileSync(m3uPath, 'utf8') !== content) fs.writeFileSync(m3uPath, content);
+    }
     out.push({
       id: p.id,
       mode: p.mode,
@@ -215,6 +218,50 @@ function writeConfigs(st: StationRow, variant: Variant = variantOf.get(st.id) ??
     buildLiquidsoapScript(st, playlists, mountsFor(st.id), djsFor(st.id), variant),
   );
   return playlists.length;
+}
+
+/**
+ * "Assinatura" do que o motor (Icecast + script do Liquidsoap) recebe para esta estação: o script e o icecast.xml que seriam gerados agora,
+ * na versão mais completa. Serve para reiniciar SÓ quando algo que o motor enxerga mudou (nome do stream, qualidade, AutoCue, processador,
+ * portas, playlists agendadas...), e não a cada "Salvar". O que o painel lê na hora (pedidos, hora certa, regras de repetição, texto da
+ * estação...) não entra aqui, então não pede reinício. Não grava nada em disco.
+ */
+export function engineSignature(st: StationRow): string {
+  const wantsChain = st.audio_preset !== 'off' || st.audio_gain > 0;
+  const wanted: Variant = { audio: wantsChain ? 0 : 2, keepAlive: !!st.live_continue && !!st.live_enabled, autocue: !!st.autocue, tuned: !!st.autocue && !!st.autocue_custom, stereo: !!st.stereo_enabled, dyn: true, root: true };
+  const script = buildLiquidsoapScript(st, writePlaylists(st.id, { dry: true }), mountsFor(st.id), djsFor(st.id), wanted);
+  const ice = buildIcecastConfig(st, path.join(stationDir(st.id), 'logs'));
+  // O fuso vai no ambiente do processo (TZ) e os horários agendados do Liquidsoap seguem esse fuso: mudar o fuso pede reinício.
+  return crypto.createHash('sha256').update(`${st.autodj ? 1 : 0}\0${st.timezone}\0${script}\0${ice}`).digest('hex');
+}
+
+/** Assinatura do que está no ar (gravada quando a estação sobe ou o Liquidsoap é recarregado). */
+const startedSig = new Map<number, string>();
+const pendingCache = new Map<number, { at: number; v: boolean }>();
+function markStarted(st: StationRow) {
+  try {
+    startedSig.set(st.id, engineSignature(st));
+  } catch {
+    startedSig.delete(st.id);
+  }
+  pendingCache.delete(st.id);
+}
+
+/** Há mudança salva (ex.: playlist nova, horário, a cada N músicas) que a rádio no ar ainda não conhece? Só vale depois de reiniciar. */
+export function pendingRestart(st: StationRow): boolean {
+  if (engineMode() === 'native' || !isRunning(st.id)) return false;
+  const started = startedSig.get(st.id);
+  if (!started) return false;
+  const c = pendingCache.get(st.id);
+  if (c && Date.now() - c.at < 4000) return c.v;
+  let v = false;
+  try {
+    v = engineSignature(st) !== started;
+  } catch {
+    v = false;
+  }
+  pendingCache.set(st.id, { at: Date.now(), v });
+  return v;
 }
 
 export function isRunning(stationId: number) {
@@ -323,6 +370,7 @@ export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn
       }
       throw startError(`Icecast não ficou no ar:\n${tail(log) || '(sem saída no log)'}`);
     }
+    markStarted(st);
     dispatch(st.id, 'station_start', {});
     return;
   }
@@ -474,6 +522,7 @@ export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn
       return;
     }
   }
+  markStarted(st);
   dispatch(st.id, 'station_start', {});
 }
 
@@ -497,6 +546,8 @@ export async function stopStation(stationId: number) {
   const p = procs.get(stationId);
   if (!p) return;
   procs.delete(stationId);
+  startedSig.delete(stationId);
+  pendingCache.delete(stationId);
   await Promise.all([p.liquidsoap?.stop(), p.icecast.stop()]);
   dispatch(stationId, 'station_stop', {});
 }
@@ -518,6 +569,7 @@ export async function reloadLiquidsoap(st: StationRow) {
   clearLive(st.id); // reiniciar o Liquidsoap derruba o DJ conectado
   await p.liquidsoap.stop();
   p.liquidsoap.start();
+  markStarted(st);
 }
 
 export async function stopAll() {

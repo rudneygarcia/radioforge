@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useParams } from 'react-router-dom';
 import { api, type Station } from '../api';
 import { useCan } from '../auth';
-import { Cover, Icon, PageHeader } from '../ui';
+import { Cover, Icon, PageHeader, useUi } from '../ui';
 
 export interface StationCtx {
   station: Station;
@@ -52,6 +52,22 @@ export default function StationLayout() {
     return () => clearInterval(t);
   }, [reload]);
 
+  // Mudança salva que só vale depois de reiniciar (ex.: playlist nova ou agendada): o aviso no topo oferece reiniciar quando você quiser.
+  const { toast } = useUi();
+  const [applying, setApplying] = useState(false);
+  const applyRestart = async () => {
+    setApplying(true);
+    try {
+      await api(`/api/stations/${id}/restart`, { method: 'POST' });
+      await reload();
+      toast('Rádio reiniciada: as mudanças já valem');
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setApplying(false);
+    }
+  };
+
   if (error) return <p className="error">{error}</p>;
   if (!station) return <div className="card skeleton" style={{ height: 120 }} />;
 
@@ -99,6 +115,12 @@ export default function StationLayout() {
         </a>
       </nav>
       <div className="station-main">
+        {station.pendingRestart && station.running && can('control') && (
+          <div className="card notice" style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+            <span><strong>Mudança aguardando:</strong> você salvou algo (ex.: playlist nova, horário ou "a cada N músicas") que a rádio no ar ainda não conhece. Só vale depois de reiniciar, e o áudio dá uma pausa curta.</span>
+            <button type="button" disabled={applying} onClick={applyRestart}>{applying ? 'Reiniciando…' : 'Reiniciar agora'}</button>
+          </div>
+        )}
         <Outlet context={{ station, reload } satisfies StationCtx} />
       </div>
       </div>

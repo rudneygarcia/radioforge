@@ -93,10 +93,10 @@ function SettingsForm({ view }: { view: View }) {
     e.preventDefault();
     setBusy(true);
     try {
-      await api(`/api/stations/${station.id}`, { method: 'PUT', body: { ...f, ...(secret.trim() ? { sourcePassword: secret.trim() } : {}) } });
+      const saved = await api<{ restarted?: boolean }>(`/api/stations/${station.id}`, { method: 'PUT', body: { ...f, ...(secret.trim() ? { sourcePassword: secret.trim() } : {}) } });
       setSecret('');
       await reload();
-      toast('Alterações salvas');
+      toast(saved.restarted ? 'Alterações salvas: a rádio reiniciou para aplicá-las' : 'Alterações salvas (a rádio não precisou reiniciar)');
     } catch (err) {
       toast((err as Error).message, 'error');
     } finally {

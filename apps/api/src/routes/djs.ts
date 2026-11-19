@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { authenticate, HttpError, stationFor } from '../auth.js';
 import { stationDir } from '../config.js';
 import { djsFor, get, run, type DjRow, type StationRow } from '../db.js';
-import { reloadLiquidsoap } from '../engine/manager.js';
+import { engineSignature, reloadLiquidsoap } from '../engine/manager.js';
 
 const params = z.object({ id: z.coerce.number().int(), djId: z.coerce.number().int().optional(), file: z.string().optional() });
 
@@ -47,9 +47,10 @@ const djView = (d: DjRow) => ({
 export async function djRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate);
 
-  const reload = async (st: StationRow) => {
+  // Só recarrega o Liquidsoap (e derruba o DJ ao vivo) se algo que ele enxerga mudou: nome de exibição, por exemplo, não muda o script.
+  const reload = async (st: StationRow, before: string) => {
     try {
-      await reloadLiquidsoap(st);
+      if (engineSignature(st) !== before) await reloadLiquidsoap(st);
     } catch (e) {
       app.log.error(e);
     }
@@ -64,6 +65,7 @@ export async function djRoutes(app: FastifyInstance) {
     const { id } = params.parse(req.params);
     const st = stationFor(req, id);
     const b = createBody.parse(req.body);
+    const before = engineSignature(st);
     if (get('SELECT 1 AS ok FROM station_djs WHERE station_id = ? AND username = ?', st.id, b.username))
       throw new HttpError(409, 'Já existe um DJ com esse usuário');
     const r = run(
@@ -73,7 +75,7 @@ export async function djRoutes(app: FastifyInstance) {
       b.password ?? newPassword(),
       b.displayName,
     );
-    await reload(st);
+    await reload(st, before);
     return reply.code(201).send(djView(get<DjRow>('SELECT * FROM station_djs WHERE id = ?', Number(r.lastInsertRowid))!));
   });
 
@@ -81,6 +83,7 @@ export async function djRoutes(app: FastifyInstance) {
     const { id, djId } = params.parse(req.params);
     const st = stationFor(req, id);
     const b = updateBody.parse(req.body);
+    const before = engineSignature(st);
     const dj = get<DjRow>('SELECT * FROM station_djs WHERE id = ? AND station_id = ?', djId ?? -1, st.id);
     if (!dj) throw new HttpError(404, 'DJ não encontrado');
     run(
@@ -95,15 +98,16 @@ export async function djRoutes(app: FastifyInstance) {
       b.days ? [...new Set(b.days)].sort().join(',') : dj.days,
       dj.id,
     );
-    await reload(st);
+    await reload(st, before);
     return djView(get<DjRow>('SELECT * FROM station_djs WHERE id = ?', dj.id)!);
   });
 
   app.delete('/api/stations/:id/djs/:djId', async (req) => {
     const { id, djId } = params.parse(req.params);
     const st = stationFor(req, id);
+    const before = engineSignature(st);
     run('DELETE FROM station_djs WHERE id = ? AND station_id = ?', djId ?? -1, st.id);
-    await reload(st);
+    await reload(st, before);
     return { ok: true };
   });
 
