@@ -61,16 +61,18 @@ export async function mediaRoutes(app: FastifyInstance) {
         throw new HttpError(400, `Formato não suportado: ${ext || part.filename}`);
       }
       // Nome em disco é sempre gerado por nós: evita path traversal e colisões.
-      let dir: string;
-      try {
-        dir = mediaDirFor(st);
-      } catch (e) {
-        part.file.resume();
-        throw new HttpError(507, (e as Error).message);
-      }
+      const dir = mediaDirFor(st);
       const rel = path.join(dir, `${crypto.randomUUID()}${ext}`);
       const abs = path.join(config.dataDir, rel);
-      await pipeline(part.file, fs.createWriteStream(abs));
+      try {
+        await pipeline(part.file, fs.createWriteStream(abs));
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code;
+        app.log.error(e, 'falha ao gravar a música');
+        if (code === 'ENOSPC') throw new HttpError(507, 'Sem espaço no disco do servidor para gravar a música.');
+        if (code === 'EACCES' || code === 'EPERM' || code === 'ENOENT' || code === 'EROFS') throw new HttpError(409, `O servidor não conseguiu gravar em ${path.dirname(abs)} (${code}). Se as músicas ficam em um HD externo, confira se ele está montado e se a pasta pertence ao usuário 1001.`);
+        throw e;
+      }
       if (part.file.truncated) {
         fs.rmSync(abs, { force: true });
         throw new HttpError(413, `Arquivo muito grande: ${part.filename}`);

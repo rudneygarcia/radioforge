@@ -110,13 +110,15 @@ write_config() {
   fi
 
   # Vários discos: a pasta com os HDs montados vai inteira para /disks (rslave: HD montado depois também aparece).
-  local disks_vol=""
+  local disks_vol="" disks_opt=""
   if [ -n "$RF_DISKS_DIR" ]; then
+    # rslave (HD montado depois também aparece) só funciona se o ponto de montagem for compartilhado; senão o Docker nem sobe o contêiner.
+    case "$(findmnt -no PROPAGATION -T "$RF_DISKS_DIR" 2>/dev/null)" in shared|slave) disks_opt=":rslave";; esac
     if [ -n "$media_vol" ]; then
-      disks_vol="      - \"${RF_DISKS_DIR}:/disks:rslave\""
+      disks_vol="      - \"${RF_DISKS_DIR}:/disks${disks_opt}\""
     else
       disks_vol="    volumes:
-      - \"${RF_DISKS_DIR}:/disks:rslave\""
+      - \"${RF_DISKS_DIR}:/disks${disks_opt}\""
     fi
   fi
 
