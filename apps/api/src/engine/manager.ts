@@ -199,7 +199,7 @@ export function writePlaylists(stationId: number, opts: { dry?: boolean } = {}):
 }
 
 /** Versão do script que vale por estação: processador (0 completo, 1 só padrões, 2 desligado) e AutoDJ em segundo plano. */
-type Variant = { audio: 0 | 1 | 2; keepAlive: boolean; autocue: boolean; tuned: boolean; stereo?: boolean; dyn?: boolean; root?: boolean; cue?: boolean };
+type Variant = { audio: 0 | 1 | 2; gate?: boolean; keepAlive: boolean; autocue: boolean; tuned: boolean; stereo?: boolean; dyn?: boolean; root?: boolean; cue?: boolean };
 const variantOf = new Map<number, Variant>();
 const audioWarnings = new Map<number, string>();
 /** A estação roda com a próxima faixa escolhida pela API (não pelas playlists .m3u)? */
@@ -228,7 +228,7 @@ function writeConfigs(st: StationRow, variant: Variant = variantOf.get(st.id) ??
  */
 export function engineSignature(st: StationRow): string {
   const wantsChain = st.audio_preset !== 'off' || st.audio_gain > 0;
-  const wanted: Variant = { audio: wantsChain ? 0 : 2, keepAlive: !!st.live_continue && !!st.live_enabled, autocue: !!st.autocue, tuned: !!st.autocue && !!st.autocue_custom, stereo: !!st.stereo_enabled, dyn: true, root: true };
+  const wanted: Variant = { audio: wantsChain ? 0 : 2, keepAlive: !!st.live_continue && !!st.live_enabled, autocue: !!st.autocue, tuned: !!st.autocue && !!st.autocue_custom, stereo: !!st.stereo_enabled, gate: !!st.ad_gate, dyn: true, root: true };
   const script = buildLiquidsoapScript(st, writePlaylists(st.id, { dry: true }), mountsFor(st.id), djsFor(st.id), wanted);
   const ice = buildIcecastConfig(st, path.join(stationDir(st.id), 'logs'));
   // O fuso vai no ambiente do processo (TZ) e os horários agendados do Liquidsoap seguem esse fuso: mudar o fuso pede reinício.
@@ -420,6 +420,12 @@ export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn
     const withRoot = [...attempts.map((v) => ({ ...v, root: true })), ...attempts.map((v) => ({ ...v, root: false }))];
     attempts.splice(0, attempts.length, ...withRoot);
   }
+  // Vinheta "a cada N músicas" com descarte perto do comercial (insertGate): primeiro com ele; se o Liquidsoap recusar, volta ao rotate antigo.
+  const gateWanted = !!st.ad_gate && writePlaylists(st.id, { dry: true }).some((p) => p.everySongs > 0);
+  if (gateWanted) {
+    const withGate = [...attempts.map((v) => ({ ...v, gate: true })), ...attempts.map((v) => ({ ...v, gate: false }))];
+    attempts.splice(0, attempts.length, ...withGate);
+  }
   // Cache do AutoCue: a melhor tentativa ganha uma versão com o aprendizado das análises logo na frente (se o Liquidsoap recusar, segue sem ele).
   if (wantsAutocue && cueCacheOn() && attempts[0]?.autocue) attempts.unshift({ ...attempts[0], cue: true });
   audioWarnings.delete(st.id);
@@ -447,6 +453,7 @@ export async function startStation(st: StationRow, skip: { stereo?: boolean; dyn
   const notes: string[] = [];
   if (stereoProblem) notes.push(stereoProblem + ' Usando o processador interno.');
   if (wantsStereo && !chosen.stereo) notes.push('O Stereo Tool NÃO foi carregado (o Liquidsoap recusou o script: verifique se esta versão do Liquidsoap tem o suporte a Stereo Tool). Usando o processador interno.');
+  if (gateWanted && !chosen.gate) notes.push('O descarte da vinheta da programação perto do comercial não foi aceito pelo Liquidsoap: a rádio usa a alternância antiga (a vinheta pode tocar colada no comercial).');
   if (!skip.dyn && !chosen.dyn) notes.push('A rotação pela API (regras exatas de não repetir música/artista) não foi aceita pelo Liquidsoap: usando as playlists comuns.');
   if (wantsChain && !chosen.stereo && chosen.audio === 1) notes.push(`O processador de áudio roda só com valores padrão (os ajustes finos não foram aceitos pelo Liquidsoap).`);
   if (wantsChain && !chosen.stereo && chosen.audio === 2) notes.push(`O processador de áudio foi DESLIGADO porque o Liquidsoap recusou o script.`);

@@ -299,6 +299,8 @@ addColumn('stations', 'ad_exit_playlist_id', 'INTEGER REFERENCES playlists(id) O
 addColumn('stations', 'ad_exit_cursor', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('stations', 'ad_entry_playlist_id', 'INTEGER REFERENCES playlists(id) ON DELETE SET NULL');
 addColumn('stations', 'ad_entry_cursor', 'INTEGER NOT NULL DEFAULT 0');
+// 1 = quando um comercial entra, a vinheta da programação ("a cada N músicas") colada nele é descartada (ver insertGate em liquidsoap.ts).
+addColumn('stations', 'ad_gate', 'INTEGER NOT NULL DEFAULT 1');
 // Migração única (user_version 1): quem estava sem processador passa ao "Equilibrado", que nivela o volume (o áudio original saía baixo).
 if ((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version < 1) {
   db.exec("UPDATE stations SET audio_preset = 'balanced' WHERE audio_preset = 'off'");
@@ -470,6 +472,7 @@ export interface StationRow {
   ad_exit_cursor: number;
   ad_entry_playlist_id: number | null;
   ad_entry_cursor: number;
+  ad_gate: number;
   no_repeat_minutes: number;
   live_timeout: number;
   live_continue: number;

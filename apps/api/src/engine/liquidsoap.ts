@@ -106,6 +106,43 @@ export function audioChain(preset: 'off' | 'balanced' | 'loud' | 'master_me', ga
   return out;
 }
 
+/**
+ * Vinheta/aviso "a cada N músicas" com contagem própria (no lugar do `rotate`): conta as músicas que tocam e, quando chega a vez, a
+ * vinheta entra. Quando um comercial começa a tocar, a contagem volta a zero: a vinheta que estava para entrar (colada no bloco) é
+ * descartada e, depois do bloco, a programação volta direto à música: nada de vinheta antes da vinheta de saída de bloco nem depois
+ * da de entrada. Devolve o nome da fonte resultante. `switch` pula fonte que não está pronta e só troca no fim da faixa.
+ */
+function insertGate(lines: string[], music: string, ins: string, every: number, tag: string): string {
+  lines.push(
+    `rf_ep_${tag} = ref(0)`,
+    `rf_cnt_${tag} = ref(0)`,
+    `def rf_sync_${tag}() =`,
+    `  if rf_ep_${tag}() != rf_ad_epoch() then`,
+    `    rf_ep_${tag} := rf_ad_epoch()`,
+    `    rf_cnt_${tag} := 0`,
+    `  end`,
+    `end`,
+    `def rf_music_${tag}(m) =`,
+    `  ignore(m)`,
+    `  rf_sync_${tag}()`,
+    `  rf_cnt_${tag} := rf_cnt_${tag}() + 1`,
+    `end`,
+    `def rf_ins_${tag}(m) =`,
+    `  ignore(m)`,
+    `  rf_sync_${tag}()`,
+    `  rf_cnt_${tag} := 0`,
+    `end`,
+    `def rf_due_${tag}() =`,
+    `  rf_sync_${tag}()`,
+    `  rf_cnt_${tag}() >= ${every}`,
+    `end`,
+    `${music}.on_metadata(rf_music_${tag})`,
+    `${ins}.on_metadata(rf_ins_${tag})`,
+    `rf_out_${tag} = switch(id = "ins_${tag}", track_sensitive = true, [(rf_due_${tag}, ${ins}), ({true}, ${music})])`,
+  );
+  return `rf_out_${tag}`;
+}
+
 export const harborPort = (st: StationRow) => st.stream_port + 5;
 export const telnetPort = (st: StationRow) => st.stream_port + 6;
 
@@ -135,9 +172,13 @@ export function buildLiquidsoapScript(
     cue?: boolean;
     /** Também aceita encoders no mount "/" (padrão do AzuraCast) além de /live. */
     root?: boolean;
+    /** Vinheta "a cada N músicas" com contagem própria, que um comercial começando zera (some a vinheta colada no bloco). */
+    gate?: boolean;
   } = {},
 ): string {
   const lines: string[] = [];
+  // Só vale se há alguma vinheta/aviso "a cada N músicas" para controlar.
+  const gate = !!opts.gate && playlists.some((p) => p.everySongs > 0);
   lines.push(
     `settings.log.level := 3`,
     `settings.server.telnet := true`,
@@ -164,6 +205,7 @@ export function buildLiquidsoapScript(
           ``,
         ]
       : []),
+    ...(gate ? [`# Quantos comerciais já começaram: cada um zera a contagem das vinhetas "a cada N" (ver rf_sync_*).`, `rf_ad_epoch = ref(0)`, ``] : []),
     `# Avisa a API de cada faixa tocada (histórico + now playing).`,
     `# Vinhetas vêm marcadas com rf_jingle (annotate no .m3u): não avisam o servidor.`,
     `def notify(m) =`,
@@ -173,6 +215,7 @@ export function buildLiquidsoapScript(
     `  end`,
     // Comercial veiculado: o disparo marca a faixa com rf_ad (id do registro); ao começar a tocar, o painel confirma "tocou".
     `  if m["rf_ad"] != "" then`,
+    ...(gate ? [`    rf_ad_epoch := rf_ad_epoch() + 1`] : []),
     `    ad_url = (${q(`${config.apiInternalUrl}/internal/stations/${st.id}/ad-played/`)} ^ m["rf_ad"])`,
     `    thread.run({ignore(http.post(headers = [("Content-Type", "application/json"), ("X-Internal-Token", ${q(config.internalToken)})], data = "{}", ad_url))})`,
     `  end`,
@@ -237,7 +280,8 @@ export function buildLiquidsoapScript(
     lines.push(`rotation = random(id = "rotation", weights = [${weights.join(', ')}], [${names.join(', ')}])`);
     // rotate com pesos [N, 1]: N faixas da rotação, depois 1 da playlist de inserção.
     for (const i of inserts) {
-      lines.push(`rotation = rotate(id = "ins_${i.n}", weights = [${i.every}, 1], [rotation, ${i.n}])`);
+      if (gate) lines.push(`rotation = ${insertGate(lines, 'rotation', i.n, i.every, i.n)}`);
+      else lines.push(`rotation = rotate(id = "ins_${i.n}", weights = [${i.every}, 1], [rotation, ${i.n}])`);
     }
   }
 
@@ -248,7 +292,9 @@ export function buildLiquidsoapScript(
   // dentro dessa janela (no lugar das vinhetas comuns, que ficam fora porque a rotação toda fica fora também).
   const scheduledFinal = scheduled.map((s) => {
     let src = s.n;
-    for (const ins of scheduledInserts.filter((i) => i.key === s.key)) src = `rotate(id = "ins_${ins.n}", weights = [${ins.every}, 1], [${src}, ${ins.n}])`;
+    for (const ins of scheduledInserts.filter((i) => i.key === s.key)) {
+      src = gate ? insertGate(lines, src, ins.n, ins.every, `${s.n}_${ins.n}`) : `rotate(id = "ins_${ins.n}", weights = [${ins.every}, 1], [${src}, ${ins.n}])`;
+    }
     return `(${s.pred}, ${src})`;
   });
   if (scheduledFinal.length > 0) {

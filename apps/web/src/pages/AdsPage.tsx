@@ -7,6 +7,7 @@ import type { StationCtx } from './StationLayout';
 interface Vinhetas {
   exitPlaylistId: number | null;
   entryPlaylistId: number | null;
+  dropProgramJingle: boolean;
   jingles: { id: number; name: string }[];
 }
 
@@ -74,7 +75,7 @@ export default function AdsPage() {
   async function saveVinhetas(next: Vinhetas) {
     setVinhetas(next);
     try {
-      await api(`/api/stations/${station.id}/ad-vinhetas`, { method: 'PUT', body: { exitPlaylistId: next.exitPlaylistId, entryPlaylistId: next.entryPlaylistId } });
+      await api(`/api/stations/${station.id}/ad-vinhetas`, { method: 'PUT', body: { exitPlaylistId: next.exitPlaylistId, entryPlaylistId: next.entryPlaylistId, dropProgramJingle: next.dropProgramJingle } });
       toast('Vinhetas de bloco salvas');
     } catch (e) {
       toast((e as Error).message, 'error');
@@ -154,6 +155,10 @@ export default function AdsPage() {
               </select>
             </label>
           </div>
+          <label className="check-line" style={{ marginTop: 12 }}>
+            <input type="checkbox" checked={vinhetas.dropProgramJingle} onChange={(e) => saveVinhetas({ ...vinhetas, dropProgramJingle: e.target.checked })} />
+            <span>Descartar a vinheta da programação colada no comercial <small>Quando um bloco comercial entra, a vinheta "a cada N músicas" que ia tocar logo antes ou logo depois dele é descartada: fica só música, vinheta de saída, comerciais, vinheta de entrada e música. Só vale quando há comercial tocando; sem comercial, a vinheta da programação toca normal. Vale depois de reiniciar a rádio (o aviso aparece no topo).</small></span>
+          </label>
           {vinhetas.jingles.length === 0 && (
             <p className="muted small-text" style={{ marginBottom: 0 }}>Nenhuma playlist marcada como "Jingle (vinheta)" ainda. Crie uma em Playlists e adicione os arquivos da vinheta nela.</p>
           )}
