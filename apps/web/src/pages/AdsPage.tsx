@@ -178,7 +178,7 @@ export default function AdsPage() {
           <div className="card" style={{ margin: 0 }}>
             <h4 style={{ marginTop: 0 }}>Para configurar</h4>
             <ol style={{ margin: '4px 0 0', paddingLeft: 18 }}>
-              <li>Em <strong>Playlists</strong>, crie uma playlist, marque <strong>Jingle (vinheta)</strong> e adicione o(s) arquivo(s) de áudio da vinheta de saída. Repita para a de entrada (pode ser a mesma playlist nas duas, se quiser).</li>
+              <li>Em <strong>Playlists</strong>, crie uma playlist, marque <strong>Jingle (vinheta)</strong> e depois <strong>Só para os comerciais</strong> (assim ela não precisa de regra e não toca na programação) e adicione o(s) arquivo(s) de áudio da vinheta de saída. Repita para a de entrada (pode ser a mesma playlist nas duas, se quiser).</li>
               <li>Volte aqui e escolha cada playlist nos campos <strong>Vinheta de saída</strong> e <strong>Vinheta de entrada</strong> acima.</li>
               <li>Se a playlist escolhida tiver só um arquivo, ele toca sempre. Com dois ou mais, cada vez que um comercial disparar, toca o próximo da lista (não ao acaso).</li>
             </ol>

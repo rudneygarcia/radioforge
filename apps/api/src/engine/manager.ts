@@ -165,6 +165,7 @@ export function writePlaylists(stationId: number, opts: { dry?: boolean } = {}):
   const cues = st && !dry ? cueMap(st) : new Map<number, string>(); // análises do AutoCue já salvas
   for (const p of playlists) {
     if (p.every_minutes > 0) continue; // entra por tempo (ver timed.ts), não na rotação
+    if (p.ad_only) continue; // vinheta só dos blocos comerciais: não entra na programação (ver ads.ts)
     const full = playlistMedia(p.id);
     const media = p.is_jingle ? full : avoidRecent(full, recent); // vinhetas não entram na regra
     if (media.length === 0) continue;

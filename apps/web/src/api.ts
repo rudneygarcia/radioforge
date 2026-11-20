@@ -243,6 +243,8 @@ export interface Playlist {
   mode: 'shuffle' | 'sequential';
   weight: number;
   jingle: boolean;
+  /** Vinheta só para os blocos comerciais (não entra na programação e não tem regra). */
+  adOnly: boolean;
   isDefault: boolean;
   requestable: boolean;
   everySongs: number;

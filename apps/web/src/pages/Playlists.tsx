@@ -10,6 +10,7 @@ const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 function summary(p: Playlist, hasDefault: boolean): string[] {
   const out: string[] = [p.mode === 'shuffle' ? 'Aleatória' : 'Sequencial'];
   if (p.isDefault) return [...out, 'Toca sempre (base da programação)'];
+  if (p.adOnly) return [...out, 'Jingle', 'Só para os comerciais'];
   if (p.jingle) out.push('Jingle');
   if (p.requestable) out.push('Permite pedidos');
   if (p.scheduleEnabled) {
@@ -230,9 +231,15 @@ export default function Playlists() {
               <h3>Tipo e pedidos</h3>
               <div className="fields">
                 <label className="check-line">
-                  <input type="checkbox" checked={editing.jingle} onChange={(e) => patch({ jingle: e.target.checked, requestable: e.target.checked ? false : editing.requestable, isDefault: e.target.checked ? false : editing.isDefault })} />
+                  <input type="checkbox" checked={editing.jingle} onChange={(e) => patch({ jingle: e.target.checked, adOnly: e.target.checked ? editing.adOnly : false, requestable: e.target.checked ? false : editing.requestable, isDefault: e.target.checked ? false : editing.isDefault })} />
                   <span>Jingle (vinheta) <small>Marque para jingles, vinhetas e avisos: o nome do arquivo não é enviado ao servidor (não aparece em “Tocando agora”, no histórico, nos webhooks nem no stream). O Liquidsoap toca o jingle inteiro, sem cortar, com o volume ajustado e sem sobrepor outro jingle. Não pode ser pedido pelos ouvintes.</small></span>
                 </label>
+                {editing.jingle && (
+                  <label className="check-line">
+                    <input type="checkbox" checked={editing.adOnly} onChange={(e) => patch(e.target.checked ? { adOnly: true, isDefault: false, requestable: false, everySongs: 0, everyMinutes: 0, scheduleEnabled: false } : { adOnly: false })} />
+                    <span>Só para os comerciais <small>Esta vinheta não entra na programação: ela só toca nos blocos comerciais (vinheta de saída ou de entrada de bloco). Por isso não precisa de regra de entrada e não aparece o aviso "sem regra". Depois de salvar, escolha-a em <strong>Comerciais → Vinhetas de bloco</strong>.</small></span>
+                  </label>
+                )}
                 <label className="check-line" style={{ opacity: editing.jingle ? 0.55 : 1 }}>
                   <input type="checkbox" checked={editing.requestable && !editing.jingle} disabled={editing.jingle} onChange={(e) => patch({ requestable: e.target.checked })} />
                   <span>Permitir pedidos desta playlist <small>As músicas dela (e das pastas marcadas) aparecem para os ouvintes pedirem no player. Só aparece se “Permitir pedidos” também estiver ligado nas Configurações da estação.</small></span>
@@ -240,7 +247,9 @@ export default function Playlists() {
               </div>
             </div>
 
-            {editing.isDefault ? (
+            {editing.adOnly ? (
+              <div className="card notice" style={{ margin: 0 }}>Esta vinheta é <strong>só para os comerciais</strong>: não tem regra de entrada na programação. Em <strong>Comerciais → Vinhetas de bloco</strong> você escolhe se ela é a vinheta de saída (antes do bloco) ou de entrada (depois). Com mais de uma música nela, cada bloco toca a próxima.</div>
+            ) : editing.isDefault ? (
               <div className="card notice" style={{ margin: 0 }}>Esta é a <strong>playlist padrão</strong>: toca o tempo todo. Defina as regras de entrada (a cada N músicas, horário ou tempo) nas <strong>outras</strong> playlists.</div>
             ) : (
             <div className="card" style={{ margin: 0, background: 'var(--panel-2)', boxShadow: 'none' }}>

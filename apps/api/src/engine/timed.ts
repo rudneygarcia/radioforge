@@ -26,7 +26,7 @@ export function tickTimedPlaylists(now = Date.now()) {
         console.error('[timed] falha ao atualizar playlists:', (e as Error).message);
       }
     }
-    const lists = all<PlaylistRow>('SELECT * FROM playlists WHERE station_id = ? AND enabled = 1 AND every_minutes > 0', st.id);
+    const lists = all<PlaylistRow>('SELECT * FROM playlists WHERE station_id = ? AND enabled = 1 AND every_minutes > 0 AND ad_only = 0', st.id);
     for (const p of lists) {
       const bucket = Math.floor(now / (p.every_minutes * 60_000));
       const prev = lastBucket.get(p.id);

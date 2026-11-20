@@ -314,6 +314,8 @@ addColumn('playlists', 'schedule_enabled', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('playlists', 'is_default', 'INTEGER NOT NULL DEFAULT 0');
 // Vinheta: toca normalmente, mas o nome do arquivo NÃO é enviado ao servidor (não entra no "tocando agora", histórico nem webhooks).
 addColumn('playlists', 'is_jingle', 'INTEGER NOT NULL DEFAULT 0');
+// Vinheta só dos blocos comerciais (saída/entrada): não entra na programação, então não precisa de regra (ver ad-vinhetas).
+addColumn('playlists', 'ad_only', 'INTEGER NOT NULL DEFAULT 0');
 // Pedidos dos ouvintes: só as músicas das playlists com esta opção ligada aparecem para pedir.
 addColumn('playlists', 'requestable', 'INTEGER NOT NULL DEFAULT 0');
 // 0 = rotação normal; N > 0 = toca 1 faixa desta playlist a cada N faixas da rotação (vinhetas, avisos).
@@ -622,6 +624,7 @@ export interface PlaylistRow {
   every_minutes: number;
   is_default: number;
   is_jingle: number;
+  ad_only: number;
   requestable: number;
   schedule_enabled: number;
   start_time: string;

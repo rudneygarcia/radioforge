@@ -109,7 +109,7 @@ export async function adRoutes(app: FastifyInstance) {
   app.get('/api/stations/:id/ad-vinhetas', async (req) => {
     const { id } = idParam.parse(req.params);
     const st = stationFor(req, id) as StationRow;
-    const jingles = all<{ id: number; name: string }>('SELECT id, name FROM playlists WHERE station_id = ? AND is_jingle = 1 ORDER BY name', st.id);
+    const jingles = all<{ id: number; name: string; ad_only: number }>('SELECT id, name, ad_only FROM playlists WHERE station_id = ? AND is_jingle = 1 ORDER BY ad_only DESC, name', st.id).map((j) => ({ id: j.id, name: j.ad_only ? `${j.name} (só comerciais)` : j.name }));
     return { exitPlaylistId: st.ad_exit_playlist_id, entryPlaylistId: st.ad_entry_playlist_id, dropProgramJingle: !!st.ad_gate, jingles };
   });
 

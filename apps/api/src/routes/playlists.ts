@@ -12,6 +12,8 @@ const body = z.object({
   mode: z.enum(['shuffle', 'sequential']).default('shuffle'),
   weight: z.number().int().min(1).max(100).default(1),
   jingle: z.boolean().default(false),
+  /** Vinheta só para os blocos comerciais (saída/entrada de bloco): não entra na programação e não tem regra. */
+  adOnly: z.boolean().default(false),
   /** Playlist padrão da estação (uma só): rotação base; as outras entram por regra. Omitido = mantém / 1ª playlist vira padrão. */
   isDefault: z.boolean().optional(),
   requestable: z.boolean().default(false),
@@ -38,6 +40,7 @@ function view(p: PlaylistRow) {
     mode: p.mode,
     weight: p.weight,
     jingle: !!p.is_jingle,
+    adOnly: !!p.ad_only,
     isDefault: !!p.is_default,
     requestable: !!p.requestable,
     everySongs: p.every_songs,
@@ -66,6 +69,17 @@ function normalizeDefault(b: z.infer<typeof body>, wanted: boolean): boolean {
     b.enabled = true; // a padrão precisa estar ativa
   }
   return isDef;
+}
+
+/** Vinheta só para comercial: é sempre vinheta, nunca padrão nem pedida, e não tem regra de entrada (ela toca só nos blocos comerciais). */
+function normalizeAdOnly(b: z.infer<typeof body>) {
+  if (!b.adOnly) return;
+  b.jingle = true;
+  b.isDefault = false;
+  b.requestable = false;
+  b.everySongs = 0;
+  b.everyMinutes = 0;
+  b.scheduleEnabled = false;
 }
 
 /** Marca (ou desmarca) a padrão; só pode existir uma por estação. */
@@ -114,10 +128,11 @@ export async function playlistRoutes(app: FastifyInstance) {
     const st = stationFor(req, id);
     const b = body.parse(req.body);
     const first = !get('SELECT 1 AS ok FROM playlists WHERE station_id = ?', st.id);
+    normalizeAdOnly(b);
     const makeDefault = normalizeDefault(b, b.isDefault ?? first);
     const r = run(
-      `INSERT INTO playlists (station_id, name, enabled, mode, weight, every_songs, every_minutes, is_jingle, requestable, schedule_enabled, start_time, end_time, days)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO playlists (station_id, name, enabled, mode, weight, every_songs, every_minutes, is_jingle, requestable, schedule_enabled, start_time, end_time, days, ad_only)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       st.id,
       b.name,
       b.enabled ? 1 : 0,
@@ -131,6 +146,7 @@ export async function playlistRoutes(app: FastifyInstance) {
       b.startTime,
       b.endTime,
       [...new Set(b.days)].sort().join(','),
+      b.adOnly ? 1 : 0,
     );
     const pid = Number(r.lastInsertRowid);
     applyDefault(st.id, pid, makeDefault);
@@ -145,10 +161,11 @@ export async function playlistRoutes(app: FastifyInstance) {
     const st = stationFor(req, id);
     const b = body.parse(req.body);
     const cur = get<PlaylistRow>('SELECT * FROM playlists WHERE id = ? AND station_id = ?', playlistId ?? -1, st.id);
+    normalizeAdOnly(b);
     const makeDefault = normalizeDefault(b, b.isDefault ?? !!cur?.is_default);
     const r = run(
       `UPDATE playlists SET name = ?, enabled = ?, mode = ?, weight = ?, every_songs = ?, every_minutes = ?, is_jingle = ?, requestable = ?,
-         schedule_enabled = ?, start_time = ?, end_time = ?, days = ? WHERE id = ? AND station_id = ?`,
+         schedule_enabled = ?, start_time = ?, end_time = ?, days = ?, ad_only = ? WHERE id = ? AND station_id = ?`,
       b.name,
       b.enabled ? 1 : 0,
       b.mode,
@@ -161,6 +178,7 @@ export async function playlistRoutes(app: FastifyInstance) {
       b.startTime,
       b.endTime,
       [...new Set(b.days)].sort().join(','),
+      b.adOnly ? 1 : 0,
       playlistId ?? -1,
       st.id,
     );
