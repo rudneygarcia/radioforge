@@ -127,7 +127,7 @@ export default function Stations() {
                   <h3 className="ellipsis">{s.name}</h3>
                   <p className="muted small-text ellipsis scard-desc">{s.description || ' '}</p>
                   <div className="scard-np">
-                    <span className={`eq ${s.running ? 'on' : ''}`} aria-hidden><i /><i /><i /><i /></span>
+                    <span className={`eqm ${s.running ? 'on' : ''}`} aria-hidden><i /><i /><i /><i /></span>
                     <div className="scard-np-txt">
                       <small>{s.live ? 'Ao vivo agora' : 'Tocando agora'}</small>
                       <span className="ellipsis">{s.live ? `${s.live.name} ao vivo` : s.nowPlaying ? `${s.nowPlaying.artist ? `${s.nowPlaying.artist} — ` : ''}${s.nowPlaying.title}` : 'Sem histórico ainda'}</span>

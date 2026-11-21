@@ -219,7 +219,25 @@ export default function Dashboard() {
             )}
           </PCard>
 
-          <PCard title="Transmissões" footer={<Link to="settings" className="button ghost small"><Icon name="cog" size={14} /> Configurar streams</Link>}>
+          <PCard
+            title="Links e transmissões"
+            badge="Público"
+            tone="on"
+            footer={
+              <>
+                <a className="button ghost small" href={publicUrl} target="_blank" rel="noreferrer"><Icon name="link" size={14} /> Abrir player</a>
+                <Link to="widgets" className="button ghost small"><Icon name="code" size={14} /> Widgets</Link>
+                <Link to="settings" className="button ghost small"><Icon name="cog" size={14} /> Configurar streams</Link>
+              </>
+            }
+          >
+            <div className="stream-row">
+              <div className="stream-meta"><strong>Player público</strong><span className="muted small-text">página para os ouvintes</span></div>
+              <div className="copy-row" style={{ margin: 0 }}>
+                <code>{publicUrl}</code>
+                <CopyButton text={publicUrl} />
+              </div>
+            </div>
             {station.streams.map((s) => (
               <div key={s.mount} className="stream-row">
                 <div className="stream-meta">
@@ -245,15 +263,6 @@ export default function Dashboard() {
               </div>
             ))}
             <p className="muted small-text" style={{ margin: '10px 0 0' }}>O primeiro link de cada stream passa pelo painel (HTTPS, mesma porta do site): funciona atrás do Cloudflare ou de outro proxy, sem abrir portas. O link direto usa a porta do stream e só funciona se ela estiver aberta e o endereço não passar pelo proxy.</p>
-          </PCard>
-
-          <PCard title="Páginas públicas" badge="Habilitado" tone="on">
-            <div className="copy-row" style={{ margin: 0 }}>
-              <span className="lbl">Player público</span>
-              <code>{publicUrl}</code>
-              <CopyButton text={publicUrl} />
-              <a className="button ghost small" href={publicUrl} target="_blank" rel="noreferrer"><Icon name="link" size={14} /> Abrir</a>
-            </div>
           </PCard>
 
           <section className="pcard">
@@ -316,33 +325,20 @@ export default function Dashboard() {
           </PCard>
 
           <PCard
-            title="Streamers/DJs"
+            title="DJs e transmissão ao vivo"
             badge={station.liveEnabled ? 'Habilitado' : 'Desabilitado'}
             tone={station.liveEnabled ? 'on' : 'off'}
             footer={
               <>
-                <Link to="djs" className="button ghost small"><Icon name="mic" size={14} /> Gerenciar</Link>
+                <Link to="djs" className="button ghost small"><Icon name="mic" size={14} /> Gerenciar DJs</Link>
+                {station.dj && <button type="button" className="ghost small" onClick={() => setShowCreds((v) => !v)}>{showCreds ? 'Ocultar credenciais' : 'Mostrar credenciais'}</button>}
                 {station.live && can('control') && <button type="button" className="ghost small" onClick={kick} disabled={busy}>Voltar ao AutoDJ</button>}
               </>
             }
           >
-            <p style={{ margin: 0 }}>
+            <p style={{ margin: '0 0 12px' }}>
               {station.live ? <><span className="tag accent"><Icon name="mic" size={13} /> {station.live.name} ao vivo</span></> : <span className="muted">AutoDJ no ar. Nenhum DJ transmitindo agora.</span>}
             </p>
-          </PCard>
-
-          <PCard
-            title="Serviço de transmissão"
-            badge={station.running ? 'Executando' : 'Parado'}
-            tone={station.running ? 'on' : 'off'}
-            footer={
-              <>
-                <button type="button" className="ghost small" onClick={() => setShowCreds((v) => !v)}>{showCreds ? 'Ocultar credenciais' : 'Mostrar credenciais'}</button>
-                {can('control') && <button type="button" className="ghost small" disabled={busy || !station.running} onClick={() => action('restart')}><Icon name="refresh" size={14} /> Reiniciar</button>}
-                {can('control') && <button type="button" className="ghost small danger-text" disabled={busy || !station.running} onClick={() => action('stop')}><Icon name="stop" size={14} /> Parar</button>}
-              </>
-            }
-          >
             {station.dj ? (
               <div className="kv">
                 <div><span>DJ ao vivo (direto)</span><span><code>{station.dj.host}:{station.dj.port}{station.dj.mount}</code> <CopyButton text={`${station.dj.host}:${station.dj.port}${station.dj.mount}`} label="" /></span></div>
