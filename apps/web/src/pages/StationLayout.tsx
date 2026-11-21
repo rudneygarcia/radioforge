@@ -73,29 +73,8 @@ export default function StationLayout() {
 
   return (
     <>
-      <header className={`hero ${station.running ? 'live' : ''}`}>
-        <div className="hero-bg" style={station.coverUrl ? { backgroundImage: `linear-gradient(90deg, rgba(15,23,42,.8), rgba(15,23,42,.45)), url(${station.coverUrl})` } : undefined} />
-        <div className="hero-in">
-          <div className="hero-logo"><Cover url={station.nowPlaying?.coverUrl ?? station.coverUrl} size={72} /></div>
-          <div className="hero-txt">
-            <h1 className="ellipsis">{station.name}</h1>
-            <div className="hero-tags">
-              <span className={`badge ${station.running ? 'on' : 'off'}`}>{station.running ? 'no ar' : 'parada'}</span>
-              {station.live && <span className="tag accent"><Icon name="mic" size={12} /> ao vivo</span>}
-              <span className="hero-chip"><Icon name="users" size={13} /> {station.listeners} {station.listeners === 1 ? 'ouvinte' : 'ouvintes'}</span>
-              {station.streams[0] && <span className="hero-chip">{station.streams[0].format.toUpperCase()} {station.streams[0].bitrate}k</span>}
-            </div>
-            <p className="hero-np ellipsis">
-              <Icon name={station.live ? 'mic' : 'music'} size={14} />{' '}
-              {station.live ? `${station.live.name} ao vivo` : station.nowPlaying ? `${station.nowPlaying.artist ? `${station.nowPlaying.artist} — ` : ''}${station.nowPlaying.title}` : station.description || 'Sem histórico ainda'}
-            </p>
-          </div>
-          <a className="button hero-btn" href={`/listen/${station.slug}`} target="_blank" rel="noreferrer">
-            <Icon name="link" /> Player público
-          </a>
-        </div>
-      </header>
       <div className={`station-shell${menuOpen ? ' menu-open' : ''}`}>
+      <div className="menu-backdrop" onClick={() => setMenuOpen(false)} />
       <button type="button" className="menu-btn" onClick={() => setMenuOpen((o) => !o)} aria-expanded={menuOpen}>
         <Icon name="menu" size={18} />
         <span>{NAV.find((n) => (n.to === '.' ? pathname.replace(/\/$/, '').split('/').length <= 3 : pathname.split('/')[3] === n.to))?.label ?? 'Menu'}</span>

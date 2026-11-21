@@ -787,3 +787,23 @@ body:has(.pl-page) { background: #07090f; }
   .nav-sec span { display: none; }
 }
 @media (min-width: 1200px) { .station-shell.collapsed .nav-sec { height: 1px; padding: 0; margin: 8px 10px; background: var(--border); } .station-shell.collapsed .nav-sec span { display: none; } }
+
+/* Celular/tablet estreito: botão de menu à esquerda e menu como gaveta por cima do conteúdo */
+.menu-backdrop { display: none; }
+@media (max-width: 899px) {
+  .station-shell .menu-btn { width: auto; display: inline-flex; margin: 0 0 14px; padding: 9px 14px; }
+  .station-shell .menu-btn span { flex: none; }
+  .station-shell .menu-btn svg:last-child { display: none; }
+  .station-shell .tabs, .station-shell.menu-open .tabs {
+    display: flex; flex-direction: column; gap: 2px; position: fixed; left: 0; top: 0; bottom: 0; width: min(300px, 86vw);
+    margin: 0; padding: 14px 12px; overflow-y: auto; border-radius: 0 18px 18px 0; z-index: 70;
+    transform: translateX(-102%); visibility: hidden; transition: transform .22s ease, visibility .22s;
+    box-shadow: 8px 0 32px -8px rgba(15, 23, 42, .45);
+  }
+  .station-shell.menu-open .tabs { transform: none; visibility: visible; }
+  .station-shell .tabs a { justify-content: flex-start; padding: 11px 12px; font-size: 14.5px; }
+  .station-shell .nav-head { display: flex; align-items: center; gap: 12px; padding: 4px 8px 12px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+  .station-shell .nav-foot { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 4px; color: var(--muted); font-size: 13px; }
+  .station-shell .tabs .nav-sec { padding: 12px 12px 4px; }
+  .station-shell.menu-open .menu-backdrop { display: block; position: fixed; inset: 0; z-index: 65; background: rgba(8, 12, 24, .5); }
+}
