@@ -8,6 +8,7 @@ export default function Login() {
   const { user, login } = useAuth();
   const nav = useNavigate();
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [serverName, setServerName] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -16,7 +17,7 @@ export default function Login() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api<{ needsSetup: boolean }>('/api/setup/status').then((r) => setNeedsSetup(r.needsSetup));
+    api<{ needsSetup: boolean; serverName?: string }>('/api/setup/status').then((r) => { setNeedsSetup(r.needsSetup); setServerName(r.serverName ?? ''); });
   }, []);
 
   if (user) return <Navigate to="/" replace />;
@@ -40,7 +41,7 @@ export default function Login() {
   }
 
   return (
-    <AuthShell title={needsSetup ? 'Criar administrador' : 'Bem-vindo de volta'} subtitle={needsSetup ? 'Crie a conta de administrador para começar' : 'Entre para gerenciar suas rádios'}>
+    <AuthShell server={serverName} title={needsSetup ? 'Criar administrador' : 'Bem-vindo de volta'} subtitle={needsSetup ? 'Crie a conta de administrador para começar' : 'Entre para gerenciar suas rádios'}>
       <form className="login-form" onSubmit={submit}>
         {needsSetup && (
           <label className="field">

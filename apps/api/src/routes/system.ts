@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { authenticate, HttpError, requireAdmin } from '../auth.js';
 import { config } from '../config.js';
-import { get } from '../db.js';
+import { get, run } from '../db.js';
 import { engineMode } from '../engine/manager.js';
 import { diskUsage, mountOf } from '../engine/disks.js';
 
@@ -94,8 +95,16 @@ export async function systemRoutes(app: FastifyInstance) {
     engine: engineMode(),
     repo: REPO,
     branch: BRANCH,
+    serverName: get<{ value: string }>("SELECT value FROM app_settings WHERE key = 'server_name'")?.value ?? '',
     canUpdate: !!UPDATE_WEBHOOK_URL || hostUpdater(),
   }));
+
+  // Nome do painel/servidor: aparece na tela de login (para quem tem vários painéis saber em qual está).
+  app.put('/api/system/name', async (req) => {
+    const { name } = z.object({ name: z.string().trim().max(60, 'No máximo 60 caracteres') }).parse(req.body);
+    run("INSERT INTO app_settings (key, value) VALUES ('server_name', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", name);
+    return { ok: true, serverName: name };
+  });
 
   // Onde as músicas estão gravadas: no disco do sistema ou em outro (HD externo montado em /data/stations), com espaço livre e teste de escrita.
   app.get('/api/system/storage', async () => {

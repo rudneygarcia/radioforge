@@ -15,6 +15,7 @@ interface Info {
   repo: string;
   branch: string;
   canUpdate: boolean;
+  serverName: string;
 }
 interface Check {
   latest: { sha: string; message: string; date: string; author: string };
@@ -74,6 +75,21 @@ export default function SystemPage() {
     return () => clearInterval(t);
   }, [waiting, toast]);
 
+  const [srvName, setSrvName] = useState<string | null>(null);
+  async function saveName() {
+    setBusy('name');
+    try {
+      const r = await api<{ serverName: string }>('/api/system/name', { method: 'PUT', body: { name: srvName ?? '' } });
+      setInfo((i) => (i ? { ...i, serverName: r.serverName } : i));
+      setSrvName(null);
+      toast('Nome do painel salvo');
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setBusy('');
+    }
+  }
+
   async function verify() {
     setBusy('check');
     setError('');
@@ -109,6 +125,15 @@ export default function SystemPage() {
   return (
     <>
       <PageHeader title="Sistema" subtitle="Versão em uso e atualizações." />
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h3>Nome do painel</h3>
+        <p className="muted small-text" style={{ marginTop: 0 }}>Aparece na tela de login, logo abaixo de “Bem-vindo de volta”, para você saber em qual servidor está entrando (útil quando se tem vários painéis).</p>
+        <form className="row" style={{ margin: 0 }} onSubmit={(e) => { e.preventDefault(); saveName(); }}>
+          <input value={srvName ?? info.serverName} onChange={(e) => setSrvName(e.target.value)} placeholder="Ex.: Servidor SP 01" maxLength={60} style={{ flex: 1, minWidth: 220 }} />
+          <button disabled={busy === 'name' || srvName === null || srvName === info.serverName}>{busy === 'name' ? 'Salvando…' : 'Salvar'}</button>
+        </form>
+      </div>
 
       <div className="grid">
         <div className="card">

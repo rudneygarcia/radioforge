@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { Icon } from '../ui';
 
 /** Moldura das telas de acesso (entrar, esqueci a senha, nova senha): painel de marca à esquerda e formulário à direita. */
-export default function AuthShell({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
+export default function AuthShell({ title, subtitle, server, children }: { title: string; subtitle?: string; server?: string; children: ReactNode }) {
   return (
     <div className="login-page">
       <aside className="login-brand">
@@ -25,6 +25,7 @@ export default function AuthShell({ title, subtitle, children }: { title: string
           <div className="login-mobile-logo"><LogoMark size={32} /> Painel RadioForge</div>
           <h1>{title}</h1>
           {subtitle && <p className="muted">{subtitle}</p>}
+          {server && <p className="login-server"><Icon name="radio" size={14} /> {server}</p>}
           {children}
         </div>
         <SiteFooter />

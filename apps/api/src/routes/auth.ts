@@ -47,7 +47,9 @@ export async function authRoutes(app: FastifyInstance) {
   // Primeiro acesso: indica se ainda é preciso criar o administrador.
   app.get('/api/setup/status', async () => {
     const row = get<{ n: number }>('SELECT COUNT(*) AS n FROM users');
-    return { needsSetup: (row?.n ?? 0) === 0 };
+    // serverName: nome do painel definido pelo administrador (Sistema), mostrado na tela de login para saber em qual servidor se está.
+    const serverName = get<{ value: string }>("SELECT value FROM app_settings WHERE key = 'server_name'")?.value ?? '';
+    return { needsSetup: (row?.n ?? 0) === 0, serverName };
   });
 
   app.post('/api/setup', async (req, reply) => {
