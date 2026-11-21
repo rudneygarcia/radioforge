@@ -805,5 +805,8 @@ body:has(.pl-page) { background: #07090f; }
   .station-shell .nav-head { display: flex; align-items: center; gap: 12px; padding: 4px 8px 12px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
   .station-shell .nav-foot { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 4px; color: var(--muted); font-size: 13px; }
   .station-shell .tabs .nav-sec { padding: 12px 12px 4px; }
+  .nav-head-txt { display: flex; flex-direction: column; min-width: 0; }
+  .nav-head-txt strong { font-size: 15px; line-height: 1.25; }
+  .nav-head-txt small { color: var(--muted); font-size: 12px; }
   .station-shell.menu-open .menu-backdrop { display: block; position: fixed; inset: 0; z-index: 65; background: rgba(8, 12, 24, .5); }
 }
