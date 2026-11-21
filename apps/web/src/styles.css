@@ -811,4 +811,5 @@ body:has(.pl-page) { background: #07090f; }
   .station-shell.menu-open .menu-backdrop { display: block; position: fixed; inset: 0; z-index: 65; background: rgba(8, 12, 24, .5); }
 }
 
-.login-server { display: inline-flex; align-items: center; gap: 7px; margin: 2px 0 0; padding: 4px 12px; border-radius: 99px; font-size: 13px; font-weight: 650; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.login-card > .muted:has(+ .login-server) { margin-bottom: 14px; }
+.login-card > .login-server { display: flex; width: fit-content; max-width: 100%; align-items: center; gap: 7px; margin: 0 0 24px; padding: 4px 12px; border-radius: 99px; font-size: 13px; font-weight: 650; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
