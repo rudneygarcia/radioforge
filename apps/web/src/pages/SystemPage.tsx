@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
-import { Icon, PageHeader, useUi } from '../ui';
+import { Icon, PageHeader, PageTabs, Section, useUi } from '../ui';
 import SmtpCard from './SmtpCard';
 import StorageCard from './StorageCard';
 import TlsCard from './TlsCard';
@@ -40,6 +40,19 @@ export default function SystemPage() {
   const [up, setUp] = useState<UpStatus | null>(null);
   const [waiting, setWaiting] = useState(false);
   const since = useRef(0);
+  type Tab = 'geral' | 'storage' | 'https' | 'email';
+  const [tab, setTab] = useState<Tab>(() => {
+    try {
+      const t = sessionStorage.getItem('rf_sys_tab');
+      return t === 'storage' || t === 'https' || t === 'email' ? t : 'geral';
+    } catch {
+      return 'geral';
+    }
+  });
+  const changeTab = (t: Tab) => {
+    setTab(t);
+    try { sessionStorage.setItem('rf_sys_tab', t); } catch { /* sem armazenamento */ }
+  };
 
   useEffect(() => {
     api<Info>('/api/system').then(setInfo).catch((e) => setError((e as Error).message));
@@ -124,71 +137,92 @@ export default function SystemPage() {
 
   return (
     <>
-      <PageHeader title="Sistema" subtitle="Versão em uso e atualizações." />
+      <PageHeader title="Sistema" subtitle="Identidade do painel, atualizações, armazenamento, HTTPS e e-mail." />
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h3>Nome do painel</h3>
-        <p className="muted small-text" style={{ marginTop: 0 }}>Aparece na tela de login, logo abaixo de “Bem-vindo de volta”, para você saber em qual servidor está entrando (útil quando se tem vários painéis).</p>
-        <form className="row" style={{ margin: 0 }} onSubmit={(e) => { e.preventDefault(); saveName(); }}>
-          <input value={srvName ?? info.serverName} onChange={(e) => setSrvName(e.target.value)} placeholder="Ex.: Servidor SP 01" maxLength={60} style={{ flex: 1, minWidth: 220 }} />
-          <button disabled={busy === 'name' || srvName === null || srvName === info.serverName}>{busy === 'name' ? 'Salvando…' : 'Salvar'}</button>
-        </form>
-      </div>
+      <PageTabs
+        value={tab}
+        onChange={changeTab}
+        tabs={[
+          { key: 'geral', label: 'Geral', icon: 'home' },
+          { key: 'storage', label: 'Armazenamento', icon: 'folder' },
+          { key: 'https', label: 'HTTPS', icon: 'link' },
+          { key: 'email', label: 'E-mail', icon: 'megaphone' },
+        ]}
+      />
 
-      <div className="grid">
-        <div className="card">
-          <h3>Versão em uso</h3>
-          <dl className="kv">
-            <dt>Versão</dt><dd>{info.version}</dd>
-            <dt>Commit</dt><dd>{info.commit ? <code>{info.commit.slice(0, 7)}</code> : '—'}</dd>
-            <dt>Build em</dt><dd>{when(info.builtAt)}</dd>
-            <dt>API iniciada</dt><dd>{when(info.startedAt)}</dd>
-            <dt>Streaming</dt><dd>{info.engine === 'liquidsoap' ? 'Icecast + Liquidsoap' : 'Simples (Node)'}</dd>
-            <dt>Node.js</dt><dd>{info.node}</dd>
-            <dt>Repositório</dt><dd>{info.repo} <span className="muted">({info.branch})</span></dd>
-          </dl>
-        </div>
-
-        <div className="card">
-          <h3>Atualizações</h3>
-          <div className="row">
-            <button onClick={verify} disabled={!!busy}><Icon name="refresh" /> {busy === 'check' ? 'Verificando…' : 'Verificar atualização'}</button>
-            {check && check.upToDate === false && info.canUpdate && (
-              <button onClick={update} disabled={!!busy || waiting}>{busy === 'update' ? 'Solicitando…' : 'Atualizar agora'}</button>
-            )}
+      {tab === 'geral' && (
+        <div className="split">
+          <div className="main-stack">
+            <Section
+              icon="refresh"
+              title="Atualizações"
+              hint="Confere o GitHub e atualiza o painel para a versão mais recente."
+              badge={
+                check ? (
+                  <>
+                    {check.upToDate === true && <span className="badge on">em dia</span>}
+                    {check.upToDate === false && <span className="badge off">há versão nova</span>}
+                    {check.upToDate === null && <span className="badge off">sem comparação</span>}
+                  </>
+                ) : undefined
+              }
+            >
+              <div className="row" style={{ margin: 0 }}>
+                <button onClick={verify} disabled={!!busy}><Icon name="refresh" /> {busy === 'check' ? 'Verificando…' : 'Verificar atualização'}</button>
+                {check && check.upToDate === false && info.canUpdate && (
+                  <button onClick={update} disabled={!!busy || waiting}>{busy === 'update' ? 'Solicitando…' : 'Atualizar agora'}</button>
+                )}
+              </div>
+              {error && <p className="error">{error}</p>}
+              {up && up.state !== 'idle' && (waiting || up.state === 'error') && (
+                <div className="card notice" style={{ marginTop: 14 }}>
+                  {up.state === 'queued' && <p style={{ margin: 0 }}><strong>Atualização pedida.</strong> Aguardando o servidor começar… {Date.now() / 1000 - up.at > 120 && <>Está demorando: confira se o serviço <code>radioforge-update.path</code> está ativo ou rode <code>radioforge update</code> no servidor.</>}</p>}
+                  {up.state === 'running' && <p style={{ margin: 0 }}><strong>Atualizando…</strong> O painel continua no ar durante a compilação (alguns minutos) e reinicia no final. Esta página recarrega sozinha.</p>}
+                  {up.state === 'error' && <p style={{ margin: 0 }}><strong>A atualização falhou.</strong> Veja o final do registro abaixo; o painel anterior continua em uso.</p>}
+                  {up.log && <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: 12, maxHeight: 220, overflow: 'auto', margin: '10px 0 0' }}>{up.log}</pre>}
+                </div>
+              )}
+              {check && (
+                <p className="muted" style={{ marginBottom: 0 }}>
+                  Último commit em <code>{info.branch}</code>: <code>{check.latest.sha.slice(0, 7)}</code> — {check.latest.message}
+                  {check.latest.author ? ` (${check.latest.author}, ${when(check.latest.date)})` : ''}
+                </p>
+              )}
+              {check?.upToDate === false && !info.canUpdate && (
+                <p className="muted small-text" style={{ marginBottom: 0 }}>
+                  Faça o deploy pelo seu painel (com o deploy automático ligado, cada push no GitHub já atualiza sozinho). Para ter o botão “Atualizar agora” aqui, defina <code>UPDATE_WEBHOOK_URL</code>.
+                </p>
+              )}
+              {!check && <p className="muted small-text" style={{ marginBottom: 0 }}>Clique em “Verificar atualização” para comparar com o último commit.</p>}
+            </Section>
           </div>
-          {error && <p className="error">{error}</p>}
-          {up && up.state !== 'idle' && (waiting || up.state === 'error') && (
-            <div className="card notice" style={{ marginTop: 12 }}>
-              {up.state === 'queued' && <p style={{ margin: 0 }}><strong>Atualização pedida.</strong> Aguardando o servidor começar… {Date.now() / 1000 - up.at > 120 && <>Está demorando: confira se o serviço <code>radioforge-update.path</code> está ativo ou rode <code>radioforge update</code> no servidor.</>}</p>}
-              {up.state === 'running' && <p style={{ margin: 0 }}><strong>Atualizando…</strong> O painel continua no ar durante a compilação (alguns minutos) e reinicia no final. Esta página recarrega sozinha.</p>}
-              {up.state === 'error' && <p style={{ margin: 0 }}><strong>A atualização falhou.</strong> Veja o final do registro abaixo; o painel anterior continua em uso.</p>}
-              {up.log && <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: 12, maxHeight: 220, overflow: 'auto', margin: '10px 0 0' }}>{up.log}</pre>}
-            </div>
-          )}
-          {check && (
-            <>
-              <p>
-                {check.upToDate === true && <span className="badge on">em dia</span>}
-                {check.upToDate === false && <span className="badge off">há versão nova</span>}
-                {check.upToDate === null && <span className="badge off">não foi possível comparar</span>}
-              </p>
-              <p className="muted">
-                Último commit em <code>{info.branch}</code>: <code>{check.latest.sha.slice(0, 7)}</code> — {check.latest.message}
-                {check.latest.author ? ` (${check.latest.author}, ${when(check.latest.date)})` : ''}
-              </p>
-            </>
-          )}
-          {check?.upToDate === false && !info.canUpdate && (
-            <p className="muted small-text">
-              Faça o deploy pelo seu painel (com o deploy automático ligado, cada push no GitHub já atualiza sozinho). Para ter o botão “Atualizar agora” aqui, defina <code>UPDATE_WEBHOOK_URL</code>.
-            </p>
-          )}
+
+          <div className="side-stack">
+            <Section icon="radio" title="Nome do painel" hint="Aparece na tela de login, para saber em qual servidor você está entrando.">
+              <form className="row" style={{ margin: 0 }} onSubmit={(e) => { e.preventDefault(); saveName(); }}>
+                <input value={srvName ?? info.serverName} onChange={(e) => setSrvName(e.target.value)} placeholder="Ex.: Servidor SP 01" maxLength={60} style={{ flex: 1, minWidth: 160 }} />
+                <button disabled={busy === 'name' || srvName === null || srvName === info.serverName}>{busy === 'name' ? 'Salvando…' : 'Salvar'}</button>
+              </form>
+            </Section>
+
+            <Section icon="info" title="Versão em uso">
+              <dl className="kv-plain">
+                <dt>Versão</dt><dd>{info.version}</dd>
+                <dt>Commit</dt><dd>{info.commit ? <code>{info.commit.slice(0, 7)}</code> : '—'}</dd>
+                <dt>Build em</dt><dd>{when(info.builtAt)}</dd>
+                <dt>API iniciada</dt><dd>{when(info.startedAt)}</dd>
+                <dt>Streaming</dt><dd>{info.engine === 'liquidsoap' ? 'Icecast + Liquidsoap' : 'Simples (Node)'}</dd>
+                <dt>Node.js</dt><dd>{info.node}</dd>
+                <dt>Repositório</dt><dd>{info.repo} <span className="muted">({info.branch})</span></dd>
+              </dl>
+            </Section>
+          </div>
         </div>
-      </div>
-      <StorageCard />
-      <TlsCard />
-      <SmtpCard />
+      )}
+
+      {tab === 'storage' && <StorageCard />}
+      {tab === 'https' && <TlsCard />}
+      {tab === 'email' && <SmtpCard />}
     </>
   );
 }

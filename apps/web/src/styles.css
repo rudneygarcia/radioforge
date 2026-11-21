@@ -813,3 +813,46 @@ body:has(.pl-page) { background: #07090f; }
 
 .login-card > .muted:has(+ .login-server) { margin-bottom: 14px; }
 .login-card > .login-server { display: flex; width: fit-content; max-width: 100%; align-items: center; gap: 7px; margin: 0 0 24px; padding: 4px 12px; border-radius: 99px; font-size: 13px; font-weight: 650; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+
+/* ===== Páginas de administração (Usuários, Backups, Sistema, Chaves de API) ===== */
+.sec { padding: 0; overflow: hidden; }
+.sec-hd { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.sec-ico { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex: none; color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
+.sec-tt { flex: 1; min-width: 160px; }
+.sec-tt h3 { margin: 0; font-size: 16px; }
+.sec-tt p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.sec-bd { padding: 18px 20px; }
+.sec-bd.flush { padding: 0; }
+.sec-bd > :first-child { margin-top: 0; } .sec-bd > :last-child { margin-bottom: 0; }
+.sec .table-wrap, .sec table { margin: 0; }
+.sec table th:first-child, .sec table td:first-child { padding-left: 20px; } .sec table th:last-child, .sec table td:last-child { padding-right: 20px; }
+.sec .empty-state { padding: 36px 20px; }
+.split { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.split > .card, .split > .side-stack > .card, .split > .main-stack > .card { margin: 0; }
+.side-stack, .main-stack { display: grid; gap: 20px; min-width: 0; }
+.side-stack > .card, .main-stack > .card { margin: 0; }
+@media (max-width: 1000px) { .split { grid-template-columns: minmax(0, 1fr); } }
+.pg-tabs { display: flex; gap: 2px; margin: 0 0 22px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+.pg-tabs::-webkit-scrollbar { display: none; }
+.pg-tabs button { display: inline-flex; align-items: center; gap: 8px; padding: 11px 16px; margin-bottom: -1px; background: transparent; color: var(--muted); border: 0; border-bottom: 2px solid transparent; border-radius: 0; box-shadow: none; font-weight: 600; white-space: nowrap; }
+.pg-tabs button:hover { color: var(--text); background: transparent; }
+.pg-tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+.info-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; font-size: 13.5px; }
+.info-list li { display: flex; gap: 10px; align-items: flex-start; }
+.info-list .icon { flex: none; margin-top: 3px; color: var(--accent); }
+.kv-plain { display: grid; grid-template-columns: max-content 1fr; gap: 10px 20px; margin: 0; align-items: baseline; }
+.kv-plain dt { color: var(--muted); font-size: 13px; } .kv-plain dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.user-cell { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.user-cell .avatar-sm { margin: 0; flex: none; }
+.user-cell > div { display: grid; min-width: 0; line-height: 1.3; }
+.user-cell small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.list-toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+.list-toolbar input { flex: 1; min-width: 200px; max-width: 340px; margin: 0; }
+@media (max-width: 599px) { .kv-plain { grid-template-columns: 1fr; gap: 2px; } .kv-plain dd { margin-bottom: 10px; } }
+
+/* Abas do Sistema (Armazenamento, HTTPS, E-mail): mesmo cabeçalho dos demais cartões */
+.pg-tabs ~ .card.section { padding: 0; overflow: hidden; max-width: 980px; }
+.pg-tabs ~ .card.section > .section-title { margin: 0; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.pg-tabs ~ .card.section > :not(.section-title) { margin-left: 20px; margin-right: 20px; }
+.pg-tabs ~ .card.section > .section-title + * { margin-top: 18px !important; }
+.pg-tabs ~ .card.section > :last-child { margin-bottom: 20px; }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, downloadFile, uploadForm } from '../api';
-import { Empty, Icon, PageHeader, useUi } from '../ui';
+import { Empty, Icon, PageHeader, Section, StatStrip, useUi } from '../ui';
 
 interface Backup {
   name: string;
@@ -126,11 +126,14 @@ export default function BackupsPage() {
     load();
   }
 
+  const total = backups?.reduce((n, b) => n + b.size, 0) ?? 0;
+  const last = backups?.[0];
+
   return (
     <>
       <PageHeader
         title="Backups"
-        subtitle={`Uma cópia do banco é criada todo dia; ficam as ${keep} mais recentes (você escolhe quantas abaixo).`}
+        subtitle="Cópias do banco de dados do painel: criadas todo dia e quando você quiser."
         actions={
           <div className="row" style={{ margin: 0 }}>
             <input ref={fileInput} type="file" accept=".db,application/octet-stream" hidden onChange={(e) => void upload(e.target.files?.[0])} />
@@ -139,56 +142,75 @@ export default function BackupsPage() {
           </div>
         }
       />
-      <div className="card notice">
-        Inclui usuários, estações, playlists, relatórios, chaves de API e webhooks. <strong>Não inclui músicas nem gravações</strong>: para elas, copie o volume de dados do Docker.
-        O arquivo contém dados sensíveis (hashes de senha, senhas de DJ): guarde-o em local seguro.
-      </div>
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h4 style={{ marginTop: 0 }}>Quantos backups guardar</h4>
-        <div className="row" style={{ margin: 0, alignItems: 'center' }}>
-          <input type="number" min={limits.min} max={limits.max} value={keepInput} onChange={(e) => setKeepInput(Number(e.target.value))} style={{ width: 110 }} />
-          <button type="button" onClick={saveKeep} disabled={savingKeep || keepInput === keep}>{savingKeep ? 'Salvando…' : 'Salvar'}</button>
-          <span className="muted small-text">de {limits.min} a {limits.max}. Hoje: {backups?.length ?? 0} guardado{(backups?.length ?? 0) === 1 ? '' : 's'}.</span>
-        </div>
-        <p className="muted small-text" style={{ marginBottom: 0 }}>Cada backup ocupa o tamanho do banco (hoje {backups && backups[0] ? fmtSize(backups[0].size) : '—'}). Quando passa do limite, o mais antigo é apagado, e isso vale para os backups automáticos, os manuais e os enviados de outro servidor.</p>
-      </div>
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h4 style={{ marginTop: 0 }}>Levar as configurações para outro servidor</h4>
-        <ol style={{ margin: '4px 0 0', paddingLeft: 18 }}>
-          <li>Neste painel, clique em <strong>Baixar</strong> no backup mais recente (ou em <strong>Fazer backup agora</strong> e depois Baixar).</li>
-          <li>No servidor novo, crie um administrador qualquer na primeira tela e entre. Vá em <strong>Backups → Enviar backup</strong> e escolha o arquivo baixado.</li>
-          <li>Clique em <strong>Restaurar</strong> no arquivo enviado. A API reinicia em alguns segundos.</li>
-          <li>Depois de restaurar, entre com o <strong>usuário e a senha do servidor antigo</strong> (o administrador temporário deixa de existir).</li>
-        </ol>
-        <p className="muted small-text" style={{ marginBottom: 0 }}>Vão junto: usuários, estações (portas, senhas de DJ, configurações), playlists, comerciais, relatórios e chaves de API. Não vão: as músicas e o certificado HTTPS (emita de novo em Sistema → HTTPS). Depois, copie as músicas para o servidor novo (SFTP ou volume do Docker) e reenvie o preset/biblioteca do Stereo Tool, se usar.</p>
-      </div>
+
       {restarting && <div className="card notice">Restaurando… a API está reiniciando. Esta página recarrega sozinha quando ela voltar.</div>}
-      <div className="card tight">
-        {backups === null ? (
-          <div className="skeleton" style={{ height: 90, margin: 20, borderRadius: 12 }} />
-        ) : backups.length === 0 ? (
-          <Empty icon="download" title="Nenhum backup ainda" text="O primeiro é criado automaticamente cerca de 1 minuto após a API iniciar." />
-        ) : (
-          <table>
-            <thead><tr><th>Arquivo</th><th>Criado em</th><th className="hide-sm">Tamanho</th><th /></tr></thead>
-            <tbody>
-              {backups.map((b) => (
-                <tr key={b.name}>
-                  <td><code>{b.name}</code></td>
-                  <td className="muted">{new Date(b.createdAt).toLocaleString()}</td>
-                  <td className="muted hide-sm">{fmtSize(b.size)}</td>
-                  <td>
-                    <div className="table-actions">
-                      <button className="ghost small" onClick={() => downloadFile(`/api/backups/${b.name}`, b.name).catch((e) => toast((e as Error).message, 'error'))}><Icon name="download" size={13} /> Baixar</button>
-                      <button className="ghost small" onClick={() => restore(b)} disabled={restarting}><Icon name="refresh" size={13} /> Restaurar</button>
-                      <button className="icon-btn" title="Apagar" onClick={() => remove(b)}><Icon name="trash" /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+
+      <StatStrip
+        items={[
+          { icon: 'download', label: 'Backups guardados', value: <>{backups?.length ?? 0}<span className="muted" style={{ fontSize: 16 }}> / {keep}</span></> },
+          { icon: 'clock', label: 'Último backup', value: <span style={{ fontSize: 20 }}>{last ? new Date(last.createdAt).toLocaleString() : '—'}</span>, tone: 'ok' },
+          { icon: 'folder', label: 'Espaço ocupado', value: backups ? fmtSize(total) : '—', tone: 'violet' },
+        ]}
+      />
+
+      <div className="split">
+        <div className="main-stack">
+          <Section flush icon="download" title="Backups disponíveis" hint="Baixe, restaure ou apague. O mais antigo some sozinho ao passar do limite.">
+            {backups === null ? (
+              <div className="skeleton" style={{ height: 90, margin: 20, borderRadius: 12 }} />
+            ) : backups.length === 0 ? (
+              <Empty icon="download" title="Nenhum backup ainda" text="O primeiro é criado automaticamente cerca de 1 minuto após a API iniciar." />
+            ) : (
+              <table>
+                <thead><tr><th>Arquivo</th><th>Criado em</th><th className="hide-sm">Tamanho</th><th /></tr></thead>
+                <tbody>
+                  {backups.map((b) => (
+                    <tr key={b.name}>
+                      <td><code>{b.name}</code></td>
+                      <td className="muted">{new Date(b.createdAt).toLocaleString()}</td>
+                      <td className="muted hide-sm">{fmtSize(b.size)}</td>
+                      <td>
+                        <div className="table-actions">
+                          <button className="ghost small" onClick={() => downloadFile(`/api/backups/${b.name}`, b.name).catch((e) => toast((e as Error).message, 'error'))}><Icon name="download" size={13} /> Baixar</button>
+                          <button className="ghost small" onClick={() => restore(b)} disabled={restarting}><Icon name="refresh" size={13} /> Restaurar</button>
+                          <button className="icon-btn" title="Apagar" onClick={() => remove(b)}><Icon name="trash" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Section>
+
+          <Section icon="upload" title="Levar as configurações para outro servidor" hint="Passo a passo para migrar o painel inteiro (sem as músicas).">
+            <ol style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 6 }}>
+              <li>Neste painel, clique em <strong>Baixar</strong> no backup mais recente (ou em <strong>Fazer backup agora</strong> e depois Baixar).</li>
+              <li>No servidor novo, crie um administrador qualquer na primeira tela e entre. Vá em <strong>Backups → Enviar backup</strong> e escolha o arquivo baixado.</li>
+              <li>Clique em <strong>Restaurar</strong> no arquivo enviado. A API reinicia em alguns segundos.</li>
+              <li>Depois de restaurar, entre com o <strong>usuário e a senha do servidor antigo</strong> (o administrador temporário deixa de existir).</li>
+            </ol>
+            <p className="muted small-text" style={{ marginBottom: 0 }}>Vão junto: usuários, estações (portas, senhas de DJ, configurações), playlists, comerciais, relatórios e chaves de API. Não vão: as músicas e o certificado HTTPS (emita de novo em Sistema → HTTPS). Depois, copie as músicas para o servidor novo (SFTP ou volume do Docker) e reenvie o preset/biblioteca do Stereo Tool, se usar.</p>
+          </Section>
+        </div>
+
+        <div className="side-stack">
+          <Section icon="cog" title="Quantos guardar" hint={`De ${limits.min} a ${limits.max} backups.`}>
+            <div className="row" style={{ margin: 0 }}>
+              <input type="number" min={limits.min} max={limits.max} value={keepInput} onChange={(e) => setKeepInput(Number(e.target.value))} style={{ width: 110 }} />
+              <button type="button" onClick={saveKeep} disabled={savingKeep || keepInput === keep}>{savingKeep ? 'Salvando…' : 'Salvar'}</button>
+            </div>
+            <p className="muted small-text" style={{ marginBottom: 0 }}>Cada backup ocupa o tamanho do banco (hoje {last ? fmtSize(last.size) : '—'}). Passou do limite, o mais antigo é apagado: vale para os automáticos, os manuais e os enviados de outro servidor.</p>
+          </Section>
+
+          <Section icon="info" title="O que entra no backup">
+            <ul className="info-list">
+              <li><Icon name="check" size={15} /> <span>Usuários, estações, playlists, relatórios, chaves de API e webhooks.</span></li>
+              <li><Icon name="alert" size={15} /> <span><strong>Não inclui músicas nem gravações.</strong> Para elas, copie o volume de dados do Docker.</span></li>
+              <li><Icon name="alert" size={15} /> <span>O arquivo tem dados sensíveis (hashes de senha, senhas de DJ): guarde em local seguro.</span></li>
+            </ul>
+          </Section>
+        </div>
       </div>
     </>
   );

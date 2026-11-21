@@ -219,3 +219,49 @@ export function CopyButton({ text, label = 'Copiar' }: { text: string; label?: s
     </button>
   );
 }
+
+/* ---------- Blocos das páginas de administração ---------- */
+/** Cartão com cabeçalho padrão: ícone, título, explicação curta e (opcional) selo/ações à direita. */
+export function Section({ icon, title, hint, badge, actions, flush, children }: { flush?: boolean; icon: string; title: string; hint?: ReactNode; badge?: ReactNode; actions?: ReactNode; children?: ReactNode }) {
+  return (
+    <section className="card sec">
+      <header className="sec-hd">
+        <span className="sec-ico"><Icon name={icon} size={18} /></span>
+        <div className="sec-tt">
+          <h3>{title}</h3>
+          {hint && <p>{hint}</p>}
+        </div>
+        {badge}
+        {actions}
+      </header>
+      {children && <div className={flush ? 'sec-bd flush' : 'sec-bd'}>{children}</div>}
+    </section>
+  );
+}
+
+/** Abas da página (troca o conteúdo sem sair da tela). */
+export function PageTabs<T extends string>({ tabs, value, onChange }: { tabs: { key: T; label: string; icon?: string }[]; value: T; onChange: (k: T) => void }) {
+  return (
+    <div className="pg-tabs" role="tablist">
+      {tabs.map((t) => (
+        <button key={t.key} type="button" role="tab" aria-selected={value === t.key} className={value === t.key ? 'active' : ''} onClick={() => onChange(t.key)}>
+          {t.icon && <Icon name={t.icon} size={15} />} {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Faixa de números do topo (mesmo visual da tela de estações). */
+export function StatStrip({ items }: { items: { icon: string; label: string; value: ReactNode; tone?: 'ok' | 'violet' }[] }) {
+  return (
+    <div className="stat-grid dash-stats">
+      {items.map((i) => (
+        <div key={i.label} className={`card dstat ${i.tone ?? ''}`}>
+          <span className="dstat-ico"><Icon name={i.icon} size={20} /></span>
+          <div><div className="stat-label">{i.label}</div><p className="big">{i.value}</p></div>
+        </div>
+      ))}
+    </div>
+  );
+}

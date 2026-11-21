@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router-dom';
 import { api, type Station } from '../api';
 import { useAuth } from '../auth';
-import { Empty, Icon, Modal, PageHeader, useUi } from '../ui';
+import { Empty, Icon, Modal, PageHeader, Section, StatStrip, useUi } from '../ui';
 
 interface UserRow {
   id: number;
@@ -38,6 +38,7 @@ export default function Users() {
   const [open, setOpen] = useState(false);
   const [f, setF] = useState<Form>(blank);
   const [error, setError] = useState('');
+  const [q, setQ] = useState('');
 
   const load = async () => {
     setUsers(await api<UserRow[]>('/api/users'));
@@ -102,10 +103,25 @@ export default function Users() {
     <>
       <PageHeader
         title="Usuários"
-        subtitle="Quem pode acessar o painel, quais estações cada operador gerencia e o que ele pode fazer."
+        subtitle="Quem acessa o painel e o que cada pessoa pode fazer."
         actions={<button onClick={openNew}><Icon name="plus" /> Novo usuário</button>}
       />
-      <div className="card tight">
+      {users && (
+        <StatStrip
+          items={[
+            { icon: 'users', label: 'Usuários', value: users.length },
+            { icon: 'cog', label: 'Administradores', value: users.filter((u) => u.role === 'admin').length, tone: 'violet' },
+            { icon: 'radio', label: 'Operadores', value: users.filter((u) => u.role !== 'admin').length, tone: 'ok' },
+          ]}
+        />
+      )}
+
+      <Section flush icon="users" title="Contas com acesso" hint="Administradores veem tudo. Operadores só as estações marcadas e as permissões liberadas.">
+        {users && users.length > 5 && (
+          <div className="list-toolbar">
+            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome ou e-mail…" />
+          </div>
+        )}
         {users === null ? (
           <div className="skeleton" style={{ height: 100, margin: 20, borderRadius: 12 }} />
         ) : users.length === 0 ? (
@@ -114,14 +130,16 @@ export default function Users() {
           <table>
             <thead><tr><th>Usuário</th><th>Perfil</th><th className="hide-sm">Estações</th><th className="hide-sm">Permissões</th><th /></tr></thead>
             <tbody>
-              {users.map((u) => (
+              {users.filter((u) => `${u.name} ${u.email}`.toLowerCase().includes(q.trim().toLowerCase())).map((u) => (
                 <tr key={u.id}>
                   <td>
-                    <span className="avatar-sm">{(u.name || u.email).charAt(0).toUpperCase()}</span>
-                    <strong>{u.name}</strong> <span className="muted">{u.email}</span>
+                    <div className="user-cell">
+                      <span className="avatar-sm">{(u.name || u.email).charAt(0).toUpperCase()}</span>
+                      <div><strong>{u.name}</strong><small>{u.email}</small></div>
+                    </div>
                   </td>
                   <td><span className={`tag ${u.role === 'admin' ? 'accent' : ''}`}>{u.role === 'admin' ? 'Administrador' : 'Operador'}</span></td>
-                  <td className="muted hide-sm">{u.role === 'admin' ? 'Todas' : u.stationIds.length}</td>
+                  <td className="muted hide-sm">{u.role === 'admin' ? 'Todas' : `${u.stationIds.length} de ${stations.length}`}</td>
                   <td className="muted hide-sm">{u.role === 'admin' ? 'Tudo' : `${u.permissions.length} de ${perms.length}`}</td>
                   <td>
                     <div className="table-actions">
@@ -134,7 +152,7 @@ export default function Users() {
             </tbody>
           </table>
         )}
-      </div>
+      </Section>
 
       <Modal
         open={open}
