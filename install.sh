@@ -10,6 +10,7 @@
 # Comandos:
 #   install  (padrão)  instala Docker, baixa o projeto, sobe tudo
 #   update             puxa o código novo e recria o contêiner (os dados em /data não são tocados)
+#   update-run         (interno) usado pelo botão "Atualizar agora" do painel, via systemd
 #   status | logs | restart | stop | start
 #   uninstall          remove contêineres (pergunta antes de apagar os dados)
 #
@@ -234,6 +235,7 @@ do_install() {
   prepare_media_dir
   prepare_disks_dir
   write_config
+  setup_updater
   open_firewall
   install_cli
 
@@ -254,13 +256,92 @@ do_install() {
   echo "   Comandos: radioforge update | status | logs | restart | stop | start | uninstall"
 }
 
+# Atualização pelo painel (Sistema -> Atualizar agora): o painel roda no contêiner e não consegue se recriar sozinho. Ele deixa um
+# pedido na pasta update-queue (montada em /update) e este serviço do systemd, no servidor, roda "radioforge update-run".
+setup_updater() {
+  local q="$RF_DIR/update-queue"
+  mkdir -p "$q"
+  chown 1001:1001 "$q" 2>/dev/null || true
+  cat > "$RF_DIR/docker-compose.update.yml" <<YML
+services:
+  radioforge:
+    environment:
+      UPDATE_DIR: /update
+    volumes:
+      - "${q}:/update"
+YML
+  local list="docker-compose.yml"
+  [ -f "$RF_DIR/docker-compose.override.yml" ] && list="$list:docker-compose.override.yml"
+  list="$list:docker-compose.update.yml"
+  if grep -q '^COMPOSE_FILE=' "$RF_DIR/.env" 2>/dev/null; then
+    sed -i "s#^COMPOSE_FILE=.*#COMPOSE_FILE=${list}#" "$RF_DIR/.env"
+  else
+    echo "COMPOSE_FILE=${list}" >> "$RF_DIR/.env"
+  fi
+  chmod 600 "$RF_DIR/.env"
+  local excl="$RF_DIR/.git/info/exclude" f
+  for f in docker-compose.update.yml update-queue/; do
+    grep -qxF "$f" "$excl" 2>/dev/null || echo "$f" >> "$excl"
+  done
+
+  if ! command -v systemctl >/dev/null 2>&1 || [ ! -d /run/systemd/system ]; then
+    warn "systemd não encontrado: o botão 'Atualizar agora' do painel não vai funcionar. Atualize com: radioforge update"
+    return 0
+  fi
+  cat > /etc/systemd/system/radioforge-update.service <<UNIT
+[Unit]
+Description=RadioForge: atualização pedida pelo painel
+
+[Service]
+Type=oneshot
+Environment="RF_DIR=${RF_DIR}"
+Environment="RF_REPO=${RF_REPO}"
+Environment="RF_BRANCH=${RF_BRANCH}"
+ExecStart=${RF_DIR}/install.sh update-run
+TimeoutStartSec=3600
+UNIT
+  cat > /etc/systemd/system/radioforge-update.path <<UNIT
+[Unit]
+Description=RadioForge: vigia o pedido de atualização do painel
+
+[Path]
+PathExists=${q}/request
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+  systemctl daemon-reload
+  systemctl enable --now radioforge-update.path >/dev/null 2>&1 || warn "Não consegui ligar o radioforge-update.path (o botão 'Atualizar agora' pode não funcionar)."
+}
+
 do_update() {
   need_root
   [ -d "$RF_DIR/.git" ] || die "não encontrei a instalação em $RF_DIR."
   fetch_code
+  # Roda o instalador NOVO (o arquivo acabou de ser trocado pelo git).
+  exec "$RF_DIR/install.sh" _apply
+}
+
+do_apply() {
+  need_root
+  setup_updater
   compose up -d --build
   docker image prune -f >/dev/null 2>&1 || true
   say "Atualizado."
+}
+
+# Chamado pelo systemd quando o painel pede a atualização: grava o andamento em update-queue/status (lido pelo painel).
+do_update_run() {
+  need_root
+  local q="$RF_DIR/update-queue" rc=0
+  mkdir -p "$q"
+  rm -f "$q/request"
+  echo "running $(date +%s)" > "$q/status"
+  "$RF_DIR/install.sh" update > "$q/log" 2>&1 || rc=$?
+  if [ "$rc" -eq 0 ]; then echo "done $(date +%s)" > "$q/status"; else echo "error $(date +%s)" > "$q/status"; fi
+  # o painel (uid 1001) precisa conseguir regravar o status no próximo pedido
+  chown 1001:1001 "$q/status" "$q/log" 2>/dev/null || true
+  chmod 644 "$q/status" "$q/log"
 }
 
 do_uninstall() {
@@ -277,6 +358,8 @@ do_uninstall() {
 case "$CMD" in
   install)   do_install ;;
   update)    do_update ;;
+  _apply)    do_apply ;;
+  update-run) do_update_run ;;
   status)    compose ps ;;
   logs)      compose logs -f --tail=200 ;;
   restart)   compose restart ;;

@@ -11,6 +11,25 @@ const REPO = process.env.UPDATE_REPO ?? 'rudneygarcia/radioforge';
 const BRANCH = process.env.UPDATE_BRANCH ?? 'main';
 const GITHUB_TOKEN = process.env.UPDATE_GITHUB_TOKEN ?? '';
 const UPDATE_WEBHOOK_URL = process.env.UPDATE_WEBHOOK_URL ?? '';
+// Instalação pelo install.sh: o painel (no contêiner) deixa um pedido nesta pasta e um serviço do servidor (systemd) roda "radioforge update".
+const UPDATE_DIR = process.env.UPDATE_DIR ?? '';
+const hostUpdater = () => !!UPDATE_DIR && fs.existsSync(UPDATE_DIR);
+
+type UpdateState = 'idle' | 'queued' | 'running' | 'done' | 'error';
+function readUpdateStatus(): { state: UpdateState; at: number; log: string } {
+  let state: UpdateState = 'idle';
+  let at = 0;
+  try {
+    const [st, ts] = fs.readFileSync(path.join(UPDATE_DIR, 'status'), 'utf8').trim().split(/s+/);
+    if (['queued', 'running', 'done', 'error'].includes(st)) state = st as UpdateState;
+    at = Number(ts) || 0;
+  } catch { /* sem status ainda */ }
+  let log = '';
+  try {
+    log = fs.readFileSync(path.join(UPDATE_DIR, 'log'), 'utf8').slice(-4000);
+  } catch { /* sem log ainda */ }
+  return { state, at, log };
+}
 
 function readJson<T>(url: URL | string): T | null {
   try {
@@ -75,7 +94,7 @@ export async function systemRoutes(app: FastifyInstance) {
     engine: engineMode(),
     repo: REPO,
     branch: BRANCH,
-    canUpdate: !!UPDATE_WEBHOOK_URL,
+    canUpdate: !!UPDATE_WEBHOOK_URL || hostUpdater(),
   }));
 
   // Onde as músicas estão gravadas: no disco do sistema ou em outro (HD externo montado em /data/stations), com espaço livre e teste de escrita.
@@ -111,7 +130,24 @@ export async function systemRoutes(app: FastifyInstance) {
     return { latest, upToDate };
   });
 
+  app.get('/api/system/update-status', async () => (hostUpdater() ? readUpdateStatus() : { state: 'idle', at: 0, log: '' }));
+
   app.post('/api/system/update', async () => {
+    if (!UPDATE_WEBHOOK_URL && hostUpdater()) {
+      const cur = readUpdateStatus();
+      if ((cur.state === 'queued' || cur.state === 'running') && Date.now() / 1000 - cur.at < 30 * 60) {
+        throw new HttpError(409, 'Já há uma atualização em andamento.');
+      }
+      try {
+        fs.writeFileSync(path.join(UPDATE_DIR, 'status'), `queued ${Math.floor(Date.now() / 1000)}
+`);
+        fs.writeFileSync(path.join(UPDATE_DIR, 'request'), `${Date.now()}
+`);
+      } catch (e) {
+        throw new HttpError(500, `Não consegui pedir a atualização ao servidor: ${(e as Error).message}`);
+      }
+      return { ok: true, tracked: true, message: 'Atualização pedida ao servidor. O painel fica no ar durante a compilação e reinicia ao final.' };
+    }
     if (!UPDATE_WEBHOOK_URL) {
       throw new HttpError(400, 'Atualização automática não configurada. Defina UPDATE_WEBHOOK_URL (URL de redeploy) ou atualize pelo seu painel de deploy (o push no GitHub já dispara o deploy no Velix).');
     }
