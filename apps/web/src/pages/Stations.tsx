@@ -25,6 +25,8 @@ export default function Stations() {
   const toSlug = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, 40);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [q, setQ] = useState('');
+  const [only, setOnly] = useState<'all' | 'on' | 'off'>('all');
 
   const load = () => api<Station[]>('/api/stations').then(setStations);
   useEffect(() => {
@@ -59,6 +61,7 @@ export default function Stations() {
   }
 
   const isAdmin = user?.role === 'admin';
+  const visible = (stations ?? []).filter((x) => (only === 'all' || (only === 'on') === x.running) && x.name.toLowerCase().includes(q.trim().toLowerCase()));
   const newButton = (
     <button onClick={() => setOpen(true)}>
       <Icon name="plus" /> Nova estação
@@ -70,10 +73,21 @@ export default function Stations() {
       <PageHeader title="Estações" subtitle="Suas rádios no ar e o que está tocando agora." actions={isAdmin ? newButton : undefined} />
 
       {stations && stations.length > 0 && (
-        <div className="stat-grid" style={{ marginBottom: 20 }}>
-          <div className="card"><div className="stat-label"><Icon name="radio" /> Rádios</div><p className="big">{stations.length}</p></div>
-          <div className="card"><div className="stat-label"><Icon name="play" /> No ar agora</div><p className="big">{stations.filter((x) => x.running).length}<span className="muted" style={{ fontSize: 16 }}> / {stations.length}</span></p></div>
-          <div className="card"><div className="stat-label"><Icon name="users" /> Ouvintes agora</div><p className="big">{stations.reduce((n, x) => n + x.listeners, 0)}</p></div>
+        <div className="stat-grid dash-stats">
+          <div className="card dstat"><span className="dstat-ico"><Icon name="radio" size={20} /></span><div><div className="stat-label">Rádios</div><p className="big">{stations.length}</p></div></div>
+          <div className="card dstat ok"><span className="dstat-ico"><Icon name="play" size={20} /></span><div><div className="stat-label">No ar agora</div><p className="big">{stations.filter((x) => x.running).length}<span className="muted" style={{ fontSize: 16 }}> / {stations.length}</span></p></div></div>
+          <div className="card dstat violet"><span className="dstat-ico"><Icon name="users" size={20} /></span><div><div className="stat-label">Ouvintes agora</div><p className="big">{stations.reduce((n, x) => n + x.listeners, 0)}</p></div></div>
+        </div>
+      )}
+
+      {stations && stations.length > 4 && (
+        <div className="dash-toolbar">
+          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar estação…" />
+          <div className="seg">
+            {([['all', 'Todas'], ['on', 'No ar'], ['off', 'Paradas']] as const).map(([k, l]) => (
+              <button key={k} type="button" className={only === k ? 'active' : ''} onClick={() => setOnly(k)}>{l}</button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -94,26 +108,34 @@ export default function Stations() {
         </div>
       )}
 
+      {stations && stations.length > 0 && visible.length === 0 && (
+        <div className="card"><Empty icon="radio" title="Nenhuma estação encontrada" text="Ajuste a busca ou o filtro." /></div>
+      )}
+
       {stations && stations.length > 0 && (
         <div className="sgrid">
-          {stations.map((s) => (
+          {visible.map((s) => (
             <article key={s.id} className={`scard ${s.running ? 'live' : ''}`}>
               <Link to={`/stations/${s.id}`} className="scard-link">
-                <div className="scard-banner" style={s.coverUrl ? { backgroundImage: `linear-gradient(180deg, rgba(15,23,42,.15), rgba(15,23,42,.65)), url(${s.coverUrl})` } : undefined}>
+                <div className="scard-banner" style={s.coverUrl ? { backgroundImage: `linear-gradient(180deg, rgba(15,23,42,.35), rgba(15,23,42,.7)), url(${s.coverUrl})` } : undefined}>
                   <span className={`badge ${s.running ? 'on' : 'off'}`}>{s.running ? 'no ar' : 'parada'}</span>
                   {s.live && <span className="tag accent" style={{ marginLeft: 6 }}><Icon name="mic" size={12} /> ao vivo</span>}
+                  <span className="scard-pill"><Icon name="users" size={12} /> {s.listeners}</span>
                 </div>
                 <div className="scard-body">
                   <div className="scard-logo"><Cover url={s.nowPlaying?.coverUrl ?? s.coverUrl} size={64} /></div>
                   <h3 className="ellipsis">{s.name}</h3>
-                  {s.description && <p className="muted small-text ellipsis" style={{ margin: 0 }}>{s.description}</p>}
-                  <p className="scard-np ellipsis">
-                    <Icon name={s.live ? 'mic' : 'music'} size={14} />{' '}
-                    {s.live ? `${s.live.name} ao vivo` : s.nowPlaying ? `${s.nowPlaying.artist ? `${s.nowPlaying.artist} — ` : ''}${s.nowPlaying.title}` : 'Sem histórico ainda'}
-                  </p>
+                  <p className="muted small-text ellipsis scard-desc">{s.description || ' '}</p>
+                  <div className="scard-np">
+                    <span className={`eq ${s.running ? 'on' : ''}`} aria-hidden><i /><i /><i /><i /></span>
+                    <div className="scard-np-txt">
+                      <small>{s.live ? 'Ao vivo agora' : 'Tocando agora'}</small>
+                      <span className="ellipsis">{s.live ? `${s.live.name} ao vivo` : s.nowPlaying ? `${s.nowPlaying.artist ? `${s.nowPlaying.artist} — ` : ''}${s.nowPlaying.title}` : 'Sem histórico ainda'}</span>
+                    </div>
+                  </div>
                   <div className="station-meta">
                     <span><Icon name="users" size={14} /> {s.listeners} {s.listeners === 1 ? 'ouvinte' : 'ouvintes'}</span>
-                    <span>{s.streams[0]?.format.toUpperCase()} {s.streams[0]?.bitrate}k</span>
+                    {s.streams[0] && <span className="tag">{s.streams[0].format.toUpperCase()} {s.streams[0].bitrate}k</span>}
                   </div>
                 </div>
               </Link>
